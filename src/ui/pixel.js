@@ -47,12 +47,14 @@ export function drawTitle(cv) {
 }
 
 // ---- rostos 24x24 (HUD) ------------------------------------------------------
-// Cores do Davi em constantes (fáceis de trocar quando a cor do cabelo for confirmada): pele clara, cabelo castanho-escuro
-// um pouco comprido e ondulado (volume nas laterais), nariz reto e marcado (perfil "grego"), sobrancelhas definidas.
+// Cores do Davi em constantes: pele clara; cabelo castanho-escuro quase preto, MUITO cacheado e volumoso (cachos na testa
+// e armando para os lados); barba cheia e escura com bigode; nariz reto e marcado; sobrancelhas escuras; sorriso largo.
 export const DAVI_SKIN = '#f0c6a2';
 export const DAVI_SKIN_SHADE = '#d9a582';
-export const DAVI_HAIR = '#3a2417';
-export const DAVI_HAIR_LIGHT = '#5a3a26';
+export const DAVI_HAIR = '#22150f';
+export const DAVI_HAIR_LIGHT = '#3d281c';
+export const DAVI_BEARD = '#24170f';
+export const DAVI_HORNS = '#6b6b78'; // chifres de fantasia (cinza, para destacar do cabelo)
 export const DAVI_SHIRT = '#f2f2f2';
 // Dono do Cactus: grisalho, de óculos e camisa azul (bem diferente do Davi)
 export const DONO_SKIN = '#e8b98f';
@@ -60,7 +62,8 @@ export const DONO_HAIR = '#a7adb6';
 export const DONO_SHIRT = '#2b5d9f';
 const TONE_BG = { calm: '#6fcf8e', anx: '#ffd23a', stress: '#ea5a41', panic: '#b45fe0' };
 
-export function drawFace(cv, who, tone) {
+/** extra.horns: chifrinhos de fantasia (segredo: aparecem quando o estresse do Davi bate no máximo). */
+export function drawFace(cv, who, tone, extra = null) {
   const c = ctx2(cv, 24, 24);
   tone = TONE_BG[tone] ? tone : 'calm';
   px(c, 0, 0, 24, 24, TONE_BG[tone]);
@@ -77,13 +80,12 @@ export function drawFace(cv, who, tone) {
   px(c, 6, 5, 12, 12, skin); px(c, 7, 17, 10, 1, skin); px(c, 8, 18, 8, 1, skin);
   px(c, 5, 10, 1, 3, skin); px(c, 18, 10, 1, 3, skin);
   if (davi) {
-    // cabelo ondulado: topo volumoso e mechas caindo nas laterais (passando das orelhas)
-    px(c, 5, 2, 14, 4, hair); px(c, 4, 3, 1, 3, hair); px(c, 19, 3, 1, 3, hair);
-    px(c, 3, 5, 3, 9, hair); px(c, 18, 5, 3, 9, hair);
-    px(c, 2, 7, 1, 5, hair); px(c, 21, 7, 1, 5, hair);
-    px(c, 3, 14, 2, 2, hair); px(c, 19, 14, 2, 2, hair);
-    for (const [x, y] of [[6, 2], [9, 1], [12, 2], [15, 1], [3, 8], [20, 9], [4, 12], [19, 12]]) px(c, x, y, 2, 1, hairL); // brilho das ondas
-    px(c, 6, 6, 3, 1, hair); px(c, 10, 6, 2, 1, hair); px(c, 15, 6, 3, 1, hair);   // franja ondulada
+    // cabelo cacheado e volumoso: massa larga em cima e dos lados, cachos soltos caindo na testa
+    px(c, 4, 1, 16, 5, hair); px(c, 2, 3, 3, 11, hair); px(c, 19, 3, 3, 11, hair);
+    px(c, 1, 5, 1, 7, hair); px(c, 22, 5, 1, 7, hair); px(c, 3, 2, 1, 2, hair); px(c, 20, 2, 1, 2, hair);
+    for (const [x, y] of [[5, 0], [9, 0], [13, 0], [17, 1], [1, 4], [22, 4], [2, 13], [20, 13]]) px(c, x, y, 2, 1, hair);   // contorno irregular
+    for (const [x, y] of [[5, 2], [8, 1], [11, 2], [14, 1], [17, 3], [3, 6], [20, 6], [2, 9], [21, 10], [3, 12], [19, 12]]) { px(c, x, y, 1, 1, hairL); px(c, x + 1, y + 1, 1, 1, hairL); } // cachos
+    px(c, 6, 6, 2, 1, hair); px(c, 9, 6, 1, 2, hair); px(c, 12, 6, 2, 1, hair); px(c, 15, 6, 1, 2, hair); px(c, 17, 6, 1, 1, hair); // cachos na testa
     px(c, 5, 10, 1, 3, skin); px(c, 18, 10, 1, 3, skin);                           // orelha aparecendo
   } else {
     px(c, 6, 3, 12, 3, hair); px(c, 5, 4, 1, 5, hair); px(c, 18, 4, 1, 5, hair);   // grisalho curto, entradas
@@ -92,6 +94,12 @@ export function drawFace(cv, who, tone) {
   // nariz: reto e marcado (ponte longa com sombra lateral, ponta e narinas)
   px(c, 11, 9, 2, 6, skin); px(c, 13, 9, 1, 5, shade); px(c, 10, 14, 4, 1, skin); px(c, 10, 15, 4, 1, shade);
   px(c, 10, 15, 1, 1, '#a8705a'); px(c, 13, 15, 1, 1, '#a8705a');
+  if (davi) { // barba cheia e fechada (laterais, queixo) + bigode
+    px(c, 5, 12, 2, 6, DAVI_BEARD); px(c, 17, 12, 2, 6, DAVI_BEARD); px(c, 6, 17, 12, 2, DAVI_BEARD); px(c, 8, 19, 8, 1, DAVI_BEARD);
+    px(c, 7, 15, 2, 3, DAVI_BEARD); px(c, 15, 15, 2, 3, DAVI_BEARD);
+    px(c, 9, 15, 1, 1, DAVI_BEARD); px(c, 14, 15, 1, 1, DAVI_BEARD); px(c, 9, 16, 6, 1, DAVI_BEARD);   // bigode
+    px(c, 6, 18, 1, 1, '#3a281c'); px(c, 16, 18, 1, 1, '#3a281c');
+  }
   if (!davi) { // óculos
     px(c, 7, 9, 4, 3, ink); px(c, 13, 9, 4, 3, ink); px(c, 11, 9, 2, 1, ink);
     px(c, 8, 10, 2, 1, '#9fd4ff'); px(c, 14, 10, 2, 1, '#9fd4ff');
@@ -112,13 +120,21 @@ export function drawFace(cv, who, tone) {
     px(c, 7, 8, 3, 4, '#fff'); px(c, 14, 8, 3, 4, '#fff'); px(c, 8, 9, 1, 2, ink); px(c, 15, 9, 1, 2, ink);
   }
   // boca
-  if (tone === 'calm') { px(c, 9, 16, 1, 1, lip); px(c, 14, 16, 1, 1, lip); px(c, 10, 17, 4, 1, lip); }
+  if (tone === 'calm' && davi) { px(c, 9, 17, 6, 2, '#5a1e1e'); px(c, 9, 17, 6, 1, '#fff'); px(c, 8, 16, 1, 1, lip); px(c, 15, 16, 1, 1, lip); } // sorriso largo
+  else if (tone === 'calm') { px(c, 9, 16, 1, 1, lip); px(c, 14, 16, 1, 1, lip); px(c, 10, 17, 4, 1, lip); }
   else if (tone === 'anx') { px(c, 9, 17, 1, 1, lip); px(c, 10, 16, 1, 1, lip); px(c, 11, 17, 2, 1, lip); px(c, 13, 16, 1, 1, lip); px(c, 14, 17, 1, 1, lip); }
   else if (tone === 'stress') { px(c, 8, 16, 8, 3, '#3a0f0f'); px(c, 9, 16, 6, 1, '#fff'); px(c, 9, 18, 6, 1, '#fff'); }
   else { px(c, 10, 16, 4, 3, '#3a0f0f'); px(c, 11, 17, 2, 1, '#e8556a'); }
   // detalhes
   if (tone === 'anx' || tone === 'panic') { px(c, 19, 5, 1, 2, '#bfe9ff'); px(c, 4, 6, 1, 2, '#bfe9ff'); if (tone === 'panic') px(c, 19, 12, 1, 2, '#bfe9ff'); }
-  if (tone === 'stress') { px(c, 17, 3, 3, 1, '#e00'); px(c, 18, 2, 1, 3, '#e00'); }
+  if (tone === 'stress' && !(extra && extra.horns)) { px(c, 17, 3, 3, 1, '#e00'); px(c, 18, 2, 1, 3, '#e00'); }
+  if (extra && extra.horns && davi) { // chifrinhos curvos de fantasia saindo dos cachos
+    for (const sgn of [-1, 1]) {
+      const bx = sgn < 0 ? 3 : 20;
+      px(c, bx, 2, 1, 2, DAVI_HORNS); px(c, bx - sgn, 1, 1, 2, DAVI_HORNS); px(c, bx - 2 * sgn, 0, 1, 2, DAVI_HORNS); px(c, bx - 3 * sgn, 1, 1, 1, DAVI_HORNS);
+      px(c, bx + sgn, 4, 1, 1, DAVI_HORNS);
+    }
+  }
 }
 
 // ---- Davi de capacete (provisório da foto), 32x32 ------------------------------
@@ -130,10 +146,10 @@ export function drawDaviHelmet(cv) {
   px(c, 24, 4, 5, 5, '#fff7c2'); px(c, 25, 5, 3, 3, '#ffe45e'); // sol
   // ombros / camiseta
   px(c, 5, 27, 22, 5, DAVI_SHIRT); px(c, 13, 26, 6, 2, DAVI_SKIN_SHADE);
-  // cabelo ondulado saindo por baixo do capacete, dos dois lados (até o ombro)
-  px(c, 6, 15, 3, 10, DAVI_HAIR); px(c, 23, 15, 3, 10, DAVI_HAIR); px(c, 5, 18, 1, 6, DAVI_HAIR); px(c, 26, 18, 1, 6, DAVI_HAIR);
-  px(c, 7, 24, 2, 2, DAVI_HAIR); px(c, 23, 24, 2, 2, DAVI_HAIR);
-  for (const [x, y] of [[6, 17], [7, 21], [24, 18], [23, 22]]) px(c, x, y, 2, 1, DAVI_HAIR_LIGHT);
+  // cachos volumosos escapando por baixo e pelos lados do capacete
+  px(c, 4, 13, 5, 13, DAVI_HAIR); px(c, 23, 13, 5, 13, DAVI_HAIR); px(c, 3, 16, 1, 8, DAVI_HAIR); px(c, 28, 16, 1, 8, DAVI_HAIR);
+  for (const [x, y] of [[4, 25], [7, 26], [23, 26], [26, 25], [3, 14], [28, 14]]) px(c, x, y, 2, 1, DAVI_HAIR);
+  for (const [x, y] of [[5, 15], [6, 19], [4, 22], [24, 16], [26, 20], [24, 23]]) { px(c, x, y, 1, 1, DAVI_HAIR_LIGHT); px(c, x + 1, y + 1, 1, 1, DAVI_HAIR_LIGHT); }
   // rosto
   px(c, 9, 14, 14, 12, DAVI_SKIN); px(c, 10, 26, 12, 1, DAVI_SKIN);
   // capacete
@@ -141,12 +157,13 @@ export function drawDaviHelmet(cv) {
   px(c, 7, 7, 18, 1, '#fff2a0'); px(c, 15, 5, 2, 10, '#c4452b'); // faixa central
   px(c, 8, 14, 16, 2, '#1b1230');                     // viseira levantada (sombra)
   px(c, 8, 15, 16, 1, '#3a8fe0');
-  px(c, 9, 25, 14, 1, '#2a1a12');                     // tira do queixo
+  // barba cheia + bigode (a tira do capacete some na barba)
+  px(c, 9, 21, 2, 5, DAVI_BEARD); px(c, 21, 21, 2, 5, DAVI_BEARD); px(c, 10, 24, 12, 3, DAVI_BEARD); px(c, 13, 23, 6, 1, DAVI_BEARD);
   // sobrancelhas definidas, olhos atentos, nariz reto e marcado, sorriso de canto
   px(c, 11, 17, 4, 1, DAVI_HAIR); px(c, 17, 17, 4, 1, DAVI_HAIR);
   px(c, 11, 19, 3, 2, '#fff'); px(c, 18, 19, 3, 2, '#fff'); px(c, 12, 19, 1, 2, '#1c1c24'); px(c, 19, 19, 1, 2, '#1c1c24');
   px(c, 15, 18, 2, 5, DAVI_SKIN); px(c, 17, 18, 1, 4, DAVI_SKIN_SHADE); px(c, 14, 22, 4, 1, DAVI_SKIN_SHADE);
-  px(c, 13, 24, 6, 1, '#9a4a42'); px(c, 18, 23, 1, 1, '#9a4a42');
+  px(c, 13, 24, 6, 2, '#5a1e1e'); px(c, 13, 24, 6, 1, '#fff');   // sorriso largo dentro da barba
 }
 
 // ---- carros 32x16 ------------------------------------------------------------
