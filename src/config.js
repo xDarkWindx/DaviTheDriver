@@ -33,27 +33,32 @@ export const CONFIG = {
 export const QUALITY = {
   leve: {
     id: 'leve', label: 'Leve (gráficos integrados)', implemented: true,
+    // Orçamento-alvo (Intel UHD 770, 1080p, câmera de jogo): até ~350 mil triângulos e ~120 draw calls
+    // (incluindo a passada de sombra). Sem pós-processamento. Materiais Lambert/Phong.
     pixelRatioMax: 1.5,          // -  teto do devicePixelRatio
     antialias: true,             // R  MSAA do contexto WebGL
     materialKind: 'lambert',     // M  'lambert' | 'basic' | 'standard'(hd/TODO)
-    shadows: 'blob',             // M  'none' | 'blob' | 'shadowmap'(hd/TODO)
-    textureSize: 256,            // M  lado (px) das texturas geradas em canvas (chão, asfalto)
+    shadows: 'shadowmap',        // M  'none' | 'blob' | 'shadowmap' (blob = alternativa; o ajuste automático cai p/ blob)
+    shadowMapSize: 1024,         // M  lado do shadow map direcional (PCF simples)
+    shadowRange: 48,             // -  meia-largura (m) do frustum da sombra, que acompanha a câmera
+    textureSize: 512,            // M  lado (px) das texturas geradas em canvas (chão, asfalto, calçada, fachadas)
     anisotropy: 4,               // M
-    signTextureWidth: 1024,      // M  largura do atlas de placas
-    chunkSize: 400,              // M  m — tamanho do chunk de culling de cenário/chão
+    signTextureWidth: 2048,      // M  largura do atlas de placas
+    chunkSize: 200,              // M  m — tamanho do chunk de culling de cenário/chão
     cameraFar: 900,              // -  plano distante da câmera (m)
     viewMul: 1.0,                // -  multiplica a abertura de zoom da câmera
     density: {                   // M  multiplicadores de cenário instanciado (1 = padrão)
-      trees: 1.0, scrub: 1.0, lamps: 1.0, buildings: 1.0, guardrails: 1.0,
+      trees: 1.0, scrub: 1.0, lamps: 1.0, buildings: 1.0, guardrails: 1.0, furniture: 1.0,
     },
-    vehicleLOD: 'low',           // M  'low' | 'high'(TODO) — detalhe dos carros
-    landmarkLOD: 'low',          // M  'low' | 'high'(TODO) — detalhe dos marcos
+    vehicleLOD: 'high',          // M  'low' | 'high' — carros com carroceria modelada (~2-3 mil tri)
+    landmarkLOD: 'high',         // M  'low' | 'high'
     maxTrafficVehicles: 40,      // -  teto p/ systems/traffic.js
     maxPedestrians: 24,          // -  teto p/ systems/traffic.js
-    maxParticles: 300,           // -  teto p/ systems/fx.js (pool do THREE.Points)
-    fxSkidMax: 160,              // -  pool de marcas de pneu (quads instanciados) — systems/fx.js
-    fxGrain: true,               // -  granulação do filtro retrô (div com ruído; sem custo de shader) — systems/fx.js
+    maxParticles: 300,           // -  teto p/ systems/fx.js
     postprocess: null,           // R  gancho: null | (ctx) => { render(dt) } — vazio no leve
+    // Ajuste automático (render/renderer.js): mede o FPS e, abaixo de minFps, desce um degrau:
+    //   1 sem sombra projetada (volta a sombra blob) → 2 resolução reduzida → 3 cenário reduzido/visão mais curta.
+    autoQuality: { enabled: true, minFps: 50, warmupSec: 2.5, windowSec: 3, upFps: 75, upHoldSec: 10 },
   },
   hd: {
     id: 'hd', label: 'HD (placa dedicada) — TODO', implemented: false,

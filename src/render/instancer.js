@@ -50,6 +50,10 @@ export class ChunkedInstancer {
         mesh.matrixAutoUpdate = false;
         mesh.name = `inst:${name}:${key}`;
         if (t.opts.renderOrder) mesh.renderOrder = t.opts.renderOrder;
+        if (t.opts.castShadow) mesh.castShadow = true;
+        if (t.opts.receiveShadow) mesh.receiveShadow = true;
+        if (t.opts.visible === false) mesh.visible = false;
+        if (t.opts.group) t.opts.group.push(mesh);
         this.scene.add(mesh);
         this.meshes.push(mesh);
       }
@@ -66,7 +70,7 @@ export class ChunkedMeshBuilder {
   _b(x, z) {
     const key = Math.floor(x / this.size) + ',' + Math.floor(z / this.size);
     let b = this.buckets.get(key);
-    if (!b) { b = { p: [], c: [] }; this.buckets.set(key, b); }
+    if (!b) { b = { p: [], c: [], n: [] }; this.buckets.set(key, b); }
     return b;
   }
   tri(x0, y0, z0, x1, y1, z1, x2, y2, z2, color) {
@@ -77,6 +81,27 @@ export class ChunkedMeshBuilder {
     else b.p.push(x0, y0, z0, x1, y1, z1, x2, y2, z2);
     _c.set(color);
     b.c.push(_c.r, _c.g, _c.b, _c.r, _c.g, _c.b, _c.r, _c.g, _c.b);
+    b.n.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+  }
+  /** Face VERTICAL (meio-fio, muretas): de (ax,az) a (bx,bz), entre y0 e y1, normal horizontal (nx,nz) para fora. */
+  wall(ax, az, bx, bz, y0, y1, color, nx, nz) {
+    const b = this._b((ax + bx) / 2, (az + bz) / 2);
+    // ordem anti-horária vista de fora (normal n)
+    const cr = (bx - ax) * nz - (bz - az) * nx; // = n · (-dz, dx): >0 => A0,B0,B1 já é anti-horário visto de fora
+    const P = cr > 0 ? [ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az]
+      : [ax, y0, az, ax, y1, az, bx, y1, bz, ax, y0, az, bx, y1, bz, bx, y0, bz];
+    for (const v of P) b.p.push(v);
+    _c.set(color);
+    for (let i = 0; i < 6; i++) { b.c.push(_c.r, _c.g, _c.b); b.n.push(nx, 0, nz); }
+  }
+  /** Parede vertical ao longo de uma polilinha (Float64Array xz); side = +1 normal à direita do sentido, -1 à esquerda. */
+  wallStrip(line, y0, y1, color, side = 1) {
+    const n = line.length / 2;
+    for (let i = 0; i < n - 1; i++) {
+      const ax = line[i * 2], az = line[i * 2 + 1], bx = line[i * 2 + 2], bz = line[i * 2 + 3];
+      const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1;
+      this.wall(ax, az, bx, bz, y0, y1, color, (-dz / l) * side, (dx / l) * side);
+    }
   }
   /** Quadrilátero a-b-c-d (ordem em volta). */
   quad(ax, az, bx, bz, cx, cz, dx, dz, y, color) {
@@ -113,7 +138,7 @@ export class ChunkedMeshBuilder {
     }
   }
   /** uvScale: UV = (x, z) / uvScale — para textura de detalhe (asfalto gasto) em coordenadas de mundo. */
-  build(scene, material, name = 'ground', uvScale = 8) {
+  build(scene, material, name = 'ground', uvScale = 8, receiveShadow = false) {
     const meshes = [];
     for (const [key, b] of this.buckets) {
       const g = new THREE.BufferGeometry();
@@ -121,13 +146,11 @@ export class ChunkedMeshBuilder {
       const uv = new Float32Array((b.p.length / 3) * 2);
       for (let i = 0, j = 0; i < b.p.length; i += 3, j += 2) { uv[j] = b.p[i] / uvScale; uv[j + 1] = b.p[i + 2] / uvScale; }
       g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-      const nrm = new Float32Array(b.p.length);
-      for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
-      g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3));
       g.computeBoundingSphere();
       const mesh = new THREE.Mesh(g, material);
-      mesh.matrixAutoUpdate = false;
+      mesh.matrixAutoUpdate = false; mesh.receiveShadow = receiveShadow;
       mesh.name = `${name}:${key}`;
       scene.add(mesh); meshes.push(mesh);
     }
