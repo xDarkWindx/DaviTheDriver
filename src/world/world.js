@@ -254,6 +254,45 @@ function buildSigns(atlas, camDir, inst, colliders, net) {
     inst.add('box', cx - dx * 0.08, y0 - 0.05, cz - dz * 0.08, heading, w + 0.1, h + 0.1, 0.06, 0x2a3a30); // costas
     const c = makeOBB(cx, cz, 0.3, 0.3, 0); c.kind = 'pole'; colliders.add(c);
   }
+  // placas de trânsito pequenas (billboard no poste): limite, PARE, dê a preferência, pedestre, nomes de quadra
+  const T0 = { x: 0, z: 0, tx: 0, tz: 0 };
+  const small = (key, x, z, size = 0.8) => {
+    if (!atlas.uv[key] || net.clearance(x, z, 6) < 0.25) return;
+    const u = atlas.uv[key], a = atlas.aspect[key], h = size, w = h * a, y0 = 2.6 - h * 0.15;
+    quad([x - rx * w / 2, y0, z - rz * w / 2], [x + rx * w / 2, y0, z + rz * w / 2], [x + rx * w / 2, y0 + h, z + rz * w / 2], [x - rx * w / 2, y0 + h, z - rz * w / 2], u, [dx, 0, dz]);
+    inst.add('postePlaca', x - dx * 0.05, 0, z - dz * 0.05, 0, 1, (y0 + h * 0.5) / 2.6, 1, 0xffffff);
+    const c = makeOBB(x, z, 0.12, 0.12, 0); c.kind = 'pole'; colliders.add(c);
+  };
+  const atRight = (seg, dir, s, extra = 1.3) => {
+    samplePts(seg.pts, seg.cum, s, T0);
+    const off = dir > 0 ? seg.edgeR + extra : seg.edgeL - extra;
+    return [T0.x - T0.tz * off, T0.z + T0.tx * off];
+  };
+  for (const seg of net.segments.values()) {
+    if (seg.kind === 'ring' || seg.length < 70) continue;
+    const local = seg.kind === 'local' || /^rua_|clsw|eqrsw/.test(seg.id);
+    for (const dir of [1, -1]) {
+      if (!(dir > 0 ? seg.lanesF : seg.lanesB)) continue;
+      const nS = net.getNode(dir > 0 ? seg.from : seg.to), nE = net.getNode(dir > 0 ? seg.to : seg.from);
+      // limite logo depois do início (sentido dir)
+      if (seg.length > 110 || !local) {
+        const s0 = nS.radius + 14, s = dir > 0 ? s0 : seg.length - s0;
+        small('lim' + seg.limitKmh, ...atRight(seg, dir, s), 0.75);
+      }
+      // aproximação: rotatória => dê a preferência; rua interna chegando em cruzamento sem semáforo => PARE
+      const sEnd = nE.radius + 4, se = dir > 0 ? seg.length - sEnd : sEnd;
+      if (nE.type === 'ring') small('preferencia', ...atRight(seg, dir, se), 0.8);
+      else if (local && nE.type === 'junction' && nE.signalId < 0 && nE.segs.length >= 3) small('pare', ...atRight(seg, dir, se), 0.75);
+    }
+  }
+  for (const cw of net.crosswalks) {
+    if (cw.auto) continue;
+    const seg = net.getSegment(cw.segId);
+    small('pedestre', ...atRight(seg, 1, Math.max(0, cw.s - 6), 1.2), 0.75);
+    if (!seg.oneWay) small('pedestre', ...atRight(seg, -1, Math.min(seg.length, cw.s + 6), 1.2), 0.75);
+  }
+  for (const [t, x, z] of QUADRA_SPOTS) small('q:' + t, x, z, 0.62);
+
   // letreiros de telhado (deitados; "cima" do texto = para longe da câmera)
   const roof = (key, x, y, z, w) => {
     const u = atlas.uv[key], a = atlas.aspect[key], h = w / a;
