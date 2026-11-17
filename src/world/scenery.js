@@ -327,7 +327,7 @@ export function buildScenery(sb) {
   }
 
   // --- Parque da Cidade (enorme, ao sul do Eixo, entre EPIG e W3)
-  sb.forest(X(-990), 190, X(-460), 800, 230, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
+  sb.forest(X(-990), 190, X(-460), 800, 180, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
 
   // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2; além da L2)
   const superquadra = (x0, z0, x1, z1) => {
@@ -395,7 +395,7 @@ export function buildScenery(sb) {
     'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_n2', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
     's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'l2m_far', 'safs_east', 'l4_sul', 'l4_norte'])
     sb.rowAlong(id, 6.5, 13);
-  sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
+  sb.rowAlong('parque', 5, 14, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
   for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
     sb.rowAlong(id, 9, 16, ['cerrado', 'cerrado', 'ipe_amarelo', 'ipe_roxo']);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.rowAlong(id, 10, 15, ['mangueira', 'ipe_rosa', 'ipe_amarelo', 'cerrado']);

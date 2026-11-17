@@ -386,6 +386,8 @@ draw calls / 290–298 mil tri; SCS 114–122 / 282–313 mil; Eixo 64–65 / 17
 281–297 mil (o segundo número é com o zoom máximo de alta velocidade). Simulação por passo de 1/60 s ≈ 0,8 ms (trânsito ~0,5,
 jogador ~0,13, GPS ~0,12 em média com picos a cada 0,5 s, humor ~0,05, regras ~0,01). Os carros do trânsito usam sombra blob:
 com eles projetando no shadow map o SCS passava de 350 mil triângulos (`SHADOW_TRAFFIC` em `traffic/render.js`).
+Medido na fase 5 (pool 88, Eixo mais cheio, câmera de jogo, SwiftShader): pior caso Via S3 107 draw calls / 247 mil tri; Parque 96 / 311
+mil (o anel ficou mais curto: floresta e fileira de árvores afinadas para caber); Sudoeste 96–110 / 276–311 mil; passo 0,16 ms em média.
 Medido na fase 4 (robô dirigindo as rotas, câmera de jogo, pool de trânsito 64, SwiftShader 1280×720): pior caso no Sudoeste/QRSW 2
 111 draw calls / 331 mil tri; Via S3/SCS 101–103 / 250–306 mil; Parque 100 / 333 mil; Eixo 92–94 / 232 mil; STJ 70–87 / 228–242 mil.
 Passo de simulação 0,15 ms em média (trânsito 0,10 ms); ~0,4 % dos passos passam de 4 ms (pausas de GC do headless, não de um sistema).
