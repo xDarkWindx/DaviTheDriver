@@ -71,6 +71,7 @@
     .photo .tape { position: absolute; top: -.7em; left: 50%; width: 5em; height: 1.4em; margin-left: -2.5em; background: rgba(255,201,40,.8); transform: rotate(3deg); border: .08em solid rgba(0,0,0,.2); }
     .photo-frame { width: 100%; aspect-ratio: 1; background: #7cc4f2; border: .14em solid var(--ink); overflow: hidden; }
     .photo-frame .avatar, .photo-frame .photo-img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .photo-frame [hidden] { display: none; } /* o display:block acima anulava [hidden]: a foto ficava fora da moldura */
     .photo figcaption { margin-top: .45em; font-size: .68em; font-weight: 800; text-align: center; letter-spacing: .06em; line-height: 1.25; font-family: ui-monospace, "DejaVu Sans Mono", Consolas, monospace; }
     .records { margin-top: 1.1em; background: rgba(255,255,255,.07); border: .14em solid rgba(255,244,214,.5); padding: .6em .8em; }
     .rec-where { font-size: .7em; opacity: .8; margin-bottom: .4em; line-height: 1.3; }
