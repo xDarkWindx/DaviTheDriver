@@ -33,6 +33,7 @@ export const TUNING = {
   cwCarTurn: 7,        // s de "vez dos carros" depois que uma faixa sem semáforo esvazia
   cwJoin: 2.5,         // s após o 1º começar a atravessar em que outros ainda entram junto
   // trecho sem ultrapassagem: o lento com fila atrás encosta no acostamento e deixa passar (ninguém fica preso atrás dele a rota toda)
+  honkEventGap: 3.5,  // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação)
   spawnQueueMax: 3,   // parados na faixa a partir dos quais não nasce mais ninguém nela
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
@@ -813,7 +814,7 @@ export class TrafficSim {
     const dxp = v.x - this.px, dzp = v.z - this.pz, dP2 = dxp * dxp + dzp * dzp;
     const leadIsPlayer = v.leadKind === LEAD.PLAYER && v.leadGap < 30;
     // impaciência atrás do jogador parado (buzina)
-    if (leadIsPlayer && v.speed < 0.6 && Math.abs(this.pSpeed) < 0.6 && v.leadGap < 12 && !this._playerFacingRed()) {
+    if (leadIsPlayer && v.speed < 0.6 && Math.abs(this.pSpeed) < 0.6 && v.leadGap < 12 && !this._playerFacingRed() && !(this._hasCw && this.cwAhead.dist < 15 && (this.cwAhead.occupied || this.cwAhead.waiting > 0))) {
       v.impatT += dtT;
       if (v.impatT > p.honkPatience * (1 - 0.5 * v.aggression)) { this._honk(v, true); v.impatT = -2; v.aggression = Math.min(1, v.aggression + 0.05); }
     } else if (v.impatT > 0) v.impatT = 0; else v.impatT = Math.min(0, v.impatT + dtT);
@@ -831,7 +832,7 @@ export class TrafficSim {
       else if (rng() < 0.12) this._honk(v, true);
     }
     // moto buzinando no corredor perto do jogador
-    if (p.honky && v.filtering && dP2 < 225 && rng() < 0.3) this._honk(v, true);
+    if (p.honky && v.filtering && dP2 < 225 && rng() < 0.08) this._honk(v, true);
     this._tryLaneChange(v, false);
   }
 
@@ -882,6 +883,8 @@ export class TrafficSim {
     const slow = st.lGap < 25 && st.lSpeed < v.v0 - 2;
     if (slow && sib.length > 1 && lane.length - v.w.s > 25) {
       if (!v.filtering) {
+        // corredor ocupado por outra moto ao lado: espera (duas motos não dividem o mesmo vão)
+        for (let i = 0; i < this.vehicles.length; i++) { const o = this.vehicles[i]; if (o !== v && o.filtering && Math.abs(o.w.s - v.w.s) < 6 && (o.w.lane.id === lane.id || sib.indexOf(o.w.lane.id) >= 0)) return; }
         const side = lane.index + 1 < sib.length ? -1 : 1; // corredor à esquerda; se já é a da esquerda, à direita
         v.latTarget = side * this.laneW[lane.id] * 0.5; v.filtering = true;
       }
@@ -973,7 +976,7 @@ export class TrafficSim {
     if (v.honkCd > 0) return;
     v.honkT = 0.35 + this.rng() * 0.6; v.honking = true; v.honkCd = 2.5 + this.rng() * 2;
     if (atPlayer && this.honkGlobalCd <= 0) {
-      this.honkGlobalCd = 0.7;
+      this.honkGlobalCd = TUNING.honkEventGap; // o som toca sempre; o evento (humor) no máximo 1 a cada honkEventGap s
       this._emit(this.EV.HONKED_AT, { id: v.id, otherId: v.id, kind: v.kind, persona: v.persona, x: v.x, z: v.z });
     }
   }

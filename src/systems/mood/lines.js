@@ -87,7 +87,7 @@ export const BANKS = {
     'Esse vermelho veio rápido demais.',
   ] },
   fineCrosswalk: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
-    'Opa, tinha gente na faixa!', ['Caralho, a faixa! Desculpa!', 'Caramba, a faixa! Desculpa!'], 'Desculpa, moça! Desculpa!',
+    'Opa, tinha gente na faixa!', ['Caralho, a faixa! Foi mal!', 'Caramba, a faixa! Foi mal!'], 'Foi mal, moça! Foi mal!',
     'Brasília não perdoa faixa, né…',
   ] },
   fineBus: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [

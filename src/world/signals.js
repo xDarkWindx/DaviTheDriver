@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { EV } from '../core/events.js';
 import { makeRng } from '../core/math.js';
 
-export const SIGNAL_TIMING = { green: 13, yellow: 3, allRed: 1.5, pedWalk: 9 };
+export const SIGNAL_TIMING = { green: 15, yellow: 3, allRed: 1.0, pedWalk: 9 };
 
 const LAMP_ON = [new THREE.Color(0xff2a1a), new THREE.Color(0xffc21a), new THREE.Color(0x2bff6a)];
 const LAMP_OFF = [new THREE.Color(0x3a1310), new THREE.Color(0x3a2e10), new THREE.Color(0x113a1c)];

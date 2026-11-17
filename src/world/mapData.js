@@ -111,7 +111,7 @@ export const MAP = {
   // median = canteiro central (m). layer: 0 chão, 1 viaduto, 2 viaduto sobre viaduto (só visual).
   roads: [
     // --- Sudoeste (QRSW 2 = casa). Ligações externas SÓ pela Av. das Jaqueiras.
-    { id: 'qrsw2', name: 'QRSW 2 — Sudoeste', from: 'J_JAQ2', to: 'J_Q2a', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
+    { id: 'qrsw2', name: 'QRSW 2 — Sudoeste', from: 'J_JAQ2', to: 'J_Q2a', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 40, kind: 'local' },
     { id: 'qrsw2_e', name: 'QRSW 2 — Sudoeste', from: 'J_Q2a', to: 'rq_w', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
     { id: 'eqrsw', name: 'EQRSW (sem saída)', from: 'rq_e', to: 'D_EQ', via: [[-1190, 206]], corner: 30, lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
     { id: 'quarta_av', name: 'Quarta Avenida', from: 'rq_se', to: 'rt_nw', via: [[-1228, 300], [-1200, 370]], corner: 40,
@@ -149,7 +149,7 @@ export const MAP = {
     // --- Parque da Cidade: anel interno, sinuoso e lento (Pátio Brasil → arco para sudoeste → Balão da EPIG)
     { id: 'parque', name: 'Parque da Cidade (anel interno)', from: 'J_PB', to: 'rep_e',
       via: [[-520, 222], [-575, 300], [-600, 390], [-660, 455], [-700, 545], [-790, 600], [-880, 655], [-960, 668]], corner: 45,
-      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 40, kind: 'local' },
+      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 50, kind: 'local' },
 
     // --- Eixo Monumental: duas pistas de mão única com canteiro central gigante
     { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
@@ -163,7 +163,7 @@ export const MAP = {
     { id: 'alca_eixao', name: 'Alça Eixo → Eixão Sul', from: 'D_EX', to: 'M_EX', via: [[-74, 52], [-34, 86], [-10, 132]], corner: 26,
       lanesF: 1, lanesB: 0, laneW: 4.5, limitKmh: 40, kind: 'ramp', layer: 1 },
     { id: 'alca_rodo', name: 'Alça Via S2 → Eixo (Rodoviária)', from: 'S2_J', to: 'X_N1', via: [[150, 80], [172, 30], [174, -14]], corner: 22,
-      lanesF: 1, lanesB: 0, laneW: 4.5, limitKmh: 40, kind: 'ramp', layer: 1 },
+      lanesF: 1, lanesB: 0, laneW: 4.5, limitKmh: 50, kind: 'ramp', layer: 1 },
     { id: 'rw_north', name: 'EPIA (acesso norte)', from: 'rw_n', to: 'RW_N_E', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'arterial' },
     { id: 'rw_west', name: 'Eixo Monumental (Cruzeiro)', from: 'rw_w', to: 'RW_W_E', lanesF: 2, lanesB: 2, median: 6, limitKmh: 60, kind: 'arterial' },
     { id: 're_north', name: 'Via N2', from: 're_n', to: 'RE_N_E', lanesF: 2, lanesB: 2, median: 2, limitKmh: 50, kind: 'urban' },
@@ -181,7 +181,7 @@ export const MAP = {
     { id: 's3_saus', name: 'Via S3 (SAUS)', from: 'J_L2b', to: 'J_S3a', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
     { id: 's3_mid_e', name: 'Via S3', from: 'J_S3a', to: 'M_S3', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
     { id: 's3_mid', name: 'Via S3', from: 'M_S3', to: 'J_S3b', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban', layer: 0, busLane: 0 },
-    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 2, lanesB: 2, limitKmh: 40, kind: 'urban', busLane: 0 },
+    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban', busLane: 0 },
 
     // --- W3 Sul
     { id: 'w3_n', name: 'W3 Sul', from: 'J_W3N', to: 'J_PB', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },
