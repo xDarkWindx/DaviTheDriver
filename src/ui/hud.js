@@ -1,6 +1,6 @@
 // HUD de jogo. Regra de ouro: o DOM só é tocado quando o valor (já arredondado) muda.
 import { el, setText, setClass, setStyle, clamp, fmtTime, fmtInt, fmtMoney, fmtMult, fmtDist } from './dom.js';
-import { drawFace } from './pixel.js';
+import { drawFace, drawGesture } from './pixel.js';
 import { Minimap } from './minimap.js';
 import { ACTIONS, FINE_BY } from './texts.js';
 
@@ -192,15 +192,19 @@ export class Hud {
 
   // ---- balões de fala ----------------------------------------------------
   say(p) {
-    if (!p || !p.text) return;
-    if (p.text === this._lastSay.text && this.clock - this._lastSay.at < 1) return;
-    this._lastSay.text = p.text; this._lastSay.at = this.clock;
+    const text = p && p.text ? String(p.text) : '';
+    const gesture = p && p.gesture ? String(p.gesture) : null;
+    if (!p || (!text && !gesture)) return;
+    if (text === this._lastSay.text && this.clock - this._lastSay.at < 1) return;
+    this._lastSay.text = text; this._lastSay.at = this.clock;
     const role = p.role === 'passenger' ? 'passenger' : 'driver';
     const q = this._bubQueue[role];
     let ttl = +p.ttl; if (ttl > 60) ttl /= 1000;
-    if (!(ttl > 0)) ttl = clamp(2.3 + p.text.length * 0.045, 2.6, 6);
-    q.push({ who: p.who === 'dono' ? 'dono' : 'davi', role, text: String(p.text), tone: p.tone || 'anx', ttl });
-    while (q.length > 3) q.shift();
+    if (!(ttl > 0)) ttl = clamp(2 + text.length * 0.04, 2.2, 5);
+    q.push({ who: p.who === 'dono' ? 'dono' : 'davi', role, text, tone: p.tone || 'anx', ttl, gesture });
+    while (q.length > 2) q.shift();
+    // fala nova chegando: as mais antigas somem mais rápido (sem parede de texto)
+    for (const b of this._bubList) if (b.role === role && !b.leaving && b.until > this.clock + 0.7) b.until = this.clock + 0.7;
     this._pumpBubbles(role);
   }
 
@@ -209,9 +213,13 @@ export class Hud {
     let n = 0; for (const b of this._bubList) if (b.role === role) n++;
     while (n < 2 && q.length) {
       const s = q.shift();
-      const node = el('div', `bubble tone-${s.tone}`, col);
+      const letters = s.text.replace(/[^A-Za-zÀ-ú]/g, ''), caps = letters.length >= 4 && letters === letters.toUpperCase();
+      const loud = caps || s.tone === 'panic' || /!{2,}/.test(s.text);
+      const node = el('div', `bubble tone-${s.tone}${loud ? ' loud' : ''}${s.text ? '' : ' gesture-only'}`, col);
       el('b', 'bub-name', node, s.who === 'davi' ? 'DAVI' : 'DONO');
-      el('span', 'bub-text', node, s.text);
+      const row = el('div', 'bub-row', node);
+      if (s.gesture) drawGesture(el('canvas', 'bub-gesture', row), s.gesture);
+      if (s.text) el('span', 'bub-text', row, s.text);
       this._bubList.push({ node, role, until: this.clock + s.ttl });
       n++;
     }

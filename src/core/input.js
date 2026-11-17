@@ -1,5 +1,5 @@
 // Entrada: teclado (+ API "virtual" para toque/automação).
-// Ações: up, down, left, right, handbrake, horn, breathe, curse, pause.
+// Ações: up, down, left, right, handbrake, horn, breathe, curse, flash (F, piscar farol), pause.
 import { EV } from './events.js';
 
 const KEYMAP = {
@@ -11,18 +11,19 @@ const KEYMAP = {
   KeyH: 'horn',
   KeyR: 'breathe',
   KeyX: 'curse',
+  KeyF: 'flash',
   KeyP: 'pause', Escape: 'pause',
 };
 
 // Ações que viram evento ao serem pressionadas (só durante PLAYING)
-const ACTION_EVENTS = { horn: EV.HORN, breathe: EV.BREATHE, curse: EV.CURSE };
+const ACTION_EVENTS = { horn: EV.HORN, breathe: EV.BREATHE, curse: EV.CURSE, flash: EV.FLASH };
 
 export class Input {
   constructor(events) {
     this.events = events;
     this.keys = Object.create(null);     // teclado
     this.virtual = Object.create(null);  // toque / scripts
-    this.held = { up: false, down: false, left: false, right: false, handbrake: false, horn: false, breathe: false, curse: false, pause: false };
+    this.held = { up: false, down: false, left: false, right: false, handbrake: false, horn: false, breathe: false, curse: false, flash: false, pause: false };
     // Eixos já combinados (lidos pelo player)
     this.axes = { throttle: 0, brake: 0, steer: 0 }; // steer: +1 = esquerda
     this.handbrake = false;

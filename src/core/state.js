@@ -71,7 +71,7 @@ export function createState() {
     score: { points: 0, multiplier: 1, inZone: false, zoneLo: 0, zoneHi: 0 },
 
     // Opções do jogador. DONO: ui (escreve e persiste em localStorage, emite EV.SETTINGS_CHANGE). Áudio/fx só LEEM.
-    settings: { volume: 0.7, muted: false, retro: true, quality: 'leve' },
+    settings: { volume: 0.7, muted: false, retro: true, quality: 'leve', profanity: true },
 
     // Resultado da viagem. DONO: rules.js — preencher ANTES de emitir REQ_FINISH/TRIP_FINISH (a UI lê no TRIP_FINISH).
     // { reason:'chegou'|'bateu'|'desistiu'|'tomouOCarro', time, points, grade:'A'..'F', title, fines:[{code,label,amount,points}],

@@ -119,6 +119,14 @@ export const TOASTS = {
   peakAnx: 'ANSIEDADE NO TALO!',
   peakStress: 'ESTRESSE NO TALO!',
 };
+// Versões com tempero de trânsito (só com o interruptor "Palavrões" ligado). Sem ofensa a grupos.
+export const TOASTS_RUDE = {
+  overtaken: [['Ultrapassado!', 'Vai, passa, fominha! Passa!'], ['Ultrapassado!', 'Que merda, até esse me passou.']],
+  cutOff: [['Fechado!', 'Pô, cara, setinha custa o quê?!'], ['Fechado!', 'Porra, olha o espelho!']],
+  honkedAt: [['Buzinaram pra você', 'Buzina o quê, rapaz? Vai catar coquinho.']],
+  nearMiss: [['Raspou!', 'Caralho, passou a um dedo!']],
+};
+
 export const PEAK_SUB = {
   davi: 'Respira, Davi. R.',
   dono: 'Pelo amor do Cactus…',

@@ -35,3 +35,27 @@ export function makeMaskedMaterial(kind = 'lambert', params = {}) {
   mat.customProgramCacheKey = () => 'masked-' + kind;
   return mat;
 }
+
+/**
+ * Material de FACHADA para InstancedMesh de caixas unitárias (base em y=0): a textura (1 célula = tileW × tileH m)
+ * é repetida em METROS a partir da escala de cada instância (sem esticar). Faces de cima/baixo usam o canto
+ * liso da textura. Cor final = textura × cor da instância. Recebe/projeta sombra como qualquer Lambert.
+ */
+export function makeFacadeMaterial(texture, tileW = 6.4, tileH = 3) {
+  const mat = new THREE.MeshLambertMaterial({ map: texture });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+#if defined( USE_MAP ) && defined( USE_INSTANCING )
+  {
+    vec3 isc = vec3( length( instanceMatrix[ 0 ].xyz ), length( instanceMatrix[ 1 ].xyz ), length( instanceMatrix[ 2 ].xyz ) );
+    vec2 fuv;
+    if ( abs( normal.y ) > 0.5 ) fuv = vec2( 0.02 * ${tileW.toFixed(3)}, 0.02 * ${tileH.toFixed(3)} );
+    else if ( abs( normal.x ) > 0.5 ) fuv = vec2( ( position.z + 0.5 ) * isc.z, position.y * isc.y );
+    else fuv = vec2( ( position.x + 0.5 ) * isc.x, position.y * isc.y );
+    vMapUv = fuv / vec2( ${tileW.toFixed(3)}, ${tileH.toFixed(3)} );
+  }
+#endif`);
+  };
+  mat.customProgramCacheKey = () => `facade-${tileW}-${tileH}`;
+  return mat;
+}

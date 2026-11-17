@@ -13,7 +13,7 @@ import { buildHowTo, buildOptions } from './panels.js';
 import { buildEndModel, renderEnd, rollSinistro } from './end.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 import { Demo, demoRequested } from './demo.js';
-import { TOASTS, PEAK_SUB, PAUSE_QUIPS } from './texts.js';
+import { TOASTS, TOASTS_RUDE, PEAK_SUB, PAUSE_QUIPS } from './texts.js';
 
 export default {
   name: 'ui',
@@ -82,11 +82,11 @@ export default {
       const i = p && p.intensity != null ? +p.intensity : 0.3;
       this.hud.say({ who: st.trip.passenger || 'davi', role: 'passenger', text: p && p.text, tone: i > 0.66 ? 'panic' : i > 0.33 ? 'stress' : 'anx', ttl: p && p.ttl });
     });
-    const pickT = rnd;
-    ev.on(EV.OVERTAKEN, () => { const [a, b] = pickT(TOASTS.overtaken); this.hud.toast('info', a, b, 2.6, 'overtaken'); });
-    ev.on(EV.CUT_OFF, () => { const [a, b] = pickT(TOASTS.cutOff); this.hud.toast('warn', a, b, 2.8, 'cutoff'); });
-    ev.on(EV.HONKED_AT, () => { const [a, b] = pickT(TOASTS.honkedAt); this.hud.toast('info', a, b, 2.4, 'honked'); });
-    ev.on(EV.NEAR_MISS, () => { const [a, b] = pickT(TOASTS.nearMiss); this.hud.toast('warn', a, b, 2.2, 'near'); });
+    const pickT = (key) => rnd(st.settings.profanity !== false && Math.random() < 0.6 ? TOASTS_RUDE[key] : TOASTS[key]);
+    ev.on(EV.OVERTAKEN, () => { const [a, b] = pickT('overtaken'); this.hud.toast('info', a, b, 2.6, 'overtaken'); });
+    ev.on(EV.CUT_OFF, () => { const [a, b] = pickT('cutOff'); this.hud.toast('warn', a, b, 2.8, 'cutoff'); });
+    ev.on(EV.HONKED_AT, () => { const [a, b] = pickT('honkedAt'); this.hud.toast('info', a, b, 2.4, 'honked'); });
+    ev.on(EV.NEAR_MISS, () => { const [a, b] = pickT('nearMiss'); this.hud.toast('warn', a, b, 2.2, 'near'); });
     ev.on(EV.MOOD_PEAK, (p) => {
       const who = p && p.who === 'dono' ? 'dono' : 'davi';
       this.hud.toast('peak', p && p.bar === 'stress' ? TOASTS.peakStress : TOASTS.peakAnx, PEAK_SUB[who], 2.6, 'peak' + (p && p.bar));

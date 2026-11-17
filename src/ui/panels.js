@@ -58,6 +58,11 @@ export function buildOptions(layer, settings, apply) {
   el('small', 'opt-hint', labR, 'granulado, vinheta e cores de fita antiga');
   const retro = switchBtn(rowRetro, 'opt-retro');
 
+  const rowP = el('div', 'opt', body);
+  const labP = el('span', 'opt-lab', rowP, 'Palavrões');
+  el('small', 'opt-hint', labP, 'xingamento de trânsito nas falas (nada contra ninguém)');
+  const prof = switchBtn(rowP, 'opt-profanity');
+
   const rowQ = el('div', 'opt', body);
   el('span', 'opt-lab', rowQ, 'Qualidade gráfica');
   const seg = el('div', 'seg', rowQ);
@@ -67,13 +72,14 @@ export function buildOptions(layer, settings, apply) {
   vol.addEventListener('input', () => { apply('volume', vol.value / 100); sync(); });
   mute.onclick = () => { apply('muted', !settings.muted); sync(); };
   retro.onclick = () => { apply('retro', !settings.retro); sync(); };
+  prof.onclick = () => { apply('profanity', !settings.profanity); sync(); };
   leve.onclick = () => { apply('quality', 'leve'); sync(); };
 
   function sync() {
     vol.value = Math.round(settings.volume * 100);
     volOut.textContent = Math.round(settings.volume * 100) + '%';
     vol.style.setProperty('--fill', vol.value + '%');
-    setSwitch(mute, settings.muted); setSwitch(retro, settings.retro);
+    setSwitch(mute, settings.muted); setSwitch(retro, settings.retro); setSwitch(prof, settings.profanity !== false);
     leve.classList.toggle('sel', settings.quality === 'leve');
   }
   m.sync = sync; sync();

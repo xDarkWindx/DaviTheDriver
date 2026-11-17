@@ -149,3 +149,17 @@ export function drawSkyline(cv) {
     px(c, tx, ty + 6, 2, 12, '#4a2a1a'); px(c, tx - 5, ty, 12, 7, '#ffc928'); px(c, tx - 3, ty - 3, 8, 4, '#ffd95a'); px(c, tx - 7, ty + 3, 4, 3, '#ffb000');
   }
 }
+
+// ---- ícones de gesto 14x14 (balões de fala) ------------------------------------
+export function drawGesture(cv, kind) {
+  const c = ctx2(cv, 14, 14);
+  const sk = '#d9a066', ol = '#1b1230';
+  const hand = (x, y) => { px(c, x - 1, y - 1, 6, 6, ol); px(c, x, y, 4, 4, sk); };
+  if (kind === 'bracoPraFora') { px(c, 0, 3, 14, 1, '#8fcf6a'); px(c, 0, 4, 5, 6, '#3a8fe0'); px(c, 5, 6, 6, 3, sk); hand(9, 4); px(c, 11, 3, 1, 2, sk); }
+  else if (kind === 'buzinaImaginaria') { px(c, 2, 2, 10, 10, ol); px(c, 3, 3, 8, 8, '#ffd23a'); px(c, 5, 5, 4, 4, ol); px(c, 6, 6, 2, 2, '#ffd23a'); px(c, 0, 0, 1, 3, ol); px(c, 13, 0, 1, 3, ol); }
+  else if (kind === 'maosNaCabeca') { px(c, 4, 4, 6, 7, ol); px(c, 5, 5, 4, 5, sk); px(c, 5, 5, 4, 1, '#2a1a12'); px(c, 1, 2, 3, 5, sk); px(c, 10, 2, 3, 5, sk); px(c, 1, 2, 3, 1, ol); px(c, 10, 2, 3, 1, ol); }
+  else if (kind === 'apontando') { px(c, 1, 5, 6, 4, ol); px(c, 2, 6, 5, 2, sk); px(c, 7, 6, 6, 2, sk); px(c, 7, 5, 6, 1, ol); px(c, 7, 8, 6, 1, ol); px(c, 2, 8, 4, 3, sk); }
+  else if (kind === 'joinha') { px(c, 2, 6, 8, 6, ol); px(c, 3, 7, 6, 4, sk); px(c, 5, 1, 3, 6, ol); px(c, 6, 2, 1, 5, sk); px(c, 10, 7, 2, 4, '#3a8fe0'); }
+  else if (kind === 'banana') { px(c, 1, 8, 4, 4, sk); px(c, 3, 3, 3, 6, sk); px(c, 3, 2, 8, 3, sk); px(c, 3, 1, 8, 1, ol); px(c, 11, 2, 1, 4, ol); px(c, 5, 5, 2, 4, ol); }
+  else px(c, 4, 4, 6, 6, '#bbb');
+}

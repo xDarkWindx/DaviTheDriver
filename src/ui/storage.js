@@ -23,11 +23,12 @@ export function loadSettings(settings) {
   if (typeof s.volume === 'number' && s.volume >= 0 && s.volume <= 1) settings.volume = s.volume;
   if (typeof s.muted === 'boolean') settings.muted = s.muted;
   if (typeof s.retro === 'boolean') settings.retro = s.retro;
+  if (typeof s.profanity === 'boolean') settings.profanity = s.profanity;
   if (s.quality === 'leve') settings.quality = 'leve'; // 'hd' ainda não existe
   return settings;
 }
 export function saveSettings(settings) {
-  write('settings', JSON.stringify({ volume: settings.volume, muted: settings.muted, retro: settings.retro, quality: settings.quality }));
+  write('settings', JSON.stringify({ volume: settings.volume, muted: settings.muted, retro: settings.retro, profanity: settings.profanity, quality: settings.quality }));
 }
 
 /** Última seleção do menu (modo + rota). */

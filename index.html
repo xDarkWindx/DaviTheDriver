@@ -205,6 +205,10 @@
     .bubble::after { content: ""; position: absolute; bottom: -.62em; width: .9em; height: .9em; background: inherit; border-right: .18em solid var(--ink); border-bottom: .18em solid var(--ink); transform: rotate(45deg); }
     .bub-driver .bubble::after { right: 1.4em; }
     .bub-passenger .bubble::after { left: 1.4em; }
+    .bub-row { display: flex; align-items: center; gap: .5em; }
+    .bub-gesture { flex: none; width: 2.2em; height: 2.2em; }
+    .bubble.loud { font-size: 1.08em; text-transform: uppercase; letter-spacing: .02em; }
+    .bubble.gesture-only { padding: .35em .6em; }
     .bub-name { display: block; font-family: ui-monospace, monospace; font-size: .6em; letter-spacing: .14em; opacity: .55; }
     .tone-anx { background: #fff3b0; }
     .tone-stress { background: #ffb8a8; }

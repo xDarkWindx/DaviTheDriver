@@ -9,13 +9,15 @@ const RES_COLORS = [0xf3ecdf, 0xefe2cf, 0xe9d8c4, 0xf1d6cf, 0xd9e3e6, 0xe7e0c9, 
 const OFFICE_COLORS = [0xe6e3dc, 0xd9d5cc, 0xc9c6c0, 0xeae6de];
 const OFFICE_GLASS = [0x3f6f7d, 0x2f5866, 0x4f7a6a, 0x58788a, 0x35505e];
 const TREE_COLORS = {
-  ipe_rosa: [0xe8649f, 0xf07ab4, 0xd9558f],
+  ipe_rosa: [0xe2649a, 0xec78ae, 0xd5558c],
   ipe_amarelo: [0xf5c518, 0xf0d22a, 0xe8b710],
   ipe_branco: [0xf6f2ec, 0xeee9e2],
   ipe_roxo: [0x9c5ac8, 0xa66ad0],
   cerrado: [0x6f7d3a, 0x7c8a40, 0x667433, 0x84914a],
-  mangueira: [0x4f7d36, 0x5b8a3c, 0x46742f],
-  jaqueira: [0x2f5f2c, 0x37692f, 0x2a5527],
+  mangueira: [0x3f7030, 0x4a7c34, 0x3a682c],
+  jaqueira: [0x2c5a2a, 0x33632e, 0x284f25],
+  palmeira: [0x6c9a3e, 0x79a646, 0x5f8c38],
+  arbusto: [0x5f8a3a, 0x6f9440, 0x587f35, 0x86964a],
 };
 
 export class SceneryBuilder {
@@ -35,7 +37,11 @@ export class SceneryBuilder {
   }
 
   // ------------------------------------------------------------------ prédios
-  /** Bloco genérico. opts: { pilotis, floors, floorH, bandColor, roof, color, minClear } */
+  /**
+   * Bloco genérico. opts: { pilotis, floors, floorH, facade: 'res'|'office'|'office2'|null, roof, color, minClear,
+   * balconies (lajes de varanda na fachada principal), stair (caixa de escada/elevador no telhado) }.
+   * Fachada = textura gerada em canvas repetida em metros pelo shader (render/materials.js makeFacadeMaterial).
+   */
   building(x, z, w, d, rot, opts = {}) {
     const floors = opts.floors || 6, fh = opts.floorH || 3, pil = opts.pilotis ? 3.2 : 0;
     const H = floors * fh;
@@ -49,41 +55,55 @@ export class SceneryBuilder {
     this.colliders.add(col);
     const I = this.inst, color = opts.color ?? this.rng.pick(RES_COLORS);
     const c = Math.cos(rot), s = Math.sin(rot);
+    const at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c];
     if (pil) {
       const nx = Math.max(2, Math.round(w / 7));
       for (let i = 0; i <= nx; i++) for (const k of [-1, 1]) {
-        const lx = -w / 2 + 0.6 + (w - 1.2) * (i / nx), lz = k * (d / 2 - 1.2);
-        I.add('box', x + lx * c + lz * s, 0, z - lx * s + lz * c, rot, 0.7, pil, 0.7, 0xd8d2c4);
+        const [px, pz] = at(-w / 2 + 0.6 + (w - 1.2) * (i / nx), k * (d / 2 - 1.2));
+        I.add('box', px, 0, pz, rot, 0.7, pil, 0.7, 0xd8d2c4);
       }
-      I.add('box', x, 0, z, rot, Math.min(4, w * 0.15), pil, d * 0.6, 0x9aa3a6); // hall de vidro
+      I.add('box', x, 0, z, rot, Math.min(5, w * 0.16), pil, d * 0.62, 0x8fa7ae); // hall de vidro
+      I.add('box', x, pil - 0.45, z, rot, w + 0.3, 0.45, d + 0.3, 0xcfc8ba);      // laje de transição
     }
-    I.add('box', x, pil, z, rot, w, H, d, color);
-    const band = opts.bandColor ?? 0x3e5560;
-    for (let f = 0; f < floors; f++) I.add('box', x, pil + f * fh + fh * 0.45, z, rot, w + 0.15, fh * 0.38, d + 0.15, band);
-    I.add('box', x, pil + H, z, rot, w + 0.4, 0.5, d + 0.4, opts.roof ?? 0xcfc6b4);
-    // sombra (sol de Brasília vem do norte: sombra levemente ao sul)
-    if (this.quality.shadows === 'blob') I.add('blob', x, 0.04, z + 2 + H * 0.06, rot, w + 4 + H * 0.1, 1, d + 4 + H * 0.15, 0);
+    const facade = opts.facade === undefined ? 'res' : opts.facade;
+    if (facade) I.add(facade === 'res' ? 'bres' : facade === 'office' ? 'boff' : 'boff2', x, pil, z, rot, w, H, d, color);
+    else {
+      I.add('box', x, pil, z, rot, w, H, d, color);
+      const band = opts.bandColor ?? 0x3e5560;
+      for (let f = 0; f < floors; f++) I.add('box', x, pil + f * fh + fh * 0.45, z, rot, w + 0.15, fh * 0.38, d + 0.15, band);
+    }
+    I.add('box', x, pil + H, z, rot, w + 0.4, 0.45, d + 0.4, opts.roof ?? 0xcfc6b4);    // platibanda
+    if (opts.balconies) {                                                                // lajes de varanda (relevo)
+      for (let f = 1; f <= floors; f++) for (const k of [1, -1]) {
+        const [bx, bz] = at(0, k * (d / 2 + 0.45));
+        I.add('box', bx, pil + f * fh - 0.18, bz, rot, w - 2, 0.16, 0.9, 0xe9e4d8);
+      }
+    }
+    if (opts.stair !== false && H > 10) {                                                // caixa de escada / casa de máquinas
+      const [sx, sz] = at(w * 0.18, 0);
+      I.add('box', sx, pil + H, sz, rot, 4.2, 2.8, Math.min(d - 2, 6), 0xd9d3c5);
+      const [tx, tz] = at(-w * 0.22, 0);
+      I.add('box', tx, pil + H, tz, rot, 3, 1.6, 3, 0xbab4a6);                       // caixa d'água
+    }
+    if (this.quality.shadows !== 'none') I.add('blob', x, 0.04, z + 2 + H * 0.06, rot, w + 4 + H * 0.1, 1, d + 4 + H * 0.15, 0);
     this.stats.buildings++;
     return true;
   }
 
   // ------------------------------------------------------------------ vegetação
+  /** Árvore por espécie (ver world/props.js). kind: ipe_rosa|ipe_amarelo|ipe_branco|ipe_roxo|mangueira|jaqueira|cerrado|palmeira|arbusto */
   tree(x, z, kind, scale = 1, needClear = 2.5) {
     if (this.net.clearance(x, z, 12) < needClear) return false;
     if (!this.free(x, z, 1.2)) return false;
     const rng = this.rng, cols = TREE_COLORS[kind];
-    const isCerrado = kind === 'cerrado';
-    const trunkH = (isCerrado ? 1.4 + rng() * 1.2 : 2.6 + rng() * 2.2) * scale;
-    const cr = (isCerrado ? 1.8 + rng() * 1.6 : 2.2 + rng() * 1.6) * scale;
-    const lean = isCerrado ? (rng() - 0.5) * 0.5 : 0;
-    this.inst.addEuler('trunk', x, 0, z, lean, rng() * 6, 0, 1.2 * scale, trunkH + cr * 0.3, 1.2 * scale, isCerrado ? 0x4b3a2a : 0x5a4634);
-    const cc = cols[Math.floor(rng() * cols.length)];
-    const sy = isCerrado ? 0.55 + rng() * 0.2 : 0.75 + rng() * 0.2;
-    this.inst.addEuler('crown', x + lean * trunkH * 0.5, trunkH + cr * sy * 0.6, z, 0, rng() * 6, 0, cr, cr * sy, cr * (0.85 + rng() * 0.3), cc);
-    if (!isCerrado && rng() < 0.5) // segundo tufo de copa
-      this.inst.addEuler('crown', x + (rng() - 0.5) * cr, trunkH + cr * sy * 0.9, z + (rng() - 0.5) * cr, 0, rng() * 6, 0, cr * 0.7, cr * 0.6 * sy, cr * 0.7, cc);
-    if (this.quality.shadows === 'blob') this.inst.add('blob', x + 0.6, 0.03, z + 1.2, 0, cr * 2.3, 1, cr * 2.3, 0);
-    const col = makeCircle(x, z, 0.45 * scale); col.kind = 'tree'; this.colliders.add(col);
+    const type = kind.startsWith('ipe') ? 'tree_ipe' : 'tree_' + kind;
+    const sc = scale * (0.85 + rng() * 0.3);
+    this.inst.add(type, x, 0, z, rng() * 6.283, sc, sc * (0.9 + rng() * 0.2), sc, cols[Math.floor(rng() * cols.length)]);
+    const cr = kind === 'arbusto' ? 0.8 : kind === 'palmeira' ? 1.6 : kind === 'cerrado' ? 1.6 : kind === 'mangueira' ? 3.2 : 2.4;
+    if (this.quality.shadows !== 'none') this.inst.add('blob', x + 0.8 * sc, 0.03, z + 1.4 * sc, 0, cr * 2.2 * sc, 1, cr * 2.2 * sc, 0);
+    if (kind !== 'arbusto') {
+      const col = makeCircle(x, z, (kind === 'mangueira' || kind === 'jaqueira' ? 0.5 : 0.35) * scale); col.kind = 'tree'; this.colliders.add(col);
+    }
     this.stats.trees++;
     return true;
   }
@@ -133,15 +153,9 @@ export class SceneryBuilder {
         const x = T.x - T.tz * off, z = T.z + T.tx * off;
         if (side !== 0 && this.net.clearance(x, z, 6) < 0.6) continue;
         if (side === 0 && this.net.roadInfoAt(x, z, this._info || (this._info = {})).onRoad) continue; // canteiro cruzando outra via
-        const h = Math.atan2(T.tx, T.tz);
-        this.inst.add('box', x, 0, z, h, 0.22, 9, 0.22, 0x7d8085);
-        // braço: aponta para a pista
-        const arm = side === 0 ? [1, -1] : [side > 0 ? -1 : 1];
-        for (const a of arm) {
-          const ax = x - T.tz * a * 1.3, az = z + T.tx * a * 1.3;
-          this.inst.add('box', ax, 8.8, az, h + Math.PI / 2, 0.14, 0.14, 2.6, 0x7d8085);
-          this.inst.add('box', x - T.tz * a * 2.5, 8.6, z + T.tx * a * 2.5, h + Math.PI / 2, 0.35, 0.22, 0.9, 0xf2f0e0);
-        }
+        // braço aponta para a pista: poste simples à direita/esquerda, duplo no canteiro
+        const h = Math.atan2(T.tx, T.tz) + (side < 0 ? -Math.PI / 2 : Math.PI / 2);
+        this.inst.add(side === 0 ? 'poste2' : 'poste', x, 0, z, h, 1, 1, 1, 0xffffff);
         const col = makeCircle(x, z, 0.3); col.kind = 'pole'; this.colliders.add(col);
         this.stats.lamps++;
       }
@@ -158,6 +172,28 @@ export class SceneryBuilder {
         const off = side > 0 ? seg.edgeR + offset : seg.edgeL - offset;
         const j = (this.rng() - 0.5) * 3;
         this.tree(T.x - T.tz * (off + j * side), T.z + T.tx * (off + j * side), this.rng.pick(kinds), 0.9 + this.rng() * 0.3, 3);
+      }
+    }
+  }
+
+  /** Bancos e lixeiras na calçada (lado direito e esquerdo alternados), a cada ~step m. */
+  furnitureAlong(segId, step = 50) {
+    const seg = this.net.getSegment(segId), T = { x: 0, z: 0, tx: 0, tz: 0 };
+    const dens = this.dens.furniture ?? 1;
+    if (dens <= 0) return;
+    step /= dens;
+    const nA = this.net.getNode(seg.from), nB = this.net.getNode(seg.to);
+    let k = 0;
+    for (let s = nA.radius + 12 + this.rng() * 10; s < seg.length - nB.radius - 12; s += step, k++) {
+      samplePts(seg.pts, seg.cum, s, T);
+      const side = k % 2 ? 1 : -1, off = side > 0 ? seg.edgeR + 2.0 : seg.edgeL - 2.0;
+      const x = T.x - T.tz * off, z = T.z + T.tx * off;
+      if (this.net.clearance(x, z, 6) < 0.9 || !this.free(x, z, 1)) continue;
+      const h = Math.atan2(T.tx, T.tz) + (side > 0 ? Math.PI / 2 : -Math.PI / 2); // banco de frente para a rua
+      if (k % 3 === 2) this.inst.add('lixeira', x, 0, z, h, 1, 1, 1, this.rng.pick([0xe2702a, 0x3f8f4a]));
+      else {
+        this.inst.add('banco', x, 0, z, h, 1, 1, 1, 0xffffff);
+        const c = makeOBB(x, z, 0.9, 0.3, h); c.kind = 'pole'; this.colliders.add(c);
       }
     }
   }
@@ -207,42 +243,42 @@ export function buildScenery(sb) {
   for (let z = 110; z <= 600; z += 44) {
     for (let x = -1470; x <= -1090; x += 62) {
       if (Math.abs(x + 1390) < 40 && Math.abs(z - 165) < 30) continue; // casa
-      sb.building(x + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6 });
+      sb.building(x + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6, balconies: true });
     }
   }
   for (let x = -1330; x <= -1270; x += 30) { // CCSW (comércio local), toldos coloridos
     for (const zz of [228, 268]) {
-      if (sb.building(x, zz, 24, 10, 0, { floors: 2, floorH: 3.4, color: 0xe9e2d2, bandColor: rng.pick([0xc9443a, 0x2f7fb5, 0xe0a52a, 0x3f9b55]), minClear: 2.6 })) {
+      if (sb.building(x, zz, 24, 10, 0, { facade: null, floors: 2, floorH: 3.4, color: 0xe9e2d2, bandColor: rng.pick([0xc9443a, 0x2f7fb5, 0xe0a52a, 0x3f9b55]), minClear: 2.6 })) {
         sb.inst.add('box', x, 3.2, zz - 5.6, 0, 22, 0.25, 2.2, rng.pick([0xd8573e, 0x3b88c4, 0xe9b33b, 0x55a868]));
       }
     }
   }
-  sb.forest(-1490, 90, -1080, 620, 260, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1 });
+  sb.forest(-1490, 90, -1080, 620, 260, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1, palmeira: 0.8, arbusto: 2 });
   sb.forest(-1170, 520, -1080, 620, 40, { ipe_amarelo: 2, ipe_roxo: 1, mangueira: 2 });     // Parque Urbano do Sudoeste
   // Cruzeiro (a oeste da Jaqueiras): casas baixas
   for (let i = 0; i < 70; i++) {
     sb.building(-1760 + rng() * 220, 120 + rng() * 950, 12 + rng() * 8, 10 + rng() * 6, rng() < 0.5 ? 0 : Math.PI / 2,
-      { floors: 1, floorH: 3.2, color: rng.pick([0xf2e3c8, 0xe8c9a8, 0xd9e6e8, 0xf0d0c0]), bandColor: 0x6b5b4b, roof: 0xb4553a, minClear: 4 });
+      { facade: null, stair: false, floors: 1, floorH: 3.2, color: rng.pick([0xf2e3c8, 0xe8c9a8, 0xd9e6e8, 0xf0d0c0]), bandColor: 0x6b5b4b, roof: 0xb4553a, minClear: 4 });
   }
 
   // --- Setor de Indústrias Gráficas (SIG): galpões baixos entre EPIG e Parque, perto do Eixo
   for (let i = 0; i < 22; i++) {
     sb.building(-960 + rng() * 380, 90 + rng() * 90, 26 + rng() * 20, 18 + rng() * 10, 0,
-      { floors: 2, floorH: 4, color: rng.pick([0xd8d5cc, 0xc9c4b8, 0xe2ded4]), bandColor: 0x7a8a96, roof: 0x9a9890, minClear: 5 });
+      { facade: null, stair: false, floors: 2, floorH: 4, color: rng.pick([0xd8d5cc, 0xc9c4b8, 0xe2ded4]), bandColor: 0x7a8a96, roof: 0x9a9890, minClear: 5 });
   }
 
   // --- Parque da Cidade (enorme, ao sul do Eixo, entre EPIG e W3)
-  sb.forest(-990, 190, -460, 800, 620, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6 });
+  sb.forest(-990, 190, -460, 800, 620, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
 
   // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2; além da L2)
   const superquadra = (x0, z0, x1, z1) => {
     for (let x = x0 + 30; x < x1 - 20; x += 62) {
       for (let z = z0 + 26; z < z1 - 14; z += 48) {
         const rot = rng() < 0.65 ? 0 : Math.PI / 2;
-        sb.building(x + rng.range(-6, 6), z + rng.range(-5, 5), 44 + rng() * 10, 12, rot, { pilotis: true, floors: 6, minClear: 8 });
+        sb.building(x + rng.range(-6, 6), z + rng.range(-5, 5), 44 + rng() * 10, 12, rot, { pilotis: true, floors: 6, minClear: 8, balconies: true });
       }
     }
-    sb.forest(x0, z0, x1, z1, ((x1 - x0) * (z1 - z0)) / 900, { mangueira: 4, ipe_rosa: 1.5, ipe_amarelo: 1.5, ipe_branco: 0.6, cerrado: 1 });
+    sb.forest(x0, z0, x1, z1, ((x1 - x0) * (z1 - z0)) / 900, { mangueira: 4, ipe_rosa: 1.5, ipe_amarelo: 1.5, ipe_branco: 0.6, cerrado: 1, jaqueira: 0.5, palmeira: 0.4, arbusto: 1.5 });
   };
   superquadra(-400, 300, -30, 680);
   superquadra(-400, 720, -30, 1150);
@@ -257,8 +293,8 @@ export function buildScenery(sb) {
     for (let i = 0; i < n * 3 && n > 0; i++) {
       const x = x0 + rng() * (x1 - x0), z = z0 + rng() * (z1 - z0);
       const w = 22 + rng() * 22, d = 16 + rng() * 10;
-      if (sb.building(x, z, w, d, rng() < 0.5 ? 0 : Math.PI / 2, { floors: 8 + Math.floor(rng() * 9), floorH: 3.4,
-        color: rng.pick(OFFICE_COLORS), bandColor: rng.pick(OFFICE_GLASS), roof: 0xb9b4a8, minClear: 6 })) n--;
+      if (sb.building(x, z, w, d, rng() < 0.5 ? 0 : Math.PI / 2, { floors: 8 + Math.floor(rng() * 9), floorH: 3.4, facade: rng() < 0.6 ? 'office' : 'office2',
+        color: rng.pick(OFFICE_COLORS), roof: 0xb9b4a8, minClear: 6 })) n--;
     }
   };
   setor(-400, 70, -40, 200, 14);    // Setor Comercial Sul (SCS) / Hoteleiro Sul
@@ -274,7 +310,7 @@ export function buildScenery(sb) {
   // --- Esplanada dos Ministérios: duas fileiras de blocos idênticos (eixo longo N-S)
   for (let i = 0; i < 8; i++) {
     const x = 380 + i * 46;
-    for (const zz of [122, -122]) sb.building(x, zz, 15, 64, 0, { floors: 10, floorH: 3.4, color: 0xe4e2da, bandColor: GREEN_GLASS_BAND, roof: 0xcbc6b8, minClear: 3 });
+    for (const zz of [122, -122]) sb.building(x, zz, 15, 64, 0, { floors: 10, floorH: 3.4, facade: 'office2', color: 0xe4e2da, roof: 0xcbc6b8, minClear: 3 });
   }
 
   // --- Eixo: ipês no gramado central
@@ -285,8 +321,8 @@ export function buildScenery(sb) {
 
   // --- cerrado aberto nas sobras do mapa
   const B = net.bounds;
-  sb.forest(B.minX, B.minZ, B.maxX, -380, 260, { cerrado: 6, ipe_amarelo: 1, ipe_roxo: 0.5 });
-  sb.forest(-1450, -360, -760, -60, 160, { cerrado: 5, ipe_amarelo: 1 });
+  sb.forest(B.minX, B.minZ, B.maxX, -380, 260, { cerrado: 6, ipe_amarelo: 1, ipe_roxo: 0.5, palmeira: 1, arbusto: 3 });
+  sb.forest(-1450, -360, -760, -60, 160, { cerrado: 5, ipe_amarelo: 1, palmeira: 1, arbusto: 3 });
   sb.forest(1000, -700, B.maxX, 240, 100, { cerrado: 5, ipe_amarelo: 1 });
   sb.forest(-1480, 640, -1080, B.maxZ, 160, { cerrado: 5, ipe_amarelo: 1, mangueira: 1 });
 
@@ -314,4 +350,12 @@ export function buildScenery(sb) {
   for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
   for (const id of ['tes', 'eixao_ramp', 'alca_eixao', 'alca_rodo']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
+
+  // --- mobiliário urbano nas calçadas (bancos e lixeiras) e arbustos nos canteiros
+  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 'terceira_m', 's3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs', 'w3_m', 'w3_n', 'ent_e', 'parque', 'jaq_m', 'jaq_s'])
+    sb.furnitureAlong(id, 55);
+  for (const b of net.busStops) {
+    const h = b.heading, fx = Math.sin(h), fz = Math.cos(h);
+    sb.inst.add('lixeira', b.shelterX + fx * 3.4, 0, b.shelterZ + fz * 3.4, h + Math.PI, 1, 1, 1, 0xe2702a);
+  }
 }

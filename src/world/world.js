@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { makeRng } from '../core/math.js';
 import { StaticColliders, makeOBB } from '../core/collision.js';
 import { ChunkedInstancer, ChunkedMeshBuilder } from '../render/instancer.js';
-import { makeMaterial } from '../render/materials.js';
-import { makeGroundTexture, makeAsphaltTexture, makeSignAtlas, makeBlobTexture } from '../render/textures.js';
+import { makeMaterial, makeMaskedMaterial, makeFacadeMaterial, LIVE_SHADOW } from '../render/materials.js';
+import { makeGroundTexture, makeAsphaltTexture, makeSidewalkTexture, makeGrassTexture, makeFacadeTexture, makeSignAtlas, makeBlobTexture,
+  drawSpeedSign, drawStopSign, drawYieldSign, drawPedSign } from '../render/textures.js';
+import { propGeometry } from './props.js';
 import { buildRoadMeshes } from './roadMesh.js';
 import { samplePts } from './roadNetwork.js';
 import { SceneryBuilder, buildScenery } from './scenery.js';
@@ -33,13 +35,28 @@ const SIGN_ENTRIES = [
   { key: 'busstop', text: 'PONTO', sub: 'ônibus', bg: '#1d4f8f', fg: '#ffffff', w: 160, h: 110 },
   { key: 'roof_stj', text: 'STJ', sub: 'SUPERIOR TRIBUNAL DE JUSTIÇA', bg: '#f4f2ec', fg: '#1d3d7a', w: 520, h: 150 },
   { key: 'roof_casa', text: 'QRSW 2', sub: 'SUDOESTE', bg: '#f3e9d7', fg: '#b4322a', w: 360, h: 120 },
+  // placas de trânsito (desenhadas) e nomes de quadra estilo Brasília (azul, letra branca)
+  ...[30, 40, 50, 60, 70, 80].map((v) => ({ key: 'lim' + v, w: 96, h: 96, draw: drawSpeedSign(v) })),
+  { key: 'pare', w: 96, h: 96, draw: drawStopSign },
+  { key: 'preferencia', w: 104, h: 92, draw: drawYieldSign },
+  { key: 'pedestre', w: 96, h: 96, draw: drawPedSign },
+  ...['QRSW 1', 'QRSW 2', 'QRSW 3/4', 'QRSW 5/6', 'CLSW', 'EQRSW', 'SCS Q.2', 'SAUS Q.3', 'SAFS Q.6', 'SQS 102', 'SQS 302', 'SQS 104']
+    .map((t) => ({ key: 'q:' + t, text: t, bg: '#1d4f9a', fg: '#ffffff', w: 200, h: 64 })),
 ];
+// placas de quadra: [texto, x, z]
+const QUADRA_SPOTS = [['QRSW 2', -1338, 210], ['QRSW 1', -1318, 150], ['QRSW 3/4', -1350, 300], ['QRSW 5/6', -1408, 470], ['CLSW', -1160, 570],
+  ['EQRSW', -1200, 188], ['SCS Q.2', -330, 200], ['SAUS Q.3', 260, 245], ['SAFS Q.6', 700, 245], ['SQS 102', -60, 690], ['SQS 302', -330, 690], ['SQS 104', 260, 690]];
 // [chave, x, z] — placas em pé, viradas para a câmera (sempre legíveis na isométrica)
 const SIGN_SPOTS = [
   ['sudoeste', -1460, 214], ['jaqueiras', -1484, 150], ['eixo', -1380, 58], ['epig', -985, 70], ['parque', -470, 214],
   ['w3', -414, 70], ['eixao', 22, 420], ['tesourinha', -40, 718], ['l2', 516, 640], ['s2', 120, 60], ['s3', 260, 276],
   ['safs', 818, 200], ['esplanada', 360, 58], ['rodo', 120, -28], ['eixo', -700, 58], ['s3', -170, 252], ['epig', -1050, 640],
 ];
+
+/** Ruído 2D barato e determinístico (soma de senos), ~[0, 1]. */
+function noise2(x, z, seed) {
+  return 0.5 + 0.5 * (Math.sin(x * 1.31 + z * 0.73 + seed) * 0.4 + Math.sin(x * 0.57 - z * 1.71 + seed * 1.7) * 0.35 + Math.sin((x + z) * 2.33 + seed * 0.3) * 0.25);
+}
 
 export function buildWorld({ view, net, quality, events, cameraDir }) {
   const scene = view.scene;
@@ -48,7 +65,8 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const colliders = new StaticColliders(32);
   const inst = new ChunkedInstancer(scene, chunk);
   const mb = new ChunkedMeshBuilder(chunk);       // asfalto + marcações (com textura de desgaste)
-  const plain = new ChunkedMeshBuilder(chunk);    // gramados, calçadas, canteiros (cor lisa)
+  const plain = new ChunkedMeshBuilder(chunk);    // gramados, canteiros, ilhas (textura de grama)
+  const walk = new ChunkedMeshBuilder(chunk);     // calçadas, meio-fio, sarjeta (textura de placas de concreto)
 
   // ---------- materiais
   const lambertVC = makeMaterial(quality, { vertexColors: true });
@@ -57,16 +75,27 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const blobMat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobTex, transparent: true, opacity: 0.32, depthWrite: false });
 
   // ---------- tipos instanciados (base em y=0)
+  const shadowMap = quality.shadows === 'shadowmap';
+  const cast = { castShadow: shadowMap, receiveShadow: shadowMap };
+  view.lod = view.lod || { optional: [], blobs: [] };
   const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0.5, 0);
-  const trunk = new THREE.CylinderGeometry(0.12, 0.2, 1, 5, 1); trunk.translate(0, 0.5, 0);
-  const crown = new THREE.IcosahedronGeometry(1, 0);
   const tuft = new THREE.ConeGeometry(0.6, 1, 5, 1); tuft.translate(0, 0.5, 0);
   const blob = new THREE.PlaneGeometry(1, 1); blob.rotateX(-Math.PI / 2);
-  inst.registerType('box', box, instMat);
-  inst.registerType('trunk', trunk, instMat);
-  inst.registerType('crown', crown, makeMaterial(quality, { flatShading: true }));
-  inst.registerType('tuft', tuft, instMat);
-  inst.registerType('blob', blob, blobMat, { renderOrder: 1 });
+  inst.registerType('box', box, instMat, cast);
+  // prédios com fachada texturizada (repetida em metros pelo shader)
+  const S = quality.textureSize;
+  inst.registerType('bres', box, makeFacadeMaterial(makeFacadeTexture('res', S, quality.anisotropy), 6.4, 3.0), cast);
+  inst.registerType('boff', box, makeFacadeMaterial(makeFacadeTexture('office', S, quality.anisotropy), 6.0, 3.4), cast);
+  inst.registerType('boff2', box, makeFacadeMaterial(makeFacadeTexture('office2', S, quality.anisotropy), 6.0, 3.4), cast);
+  // vegetação por espécie e mobiliário (geometria mesclada; a cor da instância tinge só a copa/“tinta”)
+  const masked = makeMaskedMaterial('lambert');
+  for (const [type, prop, opt] of [['tree_ipe', 'ipe'], ['tree_mangueira', 'mangueira'], ['tree_jaqueira', 'jaqueira'], ['tree_palmeira', 'palmeira'],
+    ['tree_cerrado', 'cerrado'], ['tree_arbusto', 'arbusto', true], ['poste', 'poste'], ['poste2', 'poste2'], ['banco', 'banco', true],
+    ['lixeira', 'lixeira', true], ['postePlaca', 'postePlaca'], ['abrigo', 'abrigo']]) {
+    inst.registerType(type, propGeometry(prop).geometry, masked, { ...cast, castShadow: shadowMap && !opt, group: opt ? view.lod.optional : null });
+  }
+  inst.registerType('tuft', tuft, instMat, { group: view.lod.optional });
+  inst.registerType('blob', blob, blobMat, { renderOrder: 1, group: view.lod.blobs, visible: !LIVE_SHADOW.map });
 
   // ---------- chão (cerrado)
   const B = net.bounds;
@@ -75,8 +104,22 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   gTex.repeat.set(gw / 48, gh / 48);
   const groundMat = makeMaterial(quality, { map: gTex, color: 0xffffff });
   view.tintables.push(groundMat);
-  const groundGeo = new THREE.PlaneGeometry(gw, gh); groundGeo.rotateX(-Math.PI / 2);
+  // plano subdividido com variação de cor em grande escala (capim mais verde/seco, terra) — sem cortes retos
+  const groundGeo = new THREE.PlaneGeometry(gw, gh, 96, 64); groundGeo.rotateX(-Math.PI / 2);
+  {
+    const P = groundGeo.attributes.position, col = new Float32Array(P.count * 3), cx = (B.minX + B.maxX) / 2, cz = (B.minZ + B.maxZ) / 2;
+    const c0 = new THREE.Color(0xffffff), cG = new THREE.Color(0xd9ecb4), cD = new THREE.Color(0xf6dcc0), cS = new THREE.Color(0xf2ead2), t = new THREE.Color();
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i) + cx, z = P.getZ(i) + cz;
+      const n1 = noise2(x * 0.004, z * 0.004, 3), n2 = noise2(x * 0.011 + 40, z * 0.011 - 17, 7);
+      t.copy(c0).lerp(n1 > 0.5 ? cG : cS, Math.abs(n1 - 0.5) * 1.6).lerp(cD, Math.max(0, n2 - 0.62) * 2.2);
+      col[i * 3] = t.r; col[i * 3 + 1] = t.g; col[i * 3 + 2] = t.b;
+    }
+    groundGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
+  groundMat.vertexColors = true;
   const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.receiveShadow = shadowMap;
   ground.position.set((B.minX + B.maxX) / 2, 0, (B.minZ + B.maxZ) / 2);
   ground.name = 'ground'; ground.updateMatrix(); ground.matrixAutoUpdate = false;
   scene.add(ground);
@@ -84,13 +127,14 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   // ---------- vias (asfalto com textura de detalhe em UV de mundo)
   const aTex = makeAsphaltTexture(quality.textureSize, quality.anisotropy);
   const roadMat = makeMaterial(quality, { vertexColors: true, map: aTex });
-  buildRoadMeshes(net, mb, inst, plain);
+  buildRoadMeshes(net, mb, inst, plain, walk);
 
   // ---------- cenário
   const sb = new SceneryBuilder({ net, inst, mb: plain, colliders, quality, rng });
   // colisores dos marcos primeiro (cenário evita sobrepor)
   const landmarkMat = makeMaterial(quality, { vertexColors: true });
   const landmarks = buildLandmarks(scene, colliders, landmarkMat);
+  for (const m of landmarks.meshes) { m.castShadow = shadowMap; m.receiveShadow = shadowMap; }
   // semáforos
   const signals = new SignalController(net, events);
   signals.buildVisual(scene, inst, quality);
@@ -114,13 +158,16 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const signMesh = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.35 }));
   signMesh.name = 'signs'; signMesh.matrixAutoUpdate = false; scene.add(signMesh);
 
-  const groundMeshes = [...mb.build(scene, roadMat, 'roads', 12), ...plain.build(scene, lambertVC, 'lawns', 12)];
+  const grassMat = makeMaterial(quality, { vertexColors: true, map: makeGrassTexture(S, quality.anisotropy) });
+  const walkMat = makeMaterial(quality, { vertexColors: true, map: makeSidewalkTexture(S, quality.anisotropy) });
+  const groundMeshes = [...mb.build(scene, roadMat, 'roads', 12, shadowMap), ...plain.build(scene, grassMat, 'lawns', 9, shadowMap),
+    ...walk.build(scene, walkMat, 'walks', 4, shadowMap)];
   const instMeshes = inst.build();
 
   return {
     net, colliders, signals, landmarks: landmarks.list,
     stats: { ...sb.stats, instances: inst.count(), instancedMeshes: instMeshes.length, groundMeshes: groundMeshes.length, colliders: colliders.all.length },
-    materials: { lambertVC, instMat, roadMat, groundMat, blobMat },
+    materials: { lambertVC, instMat, roadMat, groundMat, blobMat, masked },
     blobTexture: blobTex,
     chunkSize: chunk,
     /** Vitrine de depuração (tools/shots.cjs): carros do jogador, modelos de tráfego e pessoas lado a lado em (x, z). */
@@ -176,14 +223,10 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
 /** Abrigos de ponto de ônibus (instâncias + colisor). Posição nos dados: net.busStops. */
 function buildBusStops(net, inst, colliders) {
   for (const b of net.busStops) {
-    const h = b.heading, fx = Math.sin(h), fz = Math.cos(h), rx = -fz, rz = fx;
-    const x = b.shelterX, z = b.shelterZ;
-    inst.add('box', x + rx * 0.9, 0, z + rz * 0.9, h, 0.15, 2.6, 4.5, 0x8fb4c8);    // painel de fundo
-    inst.add('box', x - fx * 2.1, 0, z - fz * 2.1, h, 1.8, 2.6, 0.1, 0x8fb4c8);
-    inst.add('box', x + fx * 2.1, 0, z + fz * 2.1, h, 1.8, 2.6, 0.1, 0x8fb4c8);
-    inst.add('box', x, 2.6, z, h, 2.2, 0.15, 4.9, 0x2a5d9f);                          // cobertura azul
-    inst.add('box', x + rx * 0.5, 0.45, z + rz * 0.5, h, 0.45, 0.08, 3.6, 0x9a7b55);  // banco
-    const c = makeOBB(x, z, 1.1, 2.4, h); c.kind = 'busStop'; c.id = 'ponto' + b.id; colliders.add(c);
+    // abrigo (prop): fundo de vidro do lado de fora (+X local), aberto para a pista
+    const h = b.heading;
+    inst.add('abrigo', b.shelterX, 0, b.shelterZ, h, 1, 1, 1, 0xffffff);
+    const c = makeOBB(b.shelterX, b.shelterZ, 1.1, 2.4, h); c.kind = 'busStop'; c.id = 'ponto' + b.id; colliders.add(c);
   }
 }
 

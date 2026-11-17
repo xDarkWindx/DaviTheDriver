@@ -40,7 +40,7 @@ export const EV = {
 
   // --- acrescentados pela fase de UI ---
   SETTINGS_CHANGE: 'ui:settings',    // ui { volume, muted, retro, quality }  (cópia de state.settings; a UI é a ÚNICA que escreve)
-  SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s) }  -> balão de fala
+  SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s), gesture?: 'bracoPraFora'|'buzinaImaginaria'|'maosNaCabeca'|'apontando'|'joinha'|'banana'|null }  -> balão de fala (text vazio + gesture = balão só com o ícone)
 
   // --- acrescentados pela fase de regras/humor (rules.js / mood.js) ---
   FLASH: 'player:flash',             // núcleo (input, tecla F) { source: 'player' }  piscar o farol
