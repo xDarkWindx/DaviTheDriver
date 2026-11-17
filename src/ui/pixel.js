@@ -56,10 +56,13 @@ export const DAVI_HAIR_LIGHT = '#3d281c';
 export const DAVI_BEARD = '#24170f';
 export const DAVI_HORNS = '#6b6b78'; // chifres de fantasia (cinza, para destacar do cabelo)
 export const DAVI_SHIRT = '#f2f2f2';
-// Dono do Cactus: grisalho, de óculos e camisa azul (bem diferente do Davi)
-export const DONO_SKIN = '#e8b98f';
-export const DONO_HAIR = '#a7adb6';
-export const DONO_SHIRT = '#2b5d9f';
+// Leandro (dono do Cactus): cabelo castanho-escuro CURTO e arrumado (para cima/lado), barba curta aparada (rala), pele
+// clara, camisa escura, expressão de base serena — contraste imediato com o Davi (cachos, barbão, sorrisão).
+export const DONO_SKIN = '#efc4a0';
+export const DONO_HAIR = '#3b2a1e';
+export const DONO_HAIR_LIGHT = '#5a412e';
+export const DONO_STUBBLE = '#b98d6e';
+export const DONO_SHIRT = '#23262d';
 const TONE_BG = { calm: '#6fcf8e', anx: '#ffd23a', stress: '#ea5a41', panic: '#b45fe0' };
 
 /** extra.horns: chifrinhos de fantasia (segredo: aparecem quando o estresse do Davi bate no máximo). */
@@ -74,7 +77,7 @@ export function drawFace(cv, who, tone, extra = null) {
   const ink = '#1c1c24', lip = '#9a4a42';
   // ombros + pescoço
   px(c, 3, 20, 18, 4, davi ? DAVI_SHIRT : DONO_SHIRT);
-  if (davi) { px(c, 9, 20, 6, 1, '#d8d8d8'); } else { px(c, 10, 20, 4, 2, '#f2f2f2'); px(c, 11, 21, 2, 3, '#1c3d6e'); }
+  if (davi) { px(c, 9, 20, 6, 1, '#d8d8d8'); } else { px(c, 9, 20, 6, 1, '#3a3e47'); px(c, 11, 20, 2, 2, '#14161a'); }
   px(c, 9, 17, 6, 4, shade);
   // rosto (oval) + orelhas
   px(c, 6, 5, 12, 12, skin); px(c, 7, 17, 10, 1, skin); px(c, 8, 18, 8, 1, skin);
@@ -88,8 +91,16 @@ export function drawFace(cv, who, tone, extra = null) {
     px(c, 6, 6, 2, 1, hair); px(c, 9, 6, 1, 2, hair); px(c, 12, 6, 2, 1, hair); px(c, 15, 6, 1, 2, hair); px(c, 17, 6, 1, 1, hair); // cachos na testa
     px(c, 5, 10, 1, 3, skin); px(c, 18, 10, 1, 3, skin);                           // orelha aparecendo
   } else {
-    px(c, 6, 3, 12, 3, hair); px(c, 5, 4, 1, 5, hair); px(c, 18, 4, 1, 5, hair);   // grisalho curto, entradas
-    px(c, 9, 3, 6, 1, skin);
+    // curto e arrumado, topete penteado para cima/lado
+    px(c, 6, 3, 12, 3, hair); px(c, 5, 4, 1, 4, hair); px(c, 18, 4, 1, 4, hair);
+    px(c, 7, 2, 10, 1, hair); px(c, 9, 1, 7, 1, hair); px(c, 13, 0, 3, 1, hair);
+    px(c, 10, 1, 4, 1, DONO_HAIR_LIGHT); px(c, 8, 3, 6, 1, DONO_HAIR_LIGHT);
+    // barba curta e rala (pontilhada) no queixo e nas laterais
+    for (let y = 13; y <= 18; y++) for (let x = 6; x <= 17; x++) {
+      const edge = x <= 7 || x >= 16 || y >= 17;
+      if (edge && ((x + y) % 2 === 0) && !(y <= 14 && x > 7 && x < 16)) px(c, x, y, 1, 1, DONO_STUBBLE);
+    }
+    px(c, 10, 15, 4, 1, DONO_STUBBLE);
   }
   // nariz: reto e marcado (ponte longa com sombra lateral, ponta e narinas)
   px(c, 11, 9, 2, 6, skin); px(c, 13, 9, 1, 5, shade); px(c, 10, 14, 4, 1, skin); px(c, 10, 15, 4, 1, shade);
@@ -100,15 +111,11 @@ export function drawFace(cv, who, tone, extra = null) {
     px(c, 9, 15, 1, 1, DAVI_BEARD); px(c, 14, 15, 1, 1, DAVI_BEARD); px(c, 9, 16, 6, 1, DAVI_BEARD);   // bigode
     px(c, 6, 18, 1, 1, '#3a281c'); px(c, 16, 18, 1, 1, '#3a281c');
   }
-  if (!davi) { // óculos
-    px(c, 7, 9, 4, 3, ink); px(c, 13, 9, 4, 3, ink); px(c, 11, 9, 2, 1, ink);
-    px(c, 8, 10, 2, 1, '#9fd4ff'); px(c, 14, 10, 2, 1, '#9fd4ff');
-  }
-  const brow = davi ? hair : '#6c7178';
+  const brow = hair;
   // sobrancelhas (definidas) + olhos por expressão
   if (tone === 'calm') {
     px(c, 7, 8, 3, 1, brow); px(c, 14, 8, 3, 1, brow);
-    if (davi) { px(c, 8, 10, 2, 1, '#fff'); px(c, 14, 10, 2, 1, '#fff'); px(c, 9, 10, 1, 1, ink); px(c, 14, 10, 1, 1, ink); }
+    px(c, 8, 10, 2, 1, '#fff'); px(c, 14, 10, 2, 1, '#fff'); px(c, 9, 10, 1, 1, ink); px(c, 14, 10, 1, 1, ink);
   } else if (tone === 'anx') {
     px(c, 7, 7, 3, 1, brow); px(c, 10, 8, 1, 1, brow); px(c, 14, 7, 3, 1, brow); px(c, 13, 8, 1, 1, brow);
     px(c, 7, 9, 3, 3, '#fff'); px(c, 14, 9, 3, 3, '#fff'); px(c, 8, 10, 1, 1, ink); px(c, 15, 10, 1, 1, ink);
@@ -121,7 +128,7 @@ export function drawFace(cv, who, tone, extra = null) {
   }
   // boca
   if (tone === 'calm' && davi) { px(c, 9, 17, 6, 2, '#5a1e1e'); px(c, 9, 17, 6, 1, '#fff'); px(c, 8, 16, 1, 1, lip); px(c, 15, 16, 1, 1, lip); } // sorriso largo
-  else if (tone === 'calm') { px(c, 9, 16, 1, 1, lip); px(c, 14, 16, 1, 1, lip); px(c, 10, 17, 4, 1, lip); }
+  else if (tone === 'calm') { px(c, 10, 17, 4, 1, lip); } // sereno
   else if (tone === 'anx') { px(c, 9, 17, 1, 1, lip); px(c, 10, 16, 1, 1, lip); px(c, 11, 17, 2, 1, lip); px(c, 13, 16, 1, 1, lip); px(c, 14, 17, 1, 1, lip); }
   else if (tone === 'stress') { px(c, 8, 16, 8, 3, '#3a0f0f'); px(c, 9, 16, 6, 1, '#fff'); px(c, 9, 18, 6, 1, '#fff'); }
   else { px(c, 10, 16, 4, 3, '#3a0f0f'); px(c, 11, 17, 2, 1, '#e8556a'); }

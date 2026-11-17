@@ -72,7 +72,7 @@ export const REASON_UI = {
   chegou: { head: 'CHEGOU!', sub: 'Sem bater. Isso é novidade.' },
   bateu: { head: 'SINISTRO', sub: '' },
   desistiu: { head: 'DESISTIU', sub: 'O Davi estacionou em fila dupla, abriu o app de carro e foi de Uber.' },
-  tomouOCarro: { head: 'O DONO TOMOU O CARRO', sub: '"Chega, Davi. Passa a chave. AGORA."' },
+  tomouOCarro: { head: 'O LEANDRO TOMOU O CARRO', sub: '"Chega, Davi. Passa a chave. AGORA."' },
 };
 
 // ---- batida --------------------------------------------------------------

@@ -50,6 +50,7 @@ export class Trip {
     this.state.trip.destLabel = zone.label || '';
     const tr = this.state.trip;
     tr.destX = zone.x; tr.destZ = zone.z; tr.destRadius = zone.r; tr.arrived = false; tr.elapsed = 0;
+    tr.routeDistLeft = 0; tr.distToDest = 0; // sem isso o 1º passo da viagem nova via a distância da anterior (par do tempo errado)
     this._dest = this.net.laneForZone(this.destZoneId);
     this.ring.position.set(zone.x, 0.12, zone.z); this.ring.scale.setScalar(zone.r);
     this.beam.position.set(zone.x, 0, zone.z); this.beam.scale.set(zone.r * 0.35, 60, zone.r * 0.35);

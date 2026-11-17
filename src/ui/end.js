@@ -1,5 +1,6 @@
 // Telas de fim de viagem: chegou / bateu (boletim de ocorrência) / desistiu / tomouOCarro.
 import { el, fmtTime, fmtInt, fmtMoney, pick } from './dom.js';
+import { PEOPLE } from '../config.js';
 import { drawFace } from './pixel.js';
 import {
   GRADE_TITLES, GRADE_QUIPS, REASON_UI, CRASH_WITH, CRASH_WITH_DEFAULT, CRASH_EXCUSE, REPAIR_ITEMS, BO_WITNESSES, MODE_UI, ROUTE_UI,
@@ -105,7 +106,7 @@ function renderArrived(card, m) {
     if (!m.rec.newPoints && m.rec.prev.points != null) el('small', 'stat-prev', p, `melhor: ${fmtInt(m.rec.prev.points)}`);
   }
   finesBlock(right, m);
-  if (m.yearsLost != null) statRow(right, 'ANOS DE VIDA PERDIDOS PELO DONO', m.yearsLost.toFixed(1).replace('.', ','), 'warn');
+  if (m.yearsLost != null) statRow(right, 'ANOS DE VIDA PERDIDOS PELO ' + PEOPLE.dono.label, m.yearsLost.toFixed(1).replace('.', ','), 'warn');
 }
 
 function renderOther(card, m) {
@@ -119,7 +120,7 @@ function renderOther(card, m) {
   el('p', 'end-sub', txt, ui.sub);
   statRow(txt, m.reason === 'desistiu' ? 'TEMPO ATÉ DESISTIR' : 'TEMPO DE VIAGEM', fmtTime(m.time));
   if (m.fines.length) finesBlock(txt, m);
-  if (m.yearsLost != null) statRow(txt, 'ANOS DE VIDA PERDIDOS PELO DONO', m.yearsLost.toFixed(1).replace('.', ','), 'warn');
+  if (m.yearsLost != null) statRow(txt, 'ANOS DE VIDA PERDIDOS PELO ' + PEOPLE.dono.label, m.yearsLost.toFixed(1).replace('.', ','), 'warn');
 }
 
 function renderCrash(card, m) {
@@ -133,7 +134,7 @@ function renderCrash(card, m) {
   const cols = el('div', 'bo-cols', paper);
   const a = el('div', 'bo-col', cols);
   const field = (k, v) => { const r = el('div', 'bo-field', a); el('span', 'bo-k', r, k); el('span', 'bo-v', r, v); };
-  field('Condutor', carona ? 'Dono do Cactus' : 'Davi');
+  field('Condutor', carona ? PEOPLE.dono.name : 'Davi');
   field('Veículo', carona || perigo ? 'Citroën C4 Cactus THP cinza' : 'Renault Kwid branco');
   field('Local', m.roadName);
   field('Colidiu com', c.withWhat);
@@ -141,7 +142,7 @@ function renderCrash(card, m) {
   field('Testemunhas', c.witness);
   field('Tempo de viagem', fmtTime(m.time));
   if (m.fines.length) field('Multas até aqui', `${m.fines.length} · ${fmtMoney(m.fineTotal)}`);
-  if (m.yearsLost != null) field('Anos de vida do dono', `-${m.yearsLost.toFixed(1).replace('.', ',')}`);
+  if (m.yearsLost != null) field('Anos de vida do ' + PEOPLE.dono.name, `-${m.yearsLost.toFixed(1).replace('.', ',')}`);
 
   const b = el('div', 'bo-col', cols);
   const v = el('div', 'bo-version', b);
@@ -152,7 +153,7 @@ function renderCrash(card, m) {
     const d = el('div', 'bo-quote-box', b);
     el('div', 'bo-version-h', d, 'DANOS');
     el('p', 'bo-damage', d, carona
-      ? 'Cactus: para-choque e a paciência do dono. Seguro: o dono liga na segunda.'
+      ? `Cactus: para-choque e a paciência do ${PEOPLE.dono.name}. Seguro: ele liga na segunda.`
       : 'Kwid: para-choque e farol. Seguro: a renovar.');
   }
   if (perigo || c.repairCost != null) {
@@ -166,6 +167,6 @@ function renderCrash(card, m) {
       const r = el('div', 'fine-line', q); el('span', 'fine-name', r, name); el('span', 'fine-val', r, fmtMoney(val));
     });
     const t = el('div', 'bo-total', q); el('b', '', t, 'TOTAL'); el('b', '', t, fmtMoney(total));
-    el('div', 'bo-note', q, perigo ? 'Pagamento: à vista, pelo dono do carro.' : '');
+    el('div', 'bo-note', q, perigo ? 'Pagamento: à vista, pelo ' + PEOPLE.dono.name + '.' : '');
   }
 }

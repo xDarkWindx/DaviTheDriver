@@ -1,5 +1,6 @@
 // HUD de jogo. Regra de ouro: o DOM só é tocado quando o valor (já arredondado) muda.
 import { el, setText, setClass, setStyle, clamp, fmtTime, fmtInt, fmtMoney, fmtMult, fmtDist } from './dom.js';
+import { PEOPLE } from '../config.js';
 import { drawFace, drawGesture } from './pixel.js';
 import { Minimap } from './minimap.js';
 import { ACTIONS, FINE_BY } from './texts.js';
@@ -63,7 +64,7 @@ class MoodPanel {
     const key = who + this.role + (panic ? 'p' : '');
     if (key !== this._key) {
       this._key = key;
-      setText(this.name, who === 'davi' ? 'DAVI' : 'DONO');
+      setText(this.name, (PEOPLE[who] && PEOPLE[who].label) || who.toUpperCase());
       setText(this.sub, this.role === 'driver' ? 'ao volante' : 'de carona');
       setText(this.b1.label, panic ? 'SUSTO' : 'ANSIEDADE');
       setText(this.b2.label, panic ? 'PÂNICO' : 'ESTRESSE');
@@ -219,7 +220,7 @@ export class Hud {
       const letters = s.text.replace(/[^A-Za-zÀ-ú]/g, ''), caps = letters.length >= 4 && letters === letters.toUpperCase();
       const loud = caps || s.tone === 'panic' || /!{2,}/.test(s.text);
       const node = el('div', `bubble tone-${s.tone}${loud ? ' loud' : ''}${s.text ? '' : ' gesture-only'}`, col);
-      el('b', 'bub-name', node, s.who === 'davi' ? 'DAVI' : 'DONO');
+      el('b', 'bub-name', node, (PEOPLE[s.who] && PEOPLE[s.who].label) || 'DAVI');
       const row = el('div', 'bub-row', node);
       if (s.gesture) drawGesture(el('canvas', 'bub-gesture', row), s.gesture);
       if (s.text) el('span', 'bub-text', row, s.text);

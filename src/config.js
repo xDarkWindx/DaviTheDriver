@@ -175,8 +175,8 @@ export const VEHICLES = {
 // Os efeitos no volante (player.mods) vêm do humor do DRIVER.
 // ---------------------------------------------------------------------------
 export const PEOPLE = {
-  davi: { id: 'davi', name: 'Davi' },
-  dono: { id: 'dono', name: 'Dono do Cactus' },
+  davi: { id: 'davi', name: 'Davi', label: 'DAVI' },
+  dono: { id: 'dono', name: 'Leandro', label: 'LEANDRO' },  // o dono do Cactus (nome de exibição; o id interno continua 'dono')
 };
 
 export const MODES = {
@@ -186,11 +186,11 @@ export const MODES = {
   },
   carona: {
     id: 'carona', label: 'Davi de carona', vehicle: 'cactus', driver: 'dono', passenger: 'davi', parking: ['norte', 'leste'],
-    description: 'Você dirige o seu C4 Cactus THP e o Davi vai do lado, palpitando e surtando.',
+    description: 'Você é o Leandro, no seu C4 Cactus THP, dando carona pro Davi.',
   },
   perigo: {
     id: 'perigo', label: 'Perigo: Davi no Cactus', vehicle: 'cactus', driver: 'davi', passenger: 'dono', parking: ['norte', 'leste'],
-    description: 'O dono emprestou o Cactus THP pro Davi. Turbo + ansiedade. O dono vai do lado, apavorado.',
+    description: 'O Leandro emprestou o Cactus THP pro Davi e vai do lado.',
   },
 };
 
