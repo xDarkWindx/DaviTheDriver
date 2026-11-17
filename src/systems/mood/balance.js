@@ -15,30 +15,35 @@ export const MOOD_BALANCE = {
 
   // ---- ANSIEDADE do Davi ("preciso chegar logo"), pontos/s
   anx: {
-    freeRoadMax: 2.0,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar
+    freeRoadMax: 1.1,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar (só andando: parado esperando não conta)
+    freeRoadMinKmh: 4,
     freeRoadMinGap: 30,      // m: abaixo disso não conta como "pista livre"
     freeRoadFullGap: 150,
     freeRoadThrottleCut: 0.6,// pisar fundo reduz esse ganho em até 60%
     cruiseRelief: 5.0,       // correndo (>= 95% do limite) com pista livre: alivia (até o repouso)
-    rest: 26,                // repouso: alívio natural para aqui (só respirar desce até o piso)
+    flowFrac: 0.85, flowRelief: 2.2, // andando >= 85% do limite (mesmo com trânsito): alivia menos
+    rest: 30,                // repouso: alívio natural para aqui (só respirar desce até o piso)
     cruiseMinFree: 40,
     // ATRÁS DE CARRO LENTO: gatilho mais forte do jogo
     slowGap: 30,             // m: lead a menos disso
     slowLeadRatio: 0.8,      // lead mais lento que 80% do desejado (~92% do limite)
-    slowBase: 1.6,           // pontos/s ao começar
-    slowGrowth: 0.16,        // +pontos/s por segundo atrás dele
-    slowGrowthCap: 20,       // s  (40 -> 100 em ~20-25 s colado num lento sem poder passar)
+    slowMinKmh: 6,           // o da frente acima disso = "andando devagar"; abaixo (parado na fila) = fila
+    slowBase: 1.5,           // pontos/s ao começar
+    slowGrowth: 0.13,        // +pontos/s por segundo atrás dele
+    slowGrowthCap: 22,       // s  (40 -> 90 em ~20-25 s colado num lento sem poder passar)
+    queueGap: 25, queue: 0.35, // fila parada (sinal, faixa, balão): sobe devagar
     slowProximity: 0.6,      // +60% quando colado (gap -> 0)
     slowDecay: 2.0,          // o "tempo atrás do lento" esvazia 2x mais rápido do que enche
-    redLight: 1.0,           // parado no vermelho
-    crosswalk: 1.2,          // parado na faixa com pedestre
-    belowLimit: 1.0,         // andando abaixo de 80% do limite (sem estar travado)
-    clockBase: 0.15,         // o cronômetro passando...
-    clockPer300s: 0.25,      // ...e pesando mais com o tempo
-    clockMax: 0.6,
+    redLight: 0.6,           // parado no vermelho
+    crosswalk: 0.9,          // parado na faixa com pedestre
+    belowLimit: 0.45,        // andando abaixo de 80% do limite (sem estar travado)
+    clockBase: 0.04,         // o cronômetro passando...
+    clockPer300s: 0.12,      // ...e pesando mais com o tempo
+    clockMax: 0.3,
     busLaneBeside: 1.5,      // faixa de ônibus vazia do lado e ele parado
     overtook: 8,             // ultrapassou alguém: -8 (mais o tempo que estava atrás do lento * 0.4)
     overtookPerSlowSec: 0.4,
+    pedScare: 10,            // susto com pedestre
     overtaken: 3,            // ser ultrapassado também dá a sensação de estar devagar
     stressCoupleFrom: 75,    // estresse alto puxa a ansiedade
     stressCouple: 0.5,
@@ -61,10 +66,11 @@ export const MOOD_BALANCE = {
     fine: 16, nearMiss: 10,
     hazard: { manga: 10, jaca: 20 },
     scrape: 14,              // raspão (colisão leve)
+    pedScare: 22,            // encostou num pedestre ("quase")
     pedSlow: 2.0,            // pontos/s parado esperando pedestre
     busLead: 1.5,            // pontos/s com ônibus na frente
     anxCoupleFrom: 75,       // ansiedade alta puxa o estresse
-    anxCouple: 1.2,
+    anxCouple: 0.6,
     signalRun: 0,            // (Davi não se estressa com o próprio sinal furado)
   },
 
@@ -120,7 +126,7 @@ export const MOOD_BALANCE = {
     outburstAt: 90, outburstCd: 6, outburstVent: -35,
     outburstDonoStress: 14, outburstDonoAnx: 8, outburstProvoke: 0.8, outburstRadius: 45,
     dangerAt: 75, safeBelow: 55, // "surto evitado": passou de 75 e voltou abaixo de 55 sem surtar
-    palpiteEvery: [2.5, 5.0],// s entre palpites (tagarela)
+    palpiteEvery: [3.4, 6.0],// s entre palpites (tagarela, com pausas)
     palpiteDonoAnx: 1.2,     // cada palpite cutuca o dono
     donoDecay: 2.5,          // dono volta a zero sozinho
     gestureChance: 0.18,     // fração dos palpites que é só gesto
@@ -139,10 +145,10 @@ export const MOOD_BALANCE = {
     cornerRate: 4,
     fastKmh: 100, fast: 3,
     turbo: 4,                // turbo enchendo (spool > 0.85 com pé no fundo)
-    nearMiss: 14, scrape: 25, redRun: 18, yellowRun: 6, hazard: 14, fine: 8,
+    nearMiss: 14, scrape: 25, pedScare: 45, redRun: 18, yellowRun: 6, hazard: 14, fine: 8,
     panicFromSusto: 80, panicRate: 3,
     calmAfter: 2, anxDecay: 4, stressDecay: 2.5,
-    complainFrom: 60, complainEvery: [2.5, 5.0],
+    complainFrom: 60, complainEvery: [3.5, 6.5],
     complainDaviStress: 4, complainDaviStressPerLevel: 4,
     takeoverAt: 97, takeoverHold: 3,
   },
@@ -153,10 +159,12 @@ export const MOOD_BALANCE = {
 
   // ---- falas
   speech: {
-    minGap: 1.4,             // s entre falas do MESMO personagem
-    minGapHigh: 0.6,         // prioridade alta (eventos)
-    slowLineEvery: 3.0,      // atrás de lento
-    idleLineEvery: [4, 8],   // resmungos/instruções do Davi motorista
+    minGap: 3.2,             // s entre falas do MESMO personagem
+    minGapHigh: 1.4,         // prioridade alta (eventos e falas de situação)
+    fillerGap: 8,            // enchimento (resmungo, relógio, cruzeiro...) só depois de tanto silêncio do personagem
+    slowLineEvery: 4.5,      // atrás de lento
+    idleLineEvery: [10, 16], // resmungos/instruções do Davi motorista
+    situHold: 0.6,           // s que a situação precisa durar para virar fala
     gestureChance: 0.15,
     gestureProvoke: 0.25,
   },

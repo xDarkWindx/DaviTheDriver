@@ -35,13 +35,26 @@ export function makeTrafficGeometry(kind) {
 }
 
 function bikeGeometry() {
+  // bicicleta de verdade (vista de cima e de lado): pneu + aro + cubo, quadro em diamante (cor da instância), pedivela, guidão e selim
   const b = new PartBuilder();
-  for (const z of [-0.52, 0.52]) { b.cylX(0.33, 0.045, 12, 0x1b1b1b, 0, 0.33, z); b.cylX(0.07, 0.05, 6, 0x9a9a9a, 0, 0.33, z); }
-  b.box(0.05, 0.05, 0.8, 0xffffff, 0, 0.62, 0.02, 0, -0.18, 0, 1);   // quadro (cor da instância)
-  b.box(0.05, 0.5, 0.05, 0xffffff, 0, 0.55, -0.25, 0, 0.25, 0, 1);   // canote
-  b.box(0.05, 0.45, 0.05, 0xffffff, 0, 0.6, 0.45, 0, -0.2, 0, 1);    // garfo
-  b.box(0.5, 0.04, 0.04, 0x222222, 0, 0.86, 0.5);                    // guidão
-  b.box(0.14, 0.05, 0.24, 0x111111, 0, 0.82, -0.32);                  // selim
+  for (const z of [-0.52, 0.52]) {
+    b.cylX(0.34, 0.05, 14, 0x161616, 0, 0.34, z);          // pneu
+    b.cylX(0.29, 0.055, 14, 0xb8bcc0, 0, 0.34, z);         // aro
+    b.cylX(0.25, 0.06, 14, 0x2a2a2a, 0, 0.34, z);          // vão do aro (raios escuros)
+    b.cylX(0.05, 0.08, 6, 0x9a9a9a, 0, 0.34, z);           // cubo
+  }
+  b.box(0.045, 0.045, 0.62, 0xffffff, 0, 0.78, 0.04, 0, -0.08, 0, 1);  // tubo superior
+  b.box(0.05, 0.05, 0.7, 0xffffff, 0, 0.56, 0.18, 0, 0.62, 0, 1);      // tubo inferior (diagonal)
+  b.box(0.045, 0.5, 0.045, 0xffffff, 0, 0.6, -0.2, 0, 0.3, 0, 1);      // tubo do selim
+  b.box(0.04, 0.04, 0.5, 0xffffff, 0, 0.36, -0.3, 0, 0, 0, 1);         // pé de vela (até o eixo de trás)
+  b.box(0.04, 0.42, 0.04, 0xffffff, 0, 0.56, -0.4, 0, -0.75, 0, 1);    // escora do selim
+  b.box(0.045, 0.5, 0.045, 0xffffff, 0, 0.58, 0.47, 0, -0.32, 0, 1);   // garfo
+  b.cylX(0.07, 0.12, 8, 0x3a3a3a, 0, 0.36, -0.05);                     // movimento central
+  b.box(0.3, 0.035, 0.035, 0x3a3a3a, 0, 0.36, -0.05);                  // pedivela
+  for (const x of [-0.17, 0.17]) b.box(0.08, 0.03, 0.1, 0x111111, x, 0.36, -0.05); // pedais
+  b.box(0.54, 0.04, 0.04, 0x222222, 0, 0.92, 0.5);                     // guidão
+  for (const x of [-0.26, 0.26]) b.box(0.06, 0.06, 0.1, 0x111111, x, 0.92, 0.5); // manoplas
+  b.box(0.14, 0.05, 0.26, 0x111111, 0, 0.88, -0.36);                   // selim
   return b.build();
 }
 
@@ -59,6 +72,9 @@ function pardalGeometry() {
   b.box(0.9, 0.3, 0.055, 0x1c1c1c, 0, 3.7, -0.17);
   b.box(0.5, 0.5, 0.055, 0xf4f4f0, 0, 3.15, -0.17);
   b.box(0.42, 0.6, 0.34, 0x5f656c, 0, 0.3, 0.3);       // caixa de controle
+  b.box(0.9, 0.55, 0.08, 0x1a1a1a, 0, 4.55, -0.17);    // painel "sua velocidade"
+  b.box(0.62, 0.3, 0.09, 0xd92a1c, 0, 4.55, -0.18);    // números (vermelho)
+  b.box(3.2, 0.06, 0.06, 0xf2c200, 1.6, 5.98, 0);      // faixa amarela no braço (lê melhor de cima)
   return b.build();
 }
 
@@ -265,7 +281,7 @@ export class TrafficRenderer {
       }
       mesh.setColorAt(n, this.shirts[p.color % this.shirts.length]);
       if (!live) this._blob(x, 0.1, z, h, 0.8, p.kind === 'ciclista' ? 1.6 : 0.8);
-      if (p.signaling) { // braço levantado (mão) pedindo passagem
+      if (p.signaling || p.scaredT > 0) { // braço levantado (pedindo passagem, ou reclamando do susto) (mão) pedindo passagem
         const sh = Math.sin(h), ch = Math.cos(h);
         this._lamp(x - ch * 0.3, 1.78, z + sh * 0.3, h, 0, 0, 0.1, 0.42, 0.1, C.hand);
       }

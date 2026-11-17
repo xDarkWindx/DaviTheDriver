@@ -27,7 +27,8 @@ export const RULES_BALANCE = {
     crashKmh: 18,          // estático/veículo: a partir disso encerra com 'bateu' (padrão = CONFIG.crashImpactKmh)
     scrapeMinKmh: 3,
     scrapePoints: 150, scrapePerKmh: 10,
-    pedestrianAlwaysEnds: true,
+    pedestrianAlwaysEnds: true, // atropelamento de verdade encerra sempre...
+    pedSoftKmh: 8,              // ...mas encostar abaixo disso é "quase": susto, raspão nos pontos, multa de faixa (se na faixa)
   },
 
   score: {

@@ -77,7 +77,11 @@ export default {
       if (jams && jams.length) this.hud.toast('warn', 'Trânsito parado', jams.map((j) => j.label).join(' · '), 5, 'jam');
       this.howto.close(); this.options.close();
     });
-    ev.on(EV.COLLISION, (c) => { if (c && c.a === 'player') this.lastCol = c; });
+    ev.on(EV.COLLISION, (c) => {
+      if (!c || c.a !== 'player') return;
+      this.lastCol = c;
+      if (c.b === 'pedestrian' && c.soft && st.mode === 'PLAYING') { const [a, b] = pickT('pedScare'); this.hud.toast('warn', a, b, 2.8, 'pedScare'); }
+    });
     ev.on(EV.TRIP_FINISH, (f) => this._onFinish(f));
     ev.on(EV.FINE, (f) => this.hud.fine(f));
     ev.on(EV.SAY, (p) => this.hud.say(p));

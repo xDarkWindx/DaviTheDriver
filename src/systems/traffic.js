@@ -135,7 +135,7 @@ const api = {
   neighbors(radius = 30) { return sim ? sim.neighbors(radius) : []; },
   crosswalkAhead() { return sim ? sim.crosswalkAhead() : null; },
   /** Alguém atravessando a faixa `cid` bloqueia o ponto (x, z)? (só a faixa de rolamento onde o pedestre está ou vai chegar) */
-  crosswalkBlockedAt(cid, x, z) { return sim ? sim.cwBlockedAt(cid, x, z) : false; },
+  crosswalkBlockedAt(cid, x, z) { return sim ? sim.cwBlockedAt(cid, x, z, true) : false; },
   provoke(amount = 0.3, radius = 30) { return sim ? sim.provoke(amount, radius) : 0; },
   flashLead() { return sim ? sim.flashLead() : null; },
   revealAgent(id) { return sim ? sim.revealAgent(id) : null; },

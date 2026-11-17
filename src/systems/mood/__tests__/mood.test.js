@@ -204,3 +204,49 @@ test('tom: nenhuma fala rotula o Davi nem joga culpa', () => {
     assert.ok(!bad.test(lineText(l, prof)), `${k}: ${lineText(l, prof)}`);
   }
 });
+
+// ---------------------------------------------------------------- falas de situação (evento × persona/tipo × traço)
+import { situationOf } from '../model.js';
+const banksSaid = (m, inp, secs) => { const got = []; const n = Math.round(secs / DT); for (let i = 0; i < n; i++) { stepMood(m, inp, DT); for (const s of drainOut(m).says) got.push(s.bank); } return got; };
+const lead = (o) => Object.assign({ gap: 8, speed: 0, kind: 'sedan', persona: 'normal', why: null, onPhone: false, noSignal: false, lane: 0, laneCount: 2 }, o);
+
+test('situação: parado atrás de quem não sai no verde — autoescola, celular, ônibus — gera a fala específica (3 modos)', () => {
+  const cases = [[{ persona: 'autoescola', why: 'morreu' }, 'sitVerdeAuto', 'psVerdeAuto', 'osVerdeAuto'],
+    [{ persona: 'normal', why: 'celular', onPhone: true }, 'sitVerdeCel', 'psVerdeCel', 'osVerde'],
+    [{ persona: 'onibus', why: 'verde' }, 'sitVerdeOnibus', 'psVerde', 'osVerde']];
+  for (const [ld, dBank, pBank, oBank] of cases) {
+    const inp = base({ speedKmh: 0, lead: lead(ld) });
+    assert.ok(banksSaid(model('davi'), inp, 2).includes(dBank), `davi: ${dBank}`);
+    assert.ok(banksSaid(model('carona'), inp, 2).includes(pBank), `carona: ${pBank}`);
+    let ok = false; for (let k = 0; k < 6 && !ok; k++) ok = banksSaid(createMoodModel('perigo', { rng: makeRng(k + 1) }), inp, 2).includes(oBank);
+    assert.ok(ok, `perigo: Leandro ${oBank}`);
+  }
+});
+
+test('situação: atrás de lento por persona (tio na esquerda, autoescola, ônibus no ponto) e pedestre na faixa', () => {
+  const slow = (o) => base({ speedKmh: 30, limitKmh: 80, lead: lead(Object.assign({ gap: 12, speed: 30 / 3.6 }, o)) });
+  assert.equal(situationOf(slow({ persona: 'tio', lane: 1, laneCount: 2 }), { blocked: true, speed: 30, limit: 80, lead: slow({ persona: 'tio', lane: 1, laneCount: 2 }).lead }), 'TioEsq');
+  assert.ok(banksSaid(model('davi'), slow({ persona: 'tio', lane: 1, laneCount: 2 }), 2).includes('sitTioEsq'));
+  assert.ok(banksSaid(model('davi'), slow({ persona: 'autoescola' }), 2).includes('sitAuto'));
+  assert.ok(banksSaid(model('davi'), slow({ persona: 'onibus', why: 'ponto' }), 2).includes('sitPonto'));
+  assert.ok(banksSaid(model('davi'), base({ speedKmh: 0, crosswalkWait: true }), 2).includes('sitPed'));
+});
+
+test('eventos citam quem causou: sem seta, motoboy, ônibus, revanche; carona vira palpite', () => {
+  const ev = (mode, type, p, seed = 3) => { const m = createMoodModel(mode, { rng: makeRng(seed) }); moodEvent(m, type, p, base({ speedKmh: 40 })); return drainOut(m).says.map((s) => s.bank); };
+  let semSeta = false; for (let k = 1; k < 8 && !semSeta; k++) semSeta = ev('davi', 'cutOff', { persona: 'normal', noSignal: true }, k).includes('evSemSeta');
+  assert.ok(semSeta, 'fechado sem seta => evSemSeta');
+  assert.ok(ev('davi', 'cutOff', { persona: 'moto', kind: 'moto' }).includes('evMoto'));
+  assert.ok(ev('davi', 'overtaken', { persona: 'moto', kind: 'moto' }).includes('overtakenMoto'));
+  assert.ok(ev('davi', 'cutOff', { persona: 'onibus', kind: 'onibus' }).includes('evOnibus'));
+  assert.ok(ev('davi', 'honked', { persona: 'apressado', revenge: true }).includes('evRevanche'));
+  assert.ok(ev('carona', 'overtaken', { persona: 'normal', noSignal: true }).includes('psSemSeta'));
+});
+
+test('falas: situação tem preferência e o enchimento só preenche silêncio longo', () => {
+  const sp = new Speaker({ rng: makeRng(2), minGap: B.speech.minGap, minGapHigh: B.speech.minGapHigh, fillerGap: B.speech.fillerGap });
+  assert.ok(sp.say(0, 'sitPed', { prio: 1 }));
+  assert.equal(sp.say(3.5, 'idle'), null, 'enchimento logo depois de uma fala');
+  assert.ok(sp.say(3.5, 'sitVerdeAuto', { prio: 1 }), 'situação passa');
+  assert.ok(sp.say(12, 'idle'), 'enchimento depois de silêncio');
+});

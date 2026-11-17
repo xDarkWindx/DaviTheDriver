@@ -27,7 +27,7 @@ export const LIVE_SHADOW = { map: false };
  */
 export const OCCLUSION = {
   uFocus: { value: new THREE.Vector3(0, -9999, 0) }, uCamDir: { value: new THREE.Vector3(0, 1, 0) },
-  uRadius: { value: 9 }, uOn: { value: 1 },
+  uRadius: { value: 5.5 }, uOn: { value: 1 }, // uRadius (m): só o "furo" em volta do carro (antes 9 m pontilhava área demais)
 };
 export function addOcclusionCut(mat, key) {
   const prev = mat.onBeforeCompile;

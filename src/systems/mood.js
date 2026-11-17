@@ -26,7 +26,7 @@ export default {
     this.ctx = ctx;
     this.T = new TrafficAdapter(ctx);
     const S = MOOD_BALANCE.speech;
-    this.speaker = new Speaker({ minGap: S.minGap, minGapHigh: S.minGapHigh });
+    this.speaker = new Speaker({ minGap: S.minGap, minGapHigh: S.minGapHigh, fillerGap: S.fillerGap });
     this.model = createMoodModel('davi');
     this.inp = { speedKmh: 0, limitKmh: 0, throttle: 0, brake: 0, longAccel: 0, latAccel: 0, turbo: 0, inJunction: false, inRing: false,
       freeAhead: 150, lead: null, jam: false, stoppedAtRed: false, crosswalkWait: false, busLaneBeside: false, elapsed: 0, radarAhead: false, vehicleId: 'kwid' };
@@ -46,7 +46,9 @@ export default {
     on(EV.SIGNAL_RUN, 'signalRun');
     ev.on(EV.COLLISION, (c) => {
       // só raspões chegam aqui ainda em PLAYING (batida forte: rules encerra antes, no mesmo emit)
-      if (live() && c && c.a === 'player' && (c.impactKmh || 0) >= 3) this.event('scrape', c);
+      if (!live() || !c || c.a !== 'player') return;
+      if (c.b === 'pedestrian') this.event('pedScare', c); // "quase" com pedestre (atropelamento de verdade: rules já encerrou)
+      else if ((c.impactKmh || 0) >= 3) this.event('scrape', c);
     });
     const action = (name, type) => ev.on(name, (p) => { if (live() && (!p || p.source === 'player' || p.source == null)) this.event(type, p || {}); });
     action(EV.HORN, 'horn'); action(EV.BREATHE, 'breathe'); action(EV.CURSE, 'curse'); action(EV.FLASH, 'flash');
@@ -131,6 +133,7 @@ export default {
     inp.throttle = sp.throttle || 0; inp.brake = sp.brake || 0; inp.turbo = sp.turbo || 0;
     inp.longAccel = ph ? ph.longAccel || 0 : 0; inp.latAccel = ph ? ph.latAccel || 0 : 0;
     inp.inJunction = !!sp.inJunction; inp.elapsed = st.trip.elapsed || 0; inp.vehicleId = sp.vehicleId;
+    inp.atStart = /estacionamento/i.test(sp.roadName || '');
     inp.inRing = false;
     if (sp.inJunction && net && net.getNode) {
       const info = (ctx.player && ctx.player._info && ctx.player._info.nodeId != null) ? ctx.player._info : net.roadInfoAt(sp.x, sp.z, this._info);

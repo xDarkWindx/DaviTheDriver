@@ -121,6 +121,7 @@ export const TOASTS = {
   cutOff: [['Fechado!', 'Isso foi proposital. Eu vi a cara.'], ['Fechado!', 'Setinha, hein? Existe, é de graça.']],
   honkedAt: [['Buzinaram pra você', 'Que falta de educação!'], ['Buzinaram pra você', 'Eu estava ESQUENTANDO o motor.']],
   nearMiss: [['Raspou!', 'Passou a um dedo.']],
+  pedScare: [['Quase!', 'O pedestre reclamou: "Olha a faixa!"'], ['Quase!', '"Ô, motorista! Tá vendo não?"']],
   peakAnx: 'ANSIEDADE NO TALO!',
   peakStress: 'ESTRESSE NO TALO!',
 };
@@ -130,6 +131,7 @@ export const TOASTS_RUDE = {
   cutOff: [['Fechado!', 'Pô, cara, setinha custa o quê?!'], ['Fechado!', 'Porra, olha o espelho!']],
   honkedAt: [['Buzinaram pra você', 'Buzina o quê, rapaz? Vai catar coquinho.']],
   nearMiss: [['Raspou!', 'Caralho, passou a um dedo!']],
+  pedScare: [['Quase!', 'O pedestre: "Tá cego, porra?"'], ['Quase!', 'O pedestre: "Ô, desgraça, a faixa!"']],
 };
 
 export const PEAK_SUB = {

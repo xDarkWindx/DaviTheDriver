@@ -180,10 +180,17 @@ test("integração: batida forte => 'bateu' com boletim; raspão não encerra", 
   assert.ok(r.crash.sinistroNo >= 2 && r.crash.sinistroNo <= 99);
 });
 
-test('integração: atropelar pedestre encerra sempre', () => {
+test('integração: atropelar pedestre encerra sempre; encostar devagar é "quase" (susto, multa de faixa, não encerra)', () => {
   const s = setup('carona');
-  s.events.emit(EV.COLLISION, { a: 'player', b: 'pedestrian', kind: 'pedestrian', impactKmh: 6, x: 0, z: 0 });
+  s.events.emit(EV.COLLISION, { a: 'player', b: 'pedestrian', kind: 'pedestrian', impactKmh: 22, x: 0, z: 0 });
   assert.equal(s.got.finish.reason, 'bateu'); assert.equal(s.got.resultAtFinish.reason, 'bateu');
+  const q = setup('perigo');
+  const donoBefore = q.state.mood.passenger.stress;
+  q.events.emit(EV.COLLISION, { a: 'player', b: 'pedestrian', kind: 'pedestre', impactKmh: 5, soft: true, crosswalkId: 3, x: 0, z: 0 });
+  assert.equal(q.got.finish, null, 'quase não encerra');
+  assert.equal(q.got.fines.filter((f) => f.code === 'crosswalk').length, 1, 'multa de faixa');
+  assert.ok(q.state.mood.passenger.stress > donoBefore + 30, 'pânico alto do Leandro');
+  assert.ok(q.got.says.some((x) => x.who === 'dono'), 'Leandro reage');
 });
 
 test("integração: perigo dirigindo como louco => 'tomouOCarro'", () => {
@@ -225,4 +232,18 @@ test('integração: ações H/R/X/F com trânsito falso (provoke/flashLead) e fu
   stub.game.advance(10);
   stub.events.emit(EV.HORN, { source: 'player' });
   assert.equal(stub.state.mode, 'PLAYING');
+});
+
+test('integração: multa de faixa de pedestre segue o critério POR CORREDOR do trânsito (crosswalkBlockedAt)', () => {
+  const run = (blocked) => {
+    const s = setup('davi');
+    s.ctx.net.crosswalks = [{ id: 7, x: 0, z: 40, heading: 0, halfWidth: 8 }];
+    s.traffic.pedestrians.push({ id: 1, x: 0, z: 40, state: 'crossing', crosswalkId: 7 }); // em cima da faixa pintada
+    s.traffic.crosswalkBlockedAt = () => blocked;   // o trânsito diz se está no corredor do carro
+    s.player.update = () => { const sp = s.state.player; s.phys.z += (40 / 3.6) / 60; sp.x = 0; sp.z = s.phys.z; sp.heading = 0; sp.speedKmh = 40; sp.speedLimitKmh = 60; sp.vehicleId = 'kwid'; };
+    s.game.advance(6);
+    return s.got.fines.filter((f) => f.code === 'crosswalk').length;
+  };
+  assert.equal(run(false), 0, 'pedestre fora do corredor (já passou / outra pista) não multa, mesmo em cima da faixa pintada');
+  assert.equal(run(true), 1, 'pedestre no corredor (ou entrando) multa');
 });

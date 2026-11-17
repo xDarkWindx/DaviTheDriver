@@ -11,7 +11,7 @@ export const BOT_PROFILES = {
   cuidadoso: { speedMul: 0.95, speedAdd: 0, T: 1.8, s0: 3.5, a: 2.2, b: 2.8, latA: 3.4, yellowDecel: 6, busLane: false,
     overtake: 0.7, overtakeFree: 55, breatheAt: 58, hornBlocked: 0, flashBlocked: 0, waitPed: true },
   normal: { speedMul: 1.0, speedAdd: 6, T: 1.2, s0: 2.5, a: 3.0, b: 3.4, latA: 4.6, yellowDecel: 4.5, busLane: false,
-    overtake: 0.8, overtakeFree: 40, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
+    overtake: 0.92, overtakeFree: 40, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
   apressado: { speedMul: 1.35, speedAdd: 6, T: 0.7, s0: 1.5, a: 4.5, b: 5.0, latA: 6.2, yellowDecel: 2.2, busLane: true,
     overtake: 0.95, overtakeFree: 26, breatheAt: 95, hornBlocked: 2.5, flashBlocked: 1.5, waitPed: false },
 };
@@ -227,7 +227,8 @@ export function createAutopilot(ctx) {
           for (const c of lane.crosswalks) {
             const d = base + c.s - 2.5 - veh.length * 0.5 - 1.2;
             if (d < -1 || d > 90) continue;
-            const busy = (sim.cwCross[c.id] > 0 && (c.m == null || sim.cwBlockedM(c.id, c.m))) || (prof.waitPed && sim.cwWait[c.id] > 0 && d < 40);
+            // por faixa de rolamento; perto da faixa, quem ainda vai cruzar o meu corredor (não passou) também conta (dá tempo de frear)
+            const busy = (sim.cwCross[c.id] > 0 && (c.m == null || sim.cwBlockedM(c.id, c.m, false, d < 35 ? 8 : undefined))) || (prof.waitPed && sim.cwWait[c.id] > 0 && d < 40);
             if (busy && !(d < 1.5 && v > 8)) { obstacle(Math.max(0, d), 0, 'faixa'); legit = true; }
           }
           base += lane.length;
@@ -239,6 +240,9 @@ export function createAutopilot(ctx) {
       }
       // veículos e pessoas no corredor do caminho
       const vs = ctx.modules.traffic.vehicles, myW = veh.width * 0.5;
+      // fusão (alça entrando na via, conectores que desembocam na mesma faixa): quem vem quase paralelo também conta
+      let merging = false;
+      for (let j = 0; j < Math.min(P.n, 16); j++) { const Lj = net.lanes[P.lane[j]]; if (Lj.isConnector && Lj.turn === 'merge') { merging = true; break; } if (Lj.isConnector && Lj.next.length && net.lanes[Lj.next[0]].prev.length > 1 && Lj.turn !== 'straight') { merging = true; break; } }
       for (let i = 0; i < vs.length; i++) {
         const o = vs[i];
         const ox = o.x - ph.x, oz = o.z - ph.z;
@@ -268,7 +272,11 @@ export function createAutopilot(ctx) {
         }
         // cruzando (rotatória/cruzamento): previsão de 3,2 s
         const adh = Math.abs(dh);
-        if ((adh < 0.35 && !(o.w && o.w.lane.isConnector)) || adh > 2.7 || o.speed < 0.8) continue;
+        if ((adh < 0.35 && !(o.w && o.w.lane.isConnector) && !merging) || adh > 2.7 || o.speed < 0.8) continue;
+        // dentro do balão eu tenho a preferência: quem ainda espera na entrada (não decidiu entrar) não é conflito
+        if (p.inJunction && o.w && !o.w.lane.isConnector && sim.laneRing[o.w.lane.id] >= 0 && o.ringGo !== o.w.lane.id && !o.stjBus && !(o.furaoT > 0)) continue;
+        // quem vem de uma aproximação com vermelho (ainda antes da linha) vai parar: não é conflito
+        if (o.w && o.w.lane.signal && !o.w.lane.isConnector && ctx.signals.stateForLane(o.w.lane) === 'red' && o.w.s < sim.laneStop[o.w.lane.id] - 1) continue;
         const ovx = Math.sin(o.heading) * o.speed, ovz = Math.cos(o.heading) * o.speed;
         const vm = Math.max(v, 5);
         for (let t = 0.25; t <= 3.5; t += 0.25) {

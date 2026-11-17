@@ -40,11 +40,11 @@ export const BANKS = {
     ['NÃO ANDA, PORRA!', 'NÃO ANDA, MEU DEUS!'], 'Cinco minutos parado aqui!', ['Puta que pariu, que trânsito!', 'Nossa senhora, que trânsito!'],
     'Eu devia ter ido pelo outro caminho!', 'Faixa da direita, faixa da direita, AGORA!', 'Alguém liga pro Detran!',
   ] },
-  freeSlow: { who: D, role: 'driver', tone: 'anx', cd: 6, lines: [
+  freeSlow: { filler: 1, who: D, role: 'driver', tone: 'anx', cd: 6, lines: [
     'Pista livre e a gente aqui…', 'Olha esse vazio na frente. OLHA.', 'Dava pra estar no STJ já.', 'Bora, que tá livre!',
     ['Tá livre, porra, vai!', 'Tá livre, gente, vai!'], 'Nem um carro na frente. Nenhum.',
   ] },
-  red: { who: D, role: 'driver', tone: 'anx', cd: 7, gestures: ['buzinaImaginaria'], lines: [
+  red: { filler: 1, who: D, role: 'driver', tone: 'anx', cd: 7, gestures: ['buzinaImaginaria'], lines: [
     'Abre… abre… abre…', ['Esse sinal tá de sacanagem.', 'Esse sinal tá de brincadeira.'], 'Três minutos de vermelho. Contei.',
     ['Que sinal demorado do caralho.', 'Que sinal demorado, meu Deus.'], 'Verde, verde, verde, verde…', 'Quem programou esse sinal?',
   ] },
@@ -114,20 +114,20 @@ export const BANKS = {
   scrape: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, gestures: ['maosNaCabeca'], lines: [
     'Ai! Ai, ai, ai.', ['Porra!', 'Putz!'], 'Isso foi o para-choque?', 'Só um beijinho. Só um beijinho.',
   ] },
-  bus: { who: D, role: 'driver', tone: 'stress', cd: 8, lines: [
+  bus: { filler: 1, who: D, role: 'driver', tone: 'stress', cd: 8, lines: [
     'Ônibus parando em todo ponto…', 'Atrás de ônibus, a vida não anda.', ['Puta que pariu, ônibus!', 'Ai, meu Deus, ônibus!'],
   ] },
-  busLane: { who: D, role: 'driver', tone: 'anx', cd: 9, gestures: ['apontando'], lines: [
+  busLane: { filler: 1, who: D, role: 'driver', tone: 'anx', cd: 9, gestures: ['apontando'], lines: [
     'Olha a faixa do ônibus vazinha ali…', 'Ninguém na faixa do ônibus. Ninguém.', 'E se eu for só um pouquinho por ali…',
   ] },
-  clock: { who: D, role: 'driver', tone: 'anx', cd: 25, lines: [
+  clock: { filler: 1, who: D, role: 'driver', tone: 'anx', cd: 25, lines: [
     'Que horas são? Que horas são?!', 'Vou chegar atrasado.', 'Já era pra estar lá.', 'O relógio não para, né.',
     'Mais cinco minutos e eu tô ferrado.',
   ] },
   overtook: { who: D, role: 'driver', tone: 'calm', cd: 3, prio: 1, gestures: ['joinha'], lines: [
     'Tchau!', 'Fica aí!', 'É assim que se faz.', 'Finalmente!', 'Vai com calma aí atrás, viu?', 'Aaah, agora sim.',
   ] },
-  cruise: { who: D, role: 'driver', tone: 'calm', cd: 12, gestures: ['joinha'], lines: [
+  cruise: { filler: 1, who: D, role: 'driver', tone: 'calm', cd: 12, gestures: ['joinha'], lines: [
     'Agora sim.', 'Isso. Isso!', 'Assim dá gosto.', 'Pista livre, vida boa.',
   ] },
   horn: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
@@ -149,11 +149,98 @@ export const BANKS = {
     ['AAAAH, PORRA!', 'AAAAH, MEU DEUS!'], 'EU NÃO AGUENTO MAIS ESSE TRÂNSITO!', ['QUE CIDADE DO CARALHO!', 'QUE CIDADE, MEU DEUS!'],
     'BRASÍLIA, POR QUÊ?!',
   ] },
-  idle: { who: D, role: 'driver', tone: 'anx', cd: 5, gestures: ['apontando'], lines: [
+  idle: { filler: 1, who: D, role: 'driver', tone: 'anx', cd: 5, gestures: ['apontando'], lines: [
     'Muda de faixa… não, fica.', 'Esse aí vai entrar. Vai entrar. Olha.', 'Seta, amigo. SETA.', 'Bora, bora.',
     'Por ali era mais rápido.', 'Waze disse 12 minutos. Mentira.',
   ] },
 
+  // =============================== FALAS DE SITUAÇÃO (Davi ao volante) ===============================
+  // Narram o que está na tela: reação ao evento e a quem causou (tipo do veículo, traço). Prioridade sobre as genéricas.
+  sitVerde: { who: D, role: 'driver', tone: 'anx', cd: 6, prio: 1, situ: 1, gestures: ['buzinaImaginaria', 'apontando'], lines: [
+    'Verde! VERDE!', 'Abriu, amigo!', 'Tá esperando ficar mais verde?', 'Sinal abriu, ô!', ['Abriu, porra!', 'Abriu, gente!'],
+  ] },
+  sitVerdeAuto: { who: D, role: 'driver', tone: 'anx', cd: 8, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Tinha que ser carro de autoescola.', 'Deixou morrer, né?', 'Liga de novo, liga… embreagem!', 'Calma, aluno, calma… mas vai.',
+    'Pisca-alerta. Morreu mesmo.',
+  ] },
+  sitVerdeCel: { who: D, role: 'driver', tone: 'stress', cd: 8, prio: 1, situ: 1, gestures: ['buzinaImaginaria', 'bracoPraFora'], lines: [
+    'Larga o celular!', 'Abriu, ô! Sai do zap!', ['Olha pra frente, caralho!', 'Olha pra frente, criatura!'], 'Tá respondendo mensagem no sinal?',
+  ] },
+  sitVerdeOnibus: { who: D, role: 'driver', tone: 'anx', cd: 8, prio: 1, situ: 1, lines: [
+    'Vai, ônibus!', 'Bora, motorista!', 'Ônibus saindo no verde é uma novela.',
+  ] },
+  sitVerdeMudanca: { who: D, role: 'driver', tone: 'anx', cd: 8, prio: 1, situ: 1, lines: [
+    'Caminhão de mudança arrancando… vai levar a tarde.', 'Vai, caminhão, vai!', 'Esse caminhão sai em primeira e fica em primeira.',
+  ] },
+  sitVerdeTio: { who: D, role: 'driver', tone: 'anx', cd: 8, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Abriu, tio!', 'Tio, é verde. VERDE.', 'Ajeita o chapéu e vai, tio!',
+  ] },
+  sitTioEsq: { who: D, role: 'driver', tone: 'stress', cd: 9, prio: 1, situ: 1, gestures: ['bracoPraFora', 'apontando'], lines: [
+    'A esquerda é pra passar, tio!', 'Tio na faixa da esquerda a quarenta!', ['Sai da esquerda, porra!', 'Sai da esquerda, tio!'],
+    'Chapéu na esquerda… sabia.',
+  ] },
+  sitTio: { who: D, role: 'driver', tone: 'anx', cd: 9, prio: 1, situ: 1, lines: [
+    'Passeio de domingo, tio?', 'Tá apreciando a paisagem, tio?', 'Quarenta por hora, constante. Impressionante.',
+  ] },
+  sitAuto: { who: D, role: 'driver', tone: 'anx', cd: 9, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Autoescola na minha frente. Claro.', 'Tá aprendendo justo aqui, né?', 'Freou do nada! Autoescola…', 'Paciência… é aula.',
+  ] },
+  sitMudanca: { who: D, role: 'driver', tone: 'anx', cd: 9, prio: 1, situ: 1, lines: [
+    'Caminhão de mudança na frente…', 'Mudando a casa inteira a trinta por hora.', 'Dá pra passar esse caminhão? Dá?',
+  ] },
+  sitOnibus: { who: D, role: 'driver', tone: 'anx', cd: 9, prio: 1, situ: 1, lines: [
+    'Passa esse ônibus…', 'Atrás de ônibus de novo.', 'Fumaça na cara, ótimo.',
+  ] },
+  sitPonto: { who: D, role: 'driver', tone: 'stress', cd: 9, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Vai parar em todos?', 'Parou no ponto. De novo.', 'Desce todo mundo, sobe todo mundo…',
+  ] },
+  sitCel: { who: D, role: 'driver', tone: 'stress', cd: 9, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Olha o celular! Tá no celular!', 'Ziguezague… tá digitando.', 'Larga esse telefone, amigo!',
+  ] },
+  sitQuebrado: { who: D, role: 'driver', tone: 'anx', cd: 10, prio: 1, situ: 1, lines: [
+    'Carro quebrado no meio da pista. Claro.', 'Pisca-alerta lá na frente… quebrou.', 'Logo hoje alguém quebra aqui.',
+  ] },
+  sitPed: { who: D, role: 'driver', tone: 'anx', cd: 8, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Atravessa rápido!', 'Bora, bora!', 'Vai, pode ir, pode ir!', 'Um, dois, três… quatro? Mais um?!', 'Isso, atravessa, atravessa…',
+  ] },
+  sitSinalLivre: { who: D, role: 'driver', tone: 'anx', cd: 10, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Fechou na minha cara!', 'Pista livre e o sinal fecha.', ['Fechou! Puta merda.', 'Fechou! Que coisa.'],
+  ] },
+  sitPardal: { who: D, role: 'driver', tone: 'anx', cd: 12, prio: 1, situ: 1, lines: [
+    'Pardal ali! Pardal!', 'Olha o pardal… tira o pé.', 'Radar, radar, radar.',
+  ] },
+  sitLargada: { who: D, role: 'driver', tone: 'anx', cd: 30, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Quem estacionou torto aí do lado?', 'Bora, que já tô atrasado.', 'Sai da vaga… devagar… pronto.', 'Cadê a chave… achei. Bora.',
+  ] },
+  // eventos citando o tipo/traço de quem causou
+  evSemSeta: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['bracoPraFora'], lines: [
+    'Sem seta!', 'E a SETA?!', ['A seta é de enfeite, porra?', 'A seta é de enfeite?'], 'Entrou sem seta nenhuma!',
+  ] },
+  evCel: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Olha o celular!', 'No celular e me fechando!', 'Larga o telefone e dirige!',
+  ] },
+  evMoto: { who: D, role: 'driver', tone: 'stress', cd: 5, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Motoboy no corredor!', 'Passou raspando o retrovisor!', 'De onde saiu essa moto?!',
+  ] },
+  evOnibus: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['bracoPraFora'], lines: [
+    'O ônibus entrou na marra!', 'Ônibus fechando! Ônibus!', 'Doze metros me fechando!',
+  ] },
+  evApressado: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['banana', 'bracoPraFora'], lines: [
+    'Vai tirar o pai da forca?', ['Pressa do caralho!', 'Que pressa!'], 'Costurando todo mundo… vai.',
+  ] },
+  evRevanche: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, lines: [
+    'Ficou bravinho, é?', 'Ah, agora ele quer conversar.', 'Buzinou de volta…',
+  ] },
+  evFuraoBalao: { who: D, role: 'driver', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['bracoPraFora'], lines: [
+    'Furou a preferência!', 'Quem tá no balão tem a vez!', ['Entrou no balão sem olhar, porra!', 'Entrou no balão sem olhar!'],
+  ] },
+  sitFaixaOnibus: { who: D, role: 'driver', tone: 'anx', cd: 12, prio: 1, situ: 1, lines: [
+    'Faixa de ônibus vazia do lado…', 'Olha essa faixa vazia. Não pode. Mas olha.',
+  ] },
+
+  pedScare: { who: D, role: 'driver', tone: 'panic', cd: 4, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Perdão! Perdão!', 'Ai, meu Deus! Tá tudo bem?', 'Foi mal, foi mal!', ['Caralho, não vi!', 'Nossa, não vi!'], 'Opa, opa! Tá bem, moço?',
+  ] },
   // =============================== DAVI DE PASSAGEIRO (carona) ===============================
   pGo: { who: D, role: 'passenger', tone: 'anx', cd: 2, gestures: ['apontando', 'bracoPraFora'], lines: [
     'Vai! VAI!', 'Agora vai, agora!', 'Entra, entra, entra!', 'Muda de faixa! Agora!', 'Passa ele! Passa!', 'Cabe! Cabe, vai!',
@@ -181,7 +268,7 @@ export const BANKS = {
   pRed: { who: D, role: 'passenger', tone: 'stress', cd: 3, prio: 1, gestures: ['maosNaCabeca'], lines: [
     'TAVA VERMELHO!', 'Era vermelho! VERMELHO!', ['Puta que pariu, vermelho!', 'Nossa senhora, vermelho!'],
   ] },
-  pInstr: { who: D, role: 'passenger', tone: 'anx', cd: 2, gestures: ['apontando'], lines: [
+  pInstr: { filler: 1, who: D, role: 'passenger', tone: 'anx', cd: 2, gestures: ['apontando'], lines: [
     'Seta! SETA!', 'Olha o retrovisor.', 'Reduz, reduz.', 'Agora vai.', 'Muda de faixa.', 'Eu teria ido.', 'Fica na da esquerda.',
     'Não, na da direita.', 'Olha o pardal ali.', 'Cuidado com esse aí.', 'Encosta mais pra cá.', 'Liga o ar.', 'Pega a S1, é melhor.',
     'Não pega a S1.', 'Esse aí vai entrar.', 'Olha o motoboy!', 'Desvia da manga!', 'Segunda marcha não, terceira.', 'Ultrapassa, ultrapassa.',
@@ -289,6 +376,61 @@ export const BANKS = {
   oCurseReact: { who: O, role: 'passenger', tone: 'panic', cd: 4, prio: 1, lines: [
     'Fecha esse vidro!', 'Não xinga, ele vai descer do carro!', 'Davi! O carro é meu, a placa é minha!',
   ] },
+
+  // =============================== SITUAÇÃO: Davi de passageiro (carona) — palpite/instrução ===============================
+  psVerde: { who: D, role: 'passenger', tone: 'anx', cd: 6, prio: 1, situ: 1, gestures: ['buzinaImaginaria'], lines: [
+    'Buzina pra ele! Abriu!', 'Verde, Leandro! Ele não viu!', 'Pisca o farol, pisca!',
+  ] },
+  psVerdeAuto: { who: D, role: 'passenger', tone: 'anx', cd: 8, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Autoescola! Deixou morrer!', 'Tinha que ser autoescola…', 'Desvia pela outra faixa!',
+  ] },
+  psVerdeCel: { who: D, role: 'passenger', tone: 'stress', cd: 8, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Ele tá no celular! Buzina!', 'Olha ele no zap! Buzina!',
+  ] },
+  psLento: { who: D, role: 'passenger', tone: 'anx', cd: 7, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Passa esse aí!', 'Ultrapassa! Tá livre do lado!', 'Vai ficar atrás dele?',
+  ] },
+  psTioEsq: { who: D, role: 'passenger', tone: 'stress', cd: 9, prio: 1, situ: 1, gestures: ['bracoPraFora'], lines: [
+    'Tio na esquerda! Pisca o farol!', 'Pela direita, Leandro, pela direita!',
+  ] },
+  psOnibus: { who: D, role: 'passenger', tone: 'anx', cd: 8, prio: 1, situ: 1, lines: [
+    'Passa esse ônibus!', 'Sai de trás do ônibus!', 'Vai parar em todos os pontos, passa!',
+  ] },
+  psPed: { who: D, role: 'passenger', tone: 'anx', cd: 8, prio: 1, situ: 1, lines: [
+    'Atravessa, atravessa…', 'Pode ir, pode ir, a gente espera…', 'Mais um! Sempre mais um!',
+  ] },
+  psSemSeta: { who: D, role: 'passenger', tone: 'stress', cd: 6, prio: 1, situ: 1, gestures: ['bracoPraFora'], lines: [
+    'Sem seta! Viu isso?', 'Buzina pra ele! Sem seta!',
+  ] },
+  psMoto: { who: D, role: 'passenger', tone: 'stress', cd: 6, prio: 1, situ: 1, lines: [
+    'Olha a moto! Olha a moto!', 'Motoboy do lado!',
+  ] },
+  psPardal: { who: D, role: 'passenger', tone: 'anx', cd: 12, prio: 1, situ: 1, lines: [
+    'Pardal! Reduz!', 'Olha o radar ali!',
+  ] },
+
+  // =============================== SITUAÇÃO: Leandro de passageiro (perigo) ===============================
+  osVerdeAuto: { who: O, role: 'passenger', tone: 'calm', cd: 10, prio: 1, situ: 1, lines: [
+    'É autoescola, calma.', 'Deixa o aluno, Davi.', 'Morreu o carro dele. Respira.',
+  ] },
+  osVerde: { who: O, role: 'passenger', tone: 'calm', cd: 10, prio: 1, situ: 1, lines: [
+    'Ele já vai, Davi.', 'Não buzina, não buzina.', 'Dois segundos, Davi. Dois.',
+  ] },
+  osPed: { who: O, role: 'passenger', tone: 'panic', cd: 9, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'O pedestre, Davi!', 'Para, para, tem gente!', 'Faixa! FAIXA!',
+  ] },
+  osLento: { who: O, role: 'passenger', tone: 'calm', cd: 10, prio: 1, situ: 1, lines: [
+    'Fica atrás dele, não tem pressa.', 'Não precisa ultrapassar.', 'Deixa ele, Davi.',
+  ] },
+  osMoto: { who: O, role: 'passenger', tone: 'panic', cd: 8, prio: 1, situ: 1, lines: [
+    'A moto! O retrovisor!', 'Olha a moto do lado!',
+  ] },
+  pPedScare: { who: D, role: 'passenger', tone: 'panic', cd: 4, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'O PEDESTRE!', 'Quase, quase! Tá tudo bem, moço?', 'Leandro, a faixa!',
+  ] },
+  oPedScare: { who: O, role: 'passenger', tone: 'panic', cd: 4, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'DAVI! O PEDESTRE!', 'Para! Para tudo! Tá bem, moço?', 'Meu Deus do céu, Davi…', 'Foi por um triz!',
+  ] },
 };
 
 /** Texto de uma entrada do banco conforme o interruptor de palavrão. */
@@ -306,6 +448,7 @@ export class Speaker {
     this.rng = opts.rng || Math.random;
     this.minGap = opts.minGap != null ? opts.minGap : 1.4;
     this.minGapHigh = opts.minGapHigh != null ? opts.minGapHigh : 0.6;
+    this.fillerGap = opts.fillerGap != null ? opts.fillerGap : 0;
     this.banks = opts.banks || BANKS;
     this.reset();
   }
@@ -331,6 +474,8 @@ export class Speaker {
     const gap = (prio != null ? prio : b.prio || 0) > 0 ? this.minGapHigh : this.minGap;
     const la = this.lastAt[b.who + b.role];
     if (la != null && t - la < gap) return false;
+    // enchimento só preenche silêncio longo (a fala de situação tem preferência)
+    if (b.filler && la != null && t - la < this.fillerGap) return false;
     const ba = this.bankAt[key];
     if (ba != null && t - ba < (b.cd || 0)) return false;
     return true;

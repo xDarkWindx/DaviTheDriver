@@ -31,9 +31,9 @@ const casa = net.snapStart(net.starts.casa), stj = net.snapStart(net.starts.stj)
 const toStj = net.laneForZone('stj'), toCasa = net.laneForZone('casa');
 
 test('largadas caem em faixas no sentido certo', () => {
-  assert.equal(casa.lane.segId, 'qrsw2');
+  assert.equal(casa.lane.segId, 'vaga_casa'); // largada estacionado na vaga em frente ao prédio
   assert.equal(stj.lane.segId, 'stj_norte');
-  assert.ok(Math.abs(casa.heading + Math.PI / 2) < 0.2, 'casa rumo oeste');
+  assert.ok(Math.abs(casa.heading) < 0.2, 'casa: de frente para a rua (rumo sul)');
   assert.ok(Math.abs(stj.heading + Math.PI / 2) < 0.25, 'stj rumo oeste (sai do Estacionamento Norte para a avenida)');
 });
 
@@ -46,12 +46,12 @@ test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () =>
   const r1 = net.planRoute(casa.lane.id, casa.s, toStj.targets);
   assert.ok(r1, 'sem rota casa->stj');
   console.log('        casa→stj:', names(r1), `(${net.routeLength(r1, casa.s, toStj.s).toFixed(0)} m)`);
-  assert.ok(inOrder(segSeq(r1), ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c', 's2_alca', 's2_a']), segSeq(r1).join(','));
+  assert.ok(inOrder(segSeq(r1), ['vaga_casa', 'qrsw2', 'marg_jaq', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c', 's2_alca', 's2_a']), segSeq(r1).join(','));
   assert.ok(!hasUturn(r1), 'retorno na rota casa->stj');
   const r2 = net.planRoute(stj.lane.id, stj.s, toCasa.targets);
   assert.ok(r2, 'sem rota stj->casa');
   console.log('        stj→casa:', names(r2), `(${net.routeLength(r2, stj.s, toCasa.s).toFixed(0)} m)`);
-  assert.ok(inOrder(segSeq(r2), ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2']), segSeq(r2).join(','));
+  assert.ok(inOrder(segSeq(r2), ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'marg_jaq', 'qrsw2', 'vaga_casa']), segSeq(r2).join(','));
   assert.ok(!hasUturn(r2), 'retorno na rota stj->casa');
   // a primeira faixa da rota segue no sentido da largada (seta não aponta para trás)
   for (const [st, r] of [[casa, r1], [stj, r2]]) {
@@ -82,10 +82,10 @@ test('estacionamentos do STJ: Norte (pela SAFS Q. 2, 2 variantes) e Leste (pela 
 
 test('corredores das 2 rotas × 2 sentidos (planRouteVia)', () => {
   const want = {
-    'eixo casa-stj': ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 'stj_norte'],
-    'eixo stj-casa': ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2'],
-    'parque casa-stj': ['qrsw2', 'jaq_m', 'jaq_s', 'jaq_s2', 'primeira_av', 'parque', 's3_scs', 's3_mid', 's3_mid_e', 's3_saus_w', 's3_saus', 'l2_n2', 'stj_norte'],
-    'parque stj-casa': ['stj_norte', 'l2_n2', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'parque', 'primeira_av', 'jaq_s2', 'jaq_s', 'jaq_m', 'qrsw2'],
+    'eixo casa-stj': ['vaga_casa', 'qrsw2', 'marg_jaq', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 'stj_norte'],
+    'eixo stj-casa': ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'marg_jaq', 'qrsw2', 'vaga_casa'],
+    'parque casa-stj': ['vaga_casa', 'qrsw2', 'marg_jaq', 'jaq_m', 'jaq_s', 'jaq_s2', 'primeira_av', 'parque', 's3_scs', 's3_mid', 's3_mid_e', 's3_saus_w', 's3_saus', 'l2_n2', 'stj_norte'],
+    'parque stj-casa': ['stj_norte', 'l2_n2', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'parque', 'primeira_av', 'jaq_s2', 'jaq_s', 'jaq_m', 'marg_jaq', 'qrsw2', 'vaga_casa'],
   };
   for (const cid of ['eixo', 'parque']) for (const dirId of ['casa-stj', 'stj-casa']) {
     const [st, to] = dirId === 'casa-stj' ? [casa, toStj] : [stj, toCasa];

@@ -4,7 +4,9 @@ import * as THREE from 'three';
 import { EV } from '../core/events.js';
 import { makeRng } from '../core/math.js';
 
-export const SIGNAL_TIMING = { green: 15, yellow: 3, allRed: 1.0, pedWalk: 9 };
+// green: verde de cada grupo sem via principal; com via principal (MAP.signalMain): mainGreen para o grupo dela e
+// minorGreen para a transversal (ciclo 40 s; a espera média de quem vem pela principal cai de ~5 s para ~2,5 s).
+export const SIGNAL_TIMING = { green: 15, mainGreen: 22, minorGreen: 10, yellow: 3, allRed: 1.0, pedWalk: 9 };
 
 const LAMP_ON = [new THREE.Color(0xff2a1a), new THREE.Color(0xffc21a), new THREE.Color(0x2bff6a)];
 const LAMP_OFF = [new THREE.Color(0x3a1310), new THREE.Color(0x3a2e10), new THREE.Color(0x113a1c)];
@@ -18,10 +20,15 @@ export class SignalController {
   constructor(net, events) {
     this.net = net; this.events = events;
     const rng = makeRng(2024);
+    const MAIN = net.signalMain || {};
     this.sigs = net.signals.map((s) => {
+      const T = SIGNAL_TIMING, main = MAIN[s.nodeId];
+      let mg = -1;
+      if (main && s.groups === 2) for (const ap of s.approaches) if (main.indexOf(ap.segId) >= 0) { mg = ap.group; break; }
+      const g0 = mg < 0 ? T.green : mg === 0 ? T.mainGreen : T.minorGreen, g1 = mg < 0 ? T.green : mg === 1 ? T.mainGreen : T.minorGreen;
       const phases = s.groups === 2
-        ? [['g', 0, SIGNAL_TIMING.green], ['y', 0, SIGNAL_TIMING.yellow], ['r', -1, SIGNAL_TIMING.allRed],
-          ['g', 1, SIGNAL_TIMING.green], ['y', 1, SIGNAL_TIMING.yellow], ['r', -1, SIGNAL_TIMING.allRed]]
+        ? [['g', 0, g0], ['y', 0, T.yellow], ['r', -1, T.allRed],
+          ['g', 1, g1], ['y', 1, T.yellow], ['r', -1, T.allRed]]
         : [['g', 0, SIGNAL_TIMING.green + 4], ['y', 0, SIGNAL_TIMING.yellow], ['r', -1, SIGNAL_TIMING.pedWalk]];
       return { def: s, phases, phase: 0, t: rng() * 10, groupState: new Array(s.groups).fill('red') };
     });

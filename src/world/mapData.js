@@ -25,7 +25,10 @@ export const MAP = {
     // Sudoeste
     // Regra de projeto: o Sudoeste só se liga ao resto da cidade pela Av. das Jaqueiras (e Primeira Avenida),
     // senão o GPS foge das rotas descritas (ver README). Ruas internas são lentas (30 km/h) e tortas.
-    J_JAQ2: { x: -1500, z: 200 },    // Jaqueiras × QRSW 2
+    J_JAQ2: { x: -1500, z: 120 },    // Jaqueiras × marginal (a saída da QRSW 2 entra na avenida mais ao norte)
+    J_MQ: { x: -1468, z: 200 },      // fim da rua da QRSW 2 × marginal (vira à direita, para o norte)
+    J_Q2V: { x: -1385, z: 200 },     // rua da QRSW 2 × vagas em frente ao prédio (largada/chegada de casa)
+    D_Q2V: { x: -1385, z: 178, type: 'deadend', r: 2.5 },
     J_Q2a: { x: -1325, z: 200 },     // QRSW 2 × ruas internas (QRSW 1 ao norte, QRSW 3/4 ao sul)
     D_Q1: { x: -1342, z: 128, type: 'deadend' },
     J_JAQ3: { x: -1500, z: 430 },    // Jaqueiras × Terceira Avenida
@@ -147,7 +150,13 @@ export const MAP = {
   // median = canteiro central (m). layer: 0 chão, 1 viaduto, 2 viaduto sobre viaduto (só visual).
   roads: [
     // --- Sudoeste (QRSW 2 = casa). Ligações externas SÓ pela Av. das Jaqueiras.
-    { id: 'qrsw2', name: 'QRSW 2 — Sudoeste', from: 'J_JAQ2', to: 'J_Q2a', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 40, kind: 'local' },
+    // saída de casa: vaga (estacionamento em frente ao prédio) → rua da QRSW 2 para oeste → marginal para o norte → Jaqueiras
+    { id: 'vaga_casa', name: 'QRSW 2 — Sudoeste (estacionamento)', from: 'J_Q2V', to: 'D_Q2V', lanesF: 1, lanesB: 1, laneW: 3.0, limitKmh: 10, kind: 'local' },
+    { id: 'qrsw2', name: 'QRSW 2 — Sudoeste', from: 'J_MQ', to: 'J_Q2V', lanesF: 1, lanesB: 1, laneW: 3.4, limitKmh: 30, kind: 'local' },
+    { id: 'qrsw2_v', name: 'QRSW 2 — Sudoeste', from: 'J_Q2V', to: 'J_Q2a', lanesF: 1, lanesB: 1, laneW: 3.4, limitKmh: 30, kind: 'local' },
+    // sai da avenida em ângulo reto (senão a conversão à esquerda de quem desce a Jaqueiras cortava a fila parada da marginal)
+    { id: 'marg_jaq', name: 'Marginal da Av. das Jaqueiras', from: 'J_JAQ2', to: 'J_MQ', via: [[-1474, 120], [-1468, 134], [-1468, 165]], corner: 8,
+      lanesF: 1, lanesB: 1, laneW: 3.2, limitKmh: 40, kind: 'local' },
     { id: 'qrsw2_e', name: 'QRSW 2 — Sudoeste', from: 'J_Q2a', to: 'rq_w', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
     { id: 'eqrsw', name: 'EQRSW (sem saída)', from: 'rq_e', to: 'D_EQ', via: [[-1190, 206]], corner: 30, lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
     { id: 'quarta_av', name: 'Quarta Avenida', from: 'rq_se', to: 'rt_nw', via: [[-1228, 300], [-1200, 370]], corner: 40,
@@ -185,15 +194,15 @@ export const MAP = {
     // --- Parque da Cidade: anel interno, sinuoso e lento (Pátio Brasil → arco para sudoeste → Balão da EPIG)
     { id: 'parque', name: 'Parque da Cidade (anel interno)', from: 'J_PB', to: 'rep_e',
       via: [[-520, 222], [-575, 300], [-600, 390], [-660, 455], [-700, 545], [-790, 600], [-880, 655], [-960, 668]], corner: 45,
-      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 50, kind: 'local' },
+      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 60, kind: 'local' },
 
     // --- Eixo Monumental: duas pistas de mão única com canteiro central gigante
     { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 , busLane: 1 },
     { id: 'eixo_s1_b', name: 'Eixo Monumental (Via S1)', from: 'J_EPIG', to: 'J_W3N', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
     { id: 'eixo_s1_c0', name: 'Eixo Monumental (Via S1)', from: 'J_W3N', to: 'D_EX', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
-    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'D_EX', to: 'X_S2', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2, busLane: 1 },
-    { id: 'eixo_s1_d', name: 'Eixo Monumental (Esplanada)', from: 'X_S2', to: 're_es', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
-    { id: 'eixo_n1_e', name: 'Eixo Monumental (Via N1)', from: 're_en', to: 'X_N1', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
+    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'D_EX', to: 'X_S2', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
+    { id: 'eixo_s1_d', name: 'Eixo Monumental (Esplanada)', from: 'X_S2', to: 're_es', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 },
+    { id: 'eixo_n1_e', name: 'Eixo Monumental (Via N1)', from: 're_en', to: 'X_N1', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 },
     { id: 'eixo_n1', name: 'Eixo Monumental (Via N1)', from: 'X_N1', to: 'rw_en', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 , busLane: 1 },
     // Trevo Eixo × Eixão (Rodoviária): alças dirigíveis
     { id: 'alca_eixao', name: 'Alça Eixo → Eixão Sul', from: 'D_EX', to: 'M_EX', via: [[-74, 52], [-34, 86], [-10, 132]], corner: 26,
@@ -267,7 +276,11 @@ export const MAP = {
   ],
 
   // Semáforos (nós). Fases agrupadas por eixo de aproximação automaticamente.
-  signals: ['J_W3N', 'J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_L2a', 'J_JAQ2', 'J_PRIM'],
+  // (J_JAQ2, a saída da marginal da QRSW 2 para a Jaqueiras, é sem semáforo: a marginal é calma e dá a preferência)
+  signals: ['J_W3N', 'J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_L2a', 'J_PRIM'],
+  // Via principal de cada semáforo (o grupo dela ganha verde mais longo; a transversal, mais curto).
+  signalMain: { J_W3N: ['eixo_s1_b', 'eixo_s1_c0'], J_PB: ['s3_scs', 'parque'], J_S3b: ['s3_scs', 's3_mid'], J_S3a: ['s3_mid_e', 's3_saus_w'],
+    J_W3b: ['w3_m', 'w3_s'], J_L2a: ['l2_m', 'l2_s'] }, // J_PRIM: verde igual (a rota do Parque vira ali, nos dois sentidos)
 
   // Faixas de pedestre no meio de quadra (as dos semáforos são automáticas).
   crosswalks: [
@@ -316,7 +329,7 @@ export const MAP = {
     { seg: 's2_b', at: [350, 150], dir: 0 },
     { seg: 's3_saus_w', at: [290, 260], dir: 0 },
     { seg: 'w3_m', at: [-430, 560], dir: 0 },
-    { seg: 'jaq_n', at: [-1500, 120], dir: 0 },
+    { seg: 'jaq_m', at: [-1500, 250], dir: 0 },
     { seg: 'eixo_s1_b', at: [-620, 40], dir: 1, type: 'busLane' },
     { seg: 's3_scs', at: [-300, 214], dir: 0, type: 'busLane' },
     { seg: 's3_mid', at: [-60, 244], dir: 0, type: 'busLane' },
@@ -367,14 +380,14 @@ export const MAP = {
 
   // Zonas de chegada (círculos no chão) e poses de largada (snap para a faixa da direita).
   zones: {
-    casa: { x: -1390, z: 200, r: 20, label: 'QRSW 2 — Sudoeste' },
+    casa: { x: -1385, z: 186, r: 11, label: 'QRSW 2 — Sudoeste' }, // vaga livre em frente ao prédio (chega ao entrar nela)
     // destino STJ = um dos estacionamentos (state.trip.parking): carona → norte; davi/perigo → oeste ou leste (sorteio)
     stj: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },      // = stj_norte (compatibilidade)
     stj_norte: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },
     stj_leste: { x: 876, z: 200, r: 18, label: 'STJ — Estacionamento Leste' },
   },
   starts: {
-    casa: { x: -1360, z: 198, heading: -90 * D2R }, // rumo oeste (sai para a Av. das Jaqueiras)
+    casa: { x: -1385, z: 183, heading: 0 },          // estacionado na vaga, de frente para a rua (sai à direita, rumo oeste)
     stj: { x: 700, z: 194, heading: -90 * D2R },       // Estacionamento Norte, rumo oeste (sai pela ponta oeste na avenida)
     stj_norte: { x: 700, z: 194, heading: -90 * D2R },
     stj_leste: { x: 880, z: 192, heading: -15 * D2R },  // fundo do Leste, rumo à Rotatória 2

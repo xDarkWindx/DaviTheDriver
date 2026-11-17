@@ -84,7 +84,9 @@ test(`${MIN} min simulados em 4 regiões: sem engavetamento, ninguém preso para
     for (const o of ov) if (!pairSeen.has(o.key)) {
       pairSeen.set(o.key, o);
       const same = o.a.w.lane.id === o.b.w.lane.id || o.a.path.slice(0, o.a.pathN).includes(o.b.w.lane.id) || o.b.path.slice(0, o.b.pathN).includes(o.a.w.lane.id);
-      if (same) rearEnds++; else crossings++;
+      // moto no corredor encosta de lado por desenho; encostos rasos (< 0,5 m) em fila contam como raspão visual, não engavetamento
+      const shallow = o.depth < 0.5 || o.a.filtering || o.b.filtering || o.a.persona === 'moto' && o.b.persona === 'moto';
+      if (same) { if (!shallow) rearEnds++; } else crossings++;
       if (process.env.VERBOSE) console.log('      sobreposição', o.key, same ? 'mesma faixa' : 'cruzando', o.a.persona, o.a.w.lane.id, o.a.w.lane.isConnector, o.b.persona, o.b.w.lane.id, o.b.w.lane.isConnector, o.depth.toFixed(2), 'lead', o.a.leadKind, o.b.leadKind, 'ghost', o.a.ghostT > 0, o.b.ghostT > 0);
     }
     for (const v of sim.vehicles) {
@@ -139,16 +141,48 @@ test('para na faixa de pedestre ocupada e segue depois', () => {
   const v = sim.spawn('normal', 'hatch', hit.laneId, hit.s - 70, { exact: true, speed: 12 });
   const p = sim.debugSpawnPed(cw.id, true);
   p.speed = 0.6; // devagar, para a travessia durar
+  const mLane = net.lanes[hit.laneId].crosswalks.find((e) => e.id === cw.id).m;
+  p.from = mLane < sim.cwLen[cw.id] / 2 ? 1 : -1; // sai do lado da faixa do carro: passa pelo corredor dele
   let minGap = 1e9, crossedWhileOcc = false;
   for (let i = 0; i < 60 * 30; i++) {
     sim.step(DT);
     const front = v.w.lane.id === hit.laneId ? v.w.s + v.length / 2 : 1e9;
-    if (p.state === 'crossing' && v.w.lane.id === hit.laneId) { minGap = Math.min(minGap, hit.s - front); if (front > hit.s - 1) crossedWhileOcc = true; }
+    // critério por faixa de rolamento: só conta se o pedestre está no corredor do carro (ou chegando a ele)
+    const blocked = p.state === 'crossing' && sim.cwBlockedM(cw.id, net.lanes[hit.laneId].crosswalks.find((e) => e.id === cw.id).m);
+    if (blocked && v.w.lane.id === hit.laneId) { minGap = Math.min(minGap, hit.s - front); if (front > hit.s - 1) crossedWhileOcc = true; }
     if (p.state !== 'crossing' && !p.active && v.w.lane.id !== hit.laneId) break;
   }
   assert.ok(!crossedWhileOcc, 'passou por cima da faixa ocupada');
   assert.ok(minGap > 1.5 && minGap < 12, 'parada estranha antes da faixa: ' + minGap.toFixed(1));
   assert.ok(v.active && (v.w.lane.id !== hit.laneId || v.w.s > hit.s), 'não seguiu depois que o pedestre passou');
+});
+
+// ---------------------------------------------------------------- faixa de pedestre: critério espacial (multa e IA)
+test('faixa de pedestre: só bloqueia o corredor do carro (saiu do corredor / outra pista = livre; entrando / sinalizando = ocupada)', () => {
+  const { sim } = makeSim(fakeSignals('green'));
+  const cw = net.crosswalks.find((c) => c.segId === 'jaq_m'); // avenida com canteiro central, 2 + 2 faixas
+  const far = parkingSpot('local'); sim.setPlayer(makePlayer(far.x, far.z));
+  sim.autoSpawn = false; sim.reset({ seed: 3 });
+  const len = sim.cwLen[cw.id];
+  const laneE = net.lanes.find((l) => !l.isConnector && l.segId === 'jaq_m' && l.crosswalks.some((e) => e.id === cw.id) && l.index === 0);
+  const mL = laneE.crosswalks.find((e) => e.id === cw.id).m; // posição da faixa do "jogador" ao longo da faixa de pedestre
+  const fromNear = mL < len / 2 ? 1 : -1, toward = fromNear; // lado da calçada colado na faixa do jogador
+  const p = sim.debugSpawnPed(cw.id, true);
+  const put = (pm, from, state = 'crossing') => { p.state = state; p.from = from; p.t = from > 0 ? pm / len : 1 - pm / len; p.signaling = state === 'waiting'; p.approach = false; sim._countCrosswalks(); };
+  const band = 1.9;
+  // (a) acabou de sair do corredor (seguindo em frente, afastando-se)
+  put(fromNear > 0 ? mL + band + 0.4 : mL - band - 0.4, toward);
+  assert.equal(sim.cwBlockedM(cw.id, mL), false, '(a) pedestre que já saiu do corredor bloqueou');
+  // (b) do outro lado do canteiro, vindo na direção do jogador mas ainda longe
+  put(fromNear > 0 ? len * 0.9 : len * 0.1, -toward);
+  assert.equal(sim.cwBlockedM(cw.id, mL), false, '(b) pedestre na outra pista bloqueou');
+  // (c) entrando no corredor
+  put(fromNear > 0 ? mL - band - 1.0 : mL + band + 1.0, toward);
+  assert.equal(sim.cwBlockedM(cw.id, mL), true, '(c) pedestre entrando no corredor não bloqueou');
+  // (d) sinalizando na beira da calçada do lado do jogador (só conta com withSignaling, que é o critério da multa)
+  put(0, toward, 'waiting'); p.from = toward;
+  sim._countCrosswalks();
+  assert.equal(sim.cwBlockedM(cw.id, mL, true), mL < band + 3.0 || len - mL < band + 3.0, '(d) sinalizando na beira do lado do jogador');
 });
 
 test('pedestre que espera na faixa sem semáforo acaba atravessando (os carros param)', () => {
@@ -247,10 +281,11 @@ test('apressado atrás do jogador lento: cola, pisca, ultrapassa e fecha; provok
 });
 
 test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)', () => {
-  const { sim, events, sig } = makeSim();
+  const { sim, events, sig } = makeSim(null, { max: 64 }); // pool do perfil leve (QUALITY.leve.maxTrafficVehicles)
   const got = {};
   for (const k of ['OVERTAKEN', 'CUT_OFF', 'COLLISION', 'PLAYER_OVERTOOK', 'TAILGATED', 'HONKED_AT', 'NEAR_MISS', 'FLASHED', 'PEDESTRIAN_CROSSING', 'HAZARD_HIT']) events.on(EV[k], (p) => { (got[k] = got[k] || []).push(p); });
   let aiFault = 0, worst = 0, totalT = 0, ovl = 0;
+  const vis = {}; // presença: veículos à frente (mesmo sentido, 0..60 m) por tipo de via
   for (const [from, to, tod] of [['casa', 'stj', 'manha'], ['stj', 'casa', 'tarde']]) {
     const st = net.snapStart(net.starts[from]);
     const route = net.planRoute(st.lane.id, st.s, net.laneForZone(to).targets);
@@ -270,6 +305,12 @@ test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)'
       w.advance(sp * DT);
       const ph = player.phys; ph.x = w.x; ph.z = w.z; ph.heading = w.heading; ph.vx = Math.sin(w.heading) * sp; ph.vz = Math.cos(w.heading) * sp;
       sig.update(DT); sim.step(DT); totalT += DT;
+      if (i % 30 === 0 && !w.lane.isConnector && sp > 3) {
+        const sg = net.getSegment(w.lane.segId), kind = sg.kind + (sg.kind !== 'eixo' && sg.length >= 300 ? '+longo' : ''), fx = Math.sin(w.heading), fz = Math.cos(w.heading);
+        let n = 0; for (const v of sim.vehicles) { const dx = v.x - w.x, dz = v.z - w.z, a = dx * fx + dz * fz; if (a > 0 && a < 60 && Math.abs(dx * fz - dz * fx) < 20 && Math.cos(v.heading - w.heading) > 0.5) n++; }
+        const o = (vis[kind] = vis[kind] || { sum: 0, n: 0, zero: 0 }); o.sum += n; o.n++; if (!n) o.zero++;
+        if (process.env.VERBOSE && kind === 'eixo' && i % 120 === 0) { let n200 = 0; for (const v of sim.vehicles) { const dx = v.x - w.x, dz = v.z - w.z, a = dx * fx + dz * fz; if (a > 0 && a < 200 && Math.abs(dx * fz - dz * fx) < 25 && Math.cos(v.heading - w.heading) > 0.5) n200++; } console.log('      eixo', w.lane.segId, w.s.toFixed(0), 'v', sp.toFixed(1), 'frente60', n, 'frente200', n200, 'pool', sim.vehicles.length, 'flow', sim.stats.flow || 0); }
+      }
       if (i % 30 === 0) { const o = []; overlaps(sim, o); for (const x of o) if (!seen.has(x.key)) { seen.add(x.key); ovl++; if (process.env.VERBOSE) console.log('      sobreposição', x.a.persona, x.a.w.lane.id, x.a.w.lane.isConnector, x.a.leadKind, x.a.lcT.toFixed(1), x.a.filtering, '|', x.b.persona, x.b.w.lane.id, x.b.w.lane.isConnector, x.b.leadKind, x.b.lcT.toFixed(1), x.b.filtering, x.depth.toFixed(2)); } }
     }
     assert.ok(w.ended || true);
@@ -277,6 +318,12 @@ test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)'
   for (const c of got.COLLISION || []) if (c.b === 'vehicle' && !c.playerAtFault) aiFault++;
   console.log(`       ${(totalT / 60).toFixed(1)} min de direção; eventos:`, Object.entries(got).map(([k, v]) => `${k}×${v.length}`).join(' '));
   console.log(`       colisões em que a IA bateu no jogador: ${aiFault}; sobreposições IA×IA: ${ovl}`);
+  console.log('       veículos à frente (0..60 m) por tipo de via:', Object.entries(vis).map(([k, o]) => `${k} ${(o.sum / o.n).toFixed(1)} (vazio ${(o.zero / o.n * 100).toFixed(0)}%)`).join(' · '));
+  // Eixo: sempre gente à frente para desviar (faixa-alvo 6–12 visíveis na tela; aqui só o mesmo sentido e 60 m à frente)
+  assert.ok(vis.eixo && vis.eixo.sum / vis.eixo.n >= 4 && vis.eixo.sum / vis.eixo.n <= 14, 'Eixo sem carros à frente: ' + JSON.stringify(vis.eixo));
+  assert.ok(vis.eixo.zero / vis.eixo.n <= 0.1, 'Eixo vazio em ' + (vis.eixo.zero / vis.eixo.n * 100).toFixed(0) + '% das amostras');
+  // nunca um trecho LONGO totalmente vazio (as ruas internas do Sudoeste e estacionamentos são calmas por desenho)
+  for (const k of ['urban+longo', 'arterial+longo']) assert.ok(!vis[k] || vis[k].zero / vis[k].n <= 0.4, `${k} vazio demais: ` + JSON.stringify(vis[k]));
   assert.ok((got.OVERTAKEN || []).length > 0, 'ninguém ultrapassou o jogador');
   assert.ok(aiFault <= 1, 'IA bateu no jogador ' + aiFault + 'x');
 });

@@ -56,6 +56,7 @@ export function createMoodModel(mode = 'davi', opts = {}) {
     takeoverT: 0, takenOver: false, complainT: 3, hardBrakeT: 0,
     // falas do Davi motorista
     slowLineT: 0.8, idleT: 5, autoHornCd: 0, autoCurseCd: 0,
+    sitId: null, sitT: 0, sitSaid: false, saidStart: false, queued: false,
     stats: { panicSecs: 0, donoCalmSecs: 0, outbursts: 0, avoided: 0, maxBehindSlow: 0, hazards: 0, scrapes: 0, curses: 0, breaths: 0,
       maxDonoAnx: 0, maxDonoStress: 0, peaks: 0 },
     out: { says: [], provokes: [], autoHorn: false, flashLead: false, takeover: false, peaks: [], yawKick: 0 },
@@ -103,12 +104,16 @@ export function stepMood(m, inp, dt) {
   const leadKmh = lead ? lead.speed * 3.6 : 0;
   const JM = B.jam, jam = !!(inp.jam && speed < JM.minKmh);
   if (jam) m.jamT += dt; else m.jamT = Math.max(0, m.jamT - JM.decay * dt);
-  const blocked = m.blocked = !jam && !!(lead && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
+  // atrás de LENTO = o da frente ANDA devagar (ou demora a sair no verde / deixou morrer). Fila parada no sinal, na faixa
+  // ou no balão é "fila" (taxa própria, bem menor): senão a barra subia o tempo todo em qualquer parada.
+  const leadMoving = !!(lead && (leadKmh > AX.slowMinKmh || lead.why === 'verde' || lead.why === 'celular' || lead.why === 'morreu'));
+  const blocked = m.blocked = !jam && !!(lead && leadMoving && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
+  const queued = m.queued = !jam && !blocked && !!(lead && lead.gap < AX.queueGap && leadKmh <= AX.slowMinKmh && speed < 8);
   if (blocked) m.behindSlow += dt; else m.behindSlow = Math.max(0, m.behindSlow - AX.slowDecay * dt);
   if (m.behindSlow > m.stats.maxBehindSlow) m.stats.maxBehindSlow = m.behindSlow;
   const f = clamp((free - AX.freeRoadMinGap) / (AX.freeRoadFullGap - AX.freeRoadMinGap), 0, 1);
   const under = clamp((desired - speed) / desired, 0, 1);
-  const waiting = !!(inp.stoppedAtRed || inp.crosswalkWait);
+  const waiting = !!(inp.stoppedAtRed || inp.crosswalkWait || queued);
   const davi = m.davi, asPass = davi.role === 'passenger';
 
   // ---------------- ansiedade do Davi
@@ -117,11 +122,13 @@ export function stepMood(m, inp, dt) {
     if (asPass) {
       ra += B.carona.freeSlow * f * under;
       if (inp.throttle > 0.6 && f > 0.3 && speed < desired) ra -= B.carona.accelRelief;
-    } else {
+    } else if (speed > AX.freeRoadMinKmh) {
       ra += AX.freeRoadMax * f * under * (1 - AX.freeRoadThrottleCut * (inp.throttle || 0));
     }
     // alívio correndo com pista livre: forte lá em cima, some perto do "repouso" (a barra não cola no piso sozinha)
     if (free > AX.cruiseMinFree && limit > 0 && speed >= 0.95 * limit) ra -= AX.cruiseRelief * Math.min(1, speed / desired) * restFactor(davi.anxiety, AX.rest);
+    // andando no ritmo da via mesmo com trânsito: alívio menor (o carro anda, a cabeça esfria)
+    else if (limit > 0 && speed >= AX.flowFrac * limit) ra -= AX.flowRelief * restFactor(davi.anxiety, AX.rest);
     if (speed > 5 && limit > 0 && speed < 0.8 * limit) ra += AX.belowLimit * under;
   }
   if (blocked) {
@@ -130,6 +137,7 @@ export function stepMood(m, inp, dt) {
   }
   if (jam) ra += (JM.anx + JM.anxGrow * Math.min(m.jamT, JM.cap)) * (asPass ? B.carona.slowMul : 1);
   if (inp.stoppedAtRed) ra += AX.redLight;
+  else if (queued) ra += AX.queue;
   if (inp.crosswalkWait) ra += AX.crosswalk;
   ra += Math.min(AX.clockMax, AX.clockBase + AX.clockPer300s * (inp.elapsed || 0) / 300);
   if (inp.busLaneBeside) ra += AX.busLaneBeside;
@@ -163,6 +171,7 @@ export function stepMood(m, inp, dt) {
   // ---------------- papéis
   if (m.mode === 'carona') stepCarona(m, inp, dt, { blocked, f, under, speed, limit, desired });
   if (m.mode === 'perigo') stepPerigo(m, inp, dt, { speed, limit, lead });
+  stepSituation(m, inp, dt, { blocked, speed, limit, lead });
   if (m.daviDrives) stepDaviDriverLines(m, inp, dt, { blocked, f, under, speed, limit, free, lead });
 
   // ---------------- efeitos no volante
@@ -179,6 +188,77 @@ export function stepMood(m, inp, dt) {
     }
   }
   return m;
+}
+
+// ---------------- FALAS DE SITUAÇÃO: narram o que está na tela (quem está na frente, por que parou, pedestre...)
+const SIT_CARONA = { Verde: 'psVerde', VerdeAuto: 'psVerdeAuto', VerdeCel: 'psVerdeCel', VerdeOnibus: 'psVerde', VerdeMudanca: 'psVerde', VerdeTio: 'psVerde',
+  Ped: 'psPed', TioEsq: 'psTioEsq', Tio: 'psLento', Auto: 'psLento', Mudanca: 'psLento', Cel: 'psLento', Onibus: 'psOnibus', Ponto: 'psOnibus', Pardal: 'psPardal' };
+const SIT_DONO = { VerdeAuto: 'osVerdeAuto', Verde: 'osVerde', VerdeCel: 'osVerde', VerdeOnibus: 'osVerde', VerdeMudanca: 'osVerde', VerdeTio: 'osVerde',
+  Ped: 'osPed', TioEsq: 'osLento', Tio: 'osLento', Auto: 'osLento', Mudanca: 'osLento', Onibus: 'osLento' };
+/** Situação atual (id curto) ou null. Puro: depende só das entradas. */
+export function situationOf(inp, c) {
+  const lead = c.lead, sp = c.speed;
+  if ((inp.elapsed || 0) < 6 && sp < 12 && inp.atStart) return 'Largada';
+  if (lead && lead.gap < 25 && sp < 3 && (lead.why === 'morreu' || lead.why === 'celular' || lead.why === 'verde')) {
+    if (lead.why === 'morreu' || lead.persona === 'autoescola') return 'VerdeAuto';
+    if (lead.why === 'celular') return 'VerdeCel';
+    if (lead.persona === 'onibus') return 'VerdeOnibus';
+    if (lead.persona === 'mudanca') return 'VerdeMudanca';
+    if (lead.persona === 'tio') return 'VerdeTio';
+    return 'Verde';
+  }
+  if (inp.crosswalkWait) return 'Ped';
+  if (lead && lead.why === 'quebrado' && lead.gap < 40) return 'Quebrado';
+  if (c.blocked && lead) {
+    if (lead.why === 'ponto') return 'Ponto';
+    if (lead.persona === 'tio') return lead.laneCount > 1 && lead.lane === lead.laneCount - 1 ? 'TioEsq' : 'Tio';
+    if (lead.persona === 'autoescola') return 'Auto';
+    if (lead.persona === 'mudanca') return 'Mudanca';
+    if (lead.persona === 'onibus') return 'Onibus';
+    if (lead.onPhone) return 'Cel';
+  }
+  if (inp.stoppedAtRed && !(lead && lead.gap < 20)) return 'SinalLivre';
+  if (inp.radarAhead && c.limit > 0 && sp > c.limit * 1.05) return 'Pardal';
+  if (inp.busLaneBeside) return 'FaixaOnibus';
+  return null;
+}
+
+function stepSituation(m, inp, dt, c) {
+  const id = situationOf(inp, c), S = m.B.speech;
+  if (id !== m.sitId) { m.sitId = id; m.sitT = 0; m.sitSaid = false; }
+  if (!id) return;
+  m.sitT += dt;
+  if (m.sitSaid ? m.sitT < 14 : m.sitT < S.situHold) return; // uma vez por episódio (repete só se durar muito)
+  if (m.sitSaid) m.sitT = 0;
+  m.sitSaid = true;
+  if (id === 'Largada') { if (m.saidStart) return; m.saidStart = true; }
+  if (m.daviDrives) {
+    say(m, 'sit' + id, 1);
+    m.slowLineT = Math.max(m.slowLineT, S.slowLineEvery); // a genérica de lento não emenda na de situação
+    if (m.mode === 'perigo' && SIT_DONO[id] && (m.donoSitN = (m.donoSitN || 0) + 1) % 2 === 1) say(m, SIT_DONO[id], 1); // Leandro comenta uma situação sim, outra não
+  } else if (m.mode === 'carona' && SIT_CARONA[id]) {
+    say(m, SIT_CARONA[id], 1);
+    m.palpiteT = Math.max(m.palpiteT, 2.5); // o palpite genérico espera
+  }
+}
+
+/** Banco de evento citando o tipo/traço de quem causou (motorista Davi / Davi passageiro / Leandro). */
+function evBank(m, type, p, base) {
+  const drv = m.daviDrives;
+  if (!drv) {
+    if (m.mode !== 'carona') return base;
+    if (p.noSignal && (type === 'cutOff' || type === 'overtaken')) return 'psSemSeta';
+    if (p.kind === 'moto' || p.persona === 'moto') return 'psMoto';
+    return base;
+  }
+  if (type === 'honked') return p.revenge ? 'evRevanche' : base;
+  if (type === 'cutOff' && p.ring && m.rng() < 0.5) return 'evFuraoBalao';
+  if (p.persona === 'onibus' && type === 'cutOff') return 'evOnibus';
+  if (p.noSignal && (type === 'cutOff' || type === 'overtaken') && m.rng() < 0.6) return 'evSemSeta';
+  if (p.onPhone && (type === 'cutOff' || type === 'overtaken') && m.rng() < 0.6) return 'evCel';
+  if (p.kind === 'moto' || p.persona === 'moto') return type === 'overtaken' ? 'overtakenMoto' : 'evMoto';
+  if (p.persona === 'apressado' && m.rng() < 0.5) return 'evApressado';
+  return base;
 }
 
 function stepCarona(m, inp, dt, c) {
@@ -358,7 +438,8 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       const moto = p.kind === 'moto';
       stressEvt(SX.overtaken + SX.overtakenPerKmh * Math.max(0, p.relKmh || 0) + (moto ? SX.overtakenMoto : 0));
       addBar(davi, 'anxiety', B.anx.overtaken);
-      say(m, drv ? (moto ? 'overtakenMoto' : 'overtaken') : 'pOvertaken', 1, m.rng() < 0.2);
+      say(m, evBank(m, 'overtaken', p, drv ? (moto ? 'overtakenMoto' : 'overtaken') : 'pOvertaken'), 1, m.rng() < 0.2);
+      if (m.mode === 'perigo' && moto && m.rng() < 0.5) say(m, 'osMoto', 1);
       return true;
     }
     case 'cutOff': {
@@ -371,10 +452,10 @@ export function moodEvent(m, type, p = {}, inp = {}) {
         return true;
       }
       if (carona && ring) { davi.stress = 100; m.outburstCd = 0; outburst(m, true); }
-      else say(m, drv ? (ring ? 'cutOffRing' : 'cutOff') : 'pCutOff', 1, m.rng() < 0.2);
+      else say(m, evBank(m, 'cutOff', Object.assign({ ring }, p), drv ? (ring ? 'cutOffRing' : 'cutOff') : 'pCutOff'), 1, m.rng() < 0.2);
       return true;
     }
-    case 'honked': stressEvt(SX.honked); say(m, drv ? 'honked' : 'pHonked', 1); return true;
+    case 'honked': stressEvt(SX.honked); say(m, evBank(m, 'honked', p, drv ? 'honked' : 'pHonked'), 1); return true;
     case 'flashed': stressEvt(SX.flashed); if (drv) say(m, 'flashed', 1); return true;
     case 'tailgated': stressEvt(SX.tailgated); if (drv) say(m, 'tailgated', 1); return true;
     case 'nearMiss':
@@ -400,6 +481,11 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       say(m, drv ? kind : 'pHazard', 1);
       return true;
     }
+    case 'pedScare': // encostou num pedestre devagar: susto grande (pânico do Leandro no perigo)
+      stressEvt(SX.pedScare); addBar(davi, 'anxiety', B.anx.pedScare); m.stats.scrapes++;
+      if (perigo) { addBar(dono, 'stress', B.perigo.pedScare); addBar(dono, 'anxiety', B.perigo.pedScare * 0.7); say(m, 'oPedScare', 1); }
+      say(m, drv ? 'pedScare' : 'pPedScare', 1);
+      return true;
     case 'scrape':
       stressEvt(SX.scrape); m.stats.scrapes++;
       if (perigo) { addBar(dono, 'stress', B.perigo.scrape); say(m, 'oScrape', 1); }

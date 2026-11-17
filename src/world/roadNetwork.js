@@ -202,6 +202,7 @@ export class RoadNetwork {
     this.avenueTreeSlots = []; // { segId, s, side (1 dir./-1 esq. do sentido from→to), x, z, kind } — onde o cenário planta
     this.fruitSpots = [];      // candidatos a fruta no asfalto (ver _buildAvenueTrees)
     this.routeCorridors = def.routeCorridors || {};
+    this.signalMain = def.signalMain || {}; // semáforo (nó) -> segIds da via principal (verde mais longo)
     this.zones = def.zones;
     this.starts = def.starts;
     this.bounds = def.bounds;
@@ -258,6 +259,8 @@ export class RoadNetwork {
         r = Math.max(r, Math.max(-s.edgeL, s.edgeR));
       }
       n.radius = n.type === 'deadend' ? 7 : n.type === 'ring' ? Math.max(6, r + 1.5) : r + 3;
+      const nd = this.def.nodes && this.def.nodes[n.id];
+      if (nd && nd.r != null) n.radius = nd.r; // raio fixo (ex.: fundo da vaga de casa, sem "balão" de retorno)
     }
     this._buildLanes();
     this._buildConnectors();

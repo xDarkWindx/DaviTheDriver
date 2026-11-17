@@ -95,6 +95,16 @@ export default {
     const C = RULES_BALANCE.collision, imp = c.impactKmh || 0;
     this.lastCol = c;
     const crashKmh = CONFIG.crashImpactKmh != null ? CONFIG.crashImpactKmh : C.crashKmh;
+    if (c.b === 'pedestrian' && (c.soft || imp < C.pedSoftKmh)) { // "quase": não encerra
+      this.scrapes++; penalize(this.score, C.scrapePoints * 2 + imp * C.scrapePerKmh); writeScore(this.score, st.score);
+      if (c.crosswalkId != null && c.crosswalkId >= 0) {
+        const F = RULES_BALANCE.fines.crosswalk, t = st.trip.elapsed;
+        const dup = this.det.recent.some((r) => r.code === F.code && t - r.t < RULES_BALANCE.dedupe.seconds);
+        if (!dup) { this.det.recent.push({ code: F.code, x: st.player.x, z: st.player.z, t });
+          this._applyFine({ code: F.code, label: F.label, amount: F.amount, points: F.points, by: 'radar', x: st.player.x, z: st.player.z, crosswalkId: c.crosswalkId, scare: true }); }
+      }
+      return;
+    }
     if ((c.b === 'pedestrian' && C.pedestrianAlwaysEnds) || imp >= crashKmh) { this.finishWith('bateu', c); return; }
     if (imp >= C.scrapeMinKmh) { this.scrapes++; penalize(this.score, C.scrapePoints + imp * C.scrapePerKmh); writeScore(this.score, st.score); }
   },
@@ -130,7 +140,8 @@ export default {
       // ocupação POR FAIXA DE ROLAMENTO (o trânsito sabe onde cada pedestre está); sem isso, a faixa inteira
       const lane = T.crosswalkBlockedAt(cw.id, sp.x, sp.z);
       let occ = lane === true || (lane == null && this._occFlag.get(cw.id) === true);
-      const mem = this._occMem.get(cw.id);
+      // memória curta só sem o critério por faixa (com ele, quem já saiu do corredor do carro não conta)
+      const mem = lane == null ? this._occMem.get(cw.id) : null;
       if (!occ && mem != null && snap.t - mem < RULES_BALANCE.crosswalk.occupiedMemory) occ = true;
       if (!occ && lane == null) {
         const r = (cw.halfWidth || 8) + RULES_BALANCE.crosswalk.pedRadiusExtra;

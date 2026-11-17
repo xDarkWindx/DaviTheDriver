@@ -25,25 +25,30 @@ export const TUNING = {
   lookMax: 130,        // horizonte do IDM (m)
   pathMax: 12,
   thinkEvery: 15,      // passos entre decisões de cada veículo (fatias: 1/15 da frota por passo)
-  todDensity: { manha: 0.9, tarde: 1.0 },
+  todDensity: { manha: 0.75, tarde: 0.85 },
   // PRESENÇA na via do jogador: veículos no mesmo sentido em 0..flowRange m à frente, por faixa (sem a de ônibus) e tipo de
   // via. Abaixo disso nasce gente à frente, fora da vista, a uma distância que cresce com a velocidade do jogador.
-  flowRange: 200, flowPerLane: { eixo: 6, eixao: 5, urban: 4, arterial: 4, ramp: 2, local: 1.2 }, flowLocalMinLen: 400,
-  flowAheadBase: 70, flowAheadPerMps: 4.2, behindRecycle: 140,
+  flowRange: 160, flowPerLane: { eixo: 6, eixao: 5, urban: 3.2, arterial: 3, ramp: 1.2, local: 0.8 }, flowLocalMinLen: 400,
+  // trecho calmo da saída de casa: quase ninguém (um ou outro carro saindo de vaga)
+  quietSegs: ['vaga_casa', 'qrsw2', 'qrsw2_v', 'marg_jaq'], quietMul: 0.15,
+  flowAheadBase: 62, flowAheadPerMps: 2.2, flowAheadMin: 95, flowAheadRand: 40, behindRecycle: 130,
+  ringPlayerArc: 18,   // m: jogador no balão a menos disso da entrada = sem brecha (qualquer velocidade)
+  boxStuckSec: 2.5,    // parado dentro do cruzamento sem motivo legítimo => desocupa (ignora veículos por 1,6 s)
   stuckSec: 25,        // parado sem motivo legítimo => "fantasma" por 3 s (ou some, se longe)
   // travessias: ~1/3 da taxa antiga, em pequenos grupos espaçados (a presença nas calçadas fica com os "passantes")
   pedRate: { urban: 0.024, eixo: 0.012, eixao: 0.007, arterial: 0.014, local: 0.017, ring: 0.007, ramp: 0 },
   pedGroup: [0.45, 0.2],   // chance de vir 1 / 2 acompanhantes junto (mesmo lado)
   pedGather: 6,            // s: sem semáforo, quem chega sozinho espera o grupo juntar (ou este tempo) antes de pedir passagem
   pedStroll: 0.05,         // chance por faixa por meio segundo de um passante andando pela calçada (não atravessa)
-  cwBand: 1.9, cwAheadM: 2.4, // m: um pedestre bloqueia a faixa do carro só de cwAheadM antes dela até sair dela (cwBand = meia largura)
+  pedSoftKmh: 8,      // encostar em pedestre abaixo disso é "quase" (susto, reclamação, multa de faixa se for o caso), não atropelamento
+  cwBand: 1.9, cwAheadM: 2.4, cwCurbM: 3.0, // cwCurbM: alcance do sinalizando na beira (1ª faixa do lado dele) // m: um pedestre bloqueia a faixa do carro só de cwAheadM antes dela até sair dela (cwBand = meia largura)
   pCwCalm: 45,             // s: depois que o jogador parou para um grupo, a próxima faixa à frente dele não abre travessia
   maxJoggers: 4,
   cwHalf: 2.0,         // meia-profundidade da faixa de pedestre
   cwCarTurn: 30,       // s de "vez dos carros" depois que uma faixa sem semáforo esvazia
   cwJoin: 2.5,         // s após o 1º começar a atravessar em que outros ainda entram junto
   // trecho sem ultrapassagem: o lento com fila atrás encosta no acostamento e deixa passar (ninguém fica preso atrás dele a rota toda)
-  honkEventGap: 3.5,  // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação)
+  honkEventGap: 9,    // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação; cada uma tem que pesar)
   spawnQueueMax: 3,   // parados na faixa a partir dos quais não nasce mais ninguém nela
   // evento "ônibus do STJ na rotatória": chance por viagem e peso de cada rotatória do entorno (roundabout.stj = 1..5)
   stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.5, 6: 0.8 }, stjBusSwing: 0.2,
@@ -129,7 +134,7 @@ class Vehicle {
     this.v0min = 0; this.rbT = 0; this.lastStop = -1;
     this.pullT = 0; this.pullCd = 0; this.queueT = 0; // lento que encosta para a fila passar (trecho sem ultrapassagem)
     this.stjBus = false; this.cutDone = false; this.swing = 0; // ônibus do STJ (evento da rotatória)
-    this.pWaitT = 0; this.pIgnT = 0;
+    this.pWaitT = 0; this.pIgnT = 0; this.boxT = 0;
     this.stalled = false; this.jam = -1;
     this.speeder = false; this.onPhone = false; this.noYield = false; this.noSignal = false; // traços (TUNING.traits)     // causa visível do congestionamento (parado no acostamento) / índice do congestionamento // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
   }
@@ -143,7 +148,7 @@ class Pedestrian {
     this.kind = 'pedestre'; this.heading = 0; this.signaling = false; this.speed = 1.3; this.color = 0; this.variant = 0;
     this.px = 0; this.pz = 0; this.ph = 0; this.phase = 0;
     this.t = 0; this.from = 1; this.waitT = 0; this.approach = false; this.tx = 0; this.tz = 0; this.runner = false;
-    this.jit = 0; this.downT = 0; this.awayT = 0; this.nmCd = 0; this.hurry = false;
+    this.jit = 0; this.downT = 0; this.awayT = 0; this.nmCd = 0; this.hurry = false; this.scaredT = 0;
     this.w = net.createWalker(0, 0); this.jogLat = 0;
   }
 }
@@ -187,7 +192,8 @@ export class TrafficSim {
     this.px = 0; this.pz = 0; this.ph = 0; this.pvx = 0; this.pvz = 0; this.pSpeed = 0;
     this.pPath = new Int32Array(TUNING.pathMax); this.pPathN = 0; this._pLaneTmp = {};
     this._pObb = makeOBB(); this._pObbI = makeOBB(); this._vObb = makeOBB(); this._c = makeContact();
-    this.lead = { id: -1, kind: '', persona: '', gap: 0, speed: 0, closing: 0, v: null };
+    // why: por que o da frente está parado/lento — 'sinal' | 'pedestre' | 'morreu' | 'celular' | 'verde' (demorou a sair) | 'fila' | 'ponto' | 'balao' | 'quebrado' | null
+    this.lead = { id: -1, kind: '', persona: '', gap: 0, speed: 0, closing: 0, v: null, onPhone: false, noSignal: false, stalled: false, filtering: false, lane: 0, laneCount: 1, why: null };
     this.rear = { id: -1, kind: '', persona: '', gap: 0, speed: 0, closing: 0, v: null };
     this._hasLead = false; this._hasRear = false;
     this.playerInJam = -1;
@@ -234,7 +240,7 @@ export class TrafficSim {
         const kind = seg.kind || 'urban';
         this.laneKind[id] = kind;
         const rt = ROAD_TRAFFIC[kind] || ROAD_DEFAULT;
-        this.laneMix[id] = rt.mix; this.laneDensity[id] = rt.density;
+        this.laneMix[id] = rt.mix; this.laneDensity[id] = TUNING.quietSegs.indexOf(seg.id) >= 0 ? rt.density * TUNING.quietMul : rt.density;
         if (seg.roundaboutId) this.laneOnRing[id] = rbIndex.get(seg.roundaboutId);
         const endN = net.getNode(lane.endNode);
         if (!seg.roundaboutId && endN && endN.type === 'ring') {
@@ -386,7 +392,21 @@ export class TrafficSim {
     for (let i = 0; i < this.peds.length; i++) if (this.peds[i].active) ps.push(this.peds[i]);
   }
 
-  _emit(name, payload) { if (name && this.events) this.events.emit(name, payload); }
+  _emit(name, payload) {
+    if (!name || !this.events) return;
+    // veículo envolvido: acrescenta tipo, persona e traços (para as falas de situação)
+    if (payload && payload.id != null && payload.b !== 'pedestrian' && payload.onPhone == null) {
+      for (let i = 0; i < this.vehicles.length; i++) {
+        const v = this.vehicles[i]; if (v.id !== payload.id) continue;
+        if (payload.persona == null) payload.persona = v.persona;
+        if (payload.kind == null) payload.kind = v.kind;
+        payload.onPhone = v.onPhone; payload.noSignal = v.noSignal; payload.speeder = v.speeder; payload.revenge = v.revengeT > 0;
+        payload.filtering = v.filtering; payload.stjBus = v.stjBus;
+        break;
+      }
+    }
+    this.events.emit(name, payload);
+  }
 
   // =============================================================== jogador
   /**
@@ -540,6 +560,17 @@ export class TrafficSim {
     return Math.max(3, s);
   }
 
+  path2(v, k) { return v.path[k]; }
+  /** Faixa de saída `lid` com alguém parado logo no começo (sem espaço para um carro de comprimento L)? */
+  _exitBlocked(lid, L) {
+    for (let e = this.laneHead[lid]; e >= 0; e = this.entNext[e]) {
+      const slot = this.entVeh[e]; if (slot < 0) continue;
+      const o = this.veh[slot];
+      if (this.entS[e] - o.length * 0.5 < L + 2.5 && o.speed < 1.5) return true;
+    }
+    return false;
+  }
+
   /** Aceleração do veículo (IDM com todos os obstáculos do caminho) e integração. */
   _move(v, dt) {
     if (v.stalled) { v.speed = 0; v.braking = false; v.blink = 2; v.laneId = v.w.lane.id; return; }
@@ -564,7 +595,8 @@ export class TrafficSim {
         else { if (ignoreVeh) continue; const o = this.veh[slot]; oL = o.length; oV = o.speed; kind = LEAD.VEH; }
         const gap = base + sO - halfL - oL * 0.5;
         if (gap > look) continue;
-        const T = kind === LEAD.PLAYER && tail ? 0.3 : v.T, s0 = kind === LEAD.PLAYER && tail ? 0.8 : v.s0;
+        // em conector (curva de cruzamento/balão) a corda é menor que a distância pela trilha: folga extra
+        const T = kind === LEAD.PLAYER && tail ? 0.3 : v.T, s0 = (kind === LEAD.PLAYER && tail ? 0.8 : v.s0) + (lane.isConnector || w.lane.isConnector ? 1.2 : 0);
         const it = this._inter(v, vel, gap, oV, T, s0);
         if (it > inter) { inter = it; leadKind = kind; leadGap = gap; leadSpeed = oV; leadSlot = slot; }
       }
@@ -594,11 +626,19 @@ export class TrafficSim {
       // fusão ("zíper"): outro veículo indo para a MESMA faixa por outro conector, mais perto do ponto de junção
       if (lane.isConnector && !ignoreVeh && base + lane.length < 60) {
         const g = this._mergeLeader(v, lane, base + lane.length, vel);
-        if (inter < this._mInter) { inter = this._mInter; leadKind = LEAD.VEH; leadGap = g; leadSpeed = this._mSpeed; leadSlot = this._mSlot; }
+        if (inter < this._mInter) { inter = this._mInter; leadKind = this._mSlot < 0 ? LEAD.PLAYER : LEAD.VEH; leadGap = g; leadSpeed = this._mSpeed; leadSlot = this._mSlot; }
       }
       // semáforo
       if (lane.signal && !lane.isConnector && v.goLane !== lid) {
         const st = this.signals.stateForLane(lane);
+        // verde, mas a saída do cruzamento está parada: não entra ("não bloqueia o cruzamento"; evita nó no Pátio Brasil)
+        if (st === 'green' && k + 2 < v.pathN && this._exitBlocked(this.path2(v, k + 2), v.length)) {
+          const gapF = base + this.laneStop[lid] - halfL;
+          if (gapF > 0.5) {
+            const it = this._inter(v, vel, gapF, 0, v.T, 0.6);
+            if (it > inter) { inter = it; leadKind = LEAD.SIGNAL; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
+          }
+        }
         if (st !== 'green') {
           const gapF = base + this.laneStop[lid] - halfL;
           if (gapF > -0.6) {
@@ -634,6 +674,15 @@ export class TrafficSim {
             const it = this._inter(v, vel, gapF, 0, v.T, 0.5);
             if (it > inter) { inter = it; leadKind = LEAD.RING; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
           } else if (gapF < 4) v.ringGo = lid;
+        }
+      } else if (ri >= 0 && v.ringGo === lid && !v.stjBus) {
+        // já decidiu entrar, mas ainda não passou da linha: se o jogador chegou perto no balão, desiste e espera
+        const gapF = base + lane.length - 0.6 - halfL;
+        if (gapF > 0.8 && this.player && !this._ringConflict(this.px, this.pz, Math.abs(this.pSpeed), this.pL, this.rbs[ri], this.rbs[ri].radius,
+          this.rbs[ri].lanes * this.rbs[ri].laneW * 0.5 + 1.6, this.laneRingPhi[lid], 0, TUNING.ringPlayerArc * 0.6)) {
+          v.ringGo = -1;
+          const it = this._inter(v, vel, gapF, 0, v.T, 0.5);
+          if (it > inter) { inter = it; leadKind = LEAD.RING; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
         }
       }
       // ponto de ônibus
@@ -759,6 +808,16 @@ export class TrafficSim {
         v.ghostT = 3; this.stats.ghosted++;
       }
     } else v.stuckT = 0;
+    // nó DENTRO do cruzamento/balão: parado por outro veículo que também está parado no cruzamento (ou pelo cone de um
+    // carro que cruza). Quem já entrou desocupa: ignora os outros veículos (não o jogador nem pedestres) por um instante.
+    const lo = leadSlot >= 0 ? this.veh[leadSlot] : null;
+    // (a "legitimidade" herdada pela fila não vale aqui: ela circula entre os carros travados no cruzamento e fica verdadeira para sempre)
+    const inBox = (u) => u.w.lane.isConnector || u.w.s + u.length * 0.5 > u.w.lane.length - 0.3;
+    if (inBox(v) && sp < 0.3 && v.startDelay <= 0 && v.crashT <= 0 && v.dwellT <= 0 && leadKind !== LEAD.SIGNAL && leadKind !== LEAD.PLAYER &&
+        (leadKind === LEAD.CONE || leadKind === LEAD.VEH) && lo && lo.speed < 0.5 && lo.w.lane !== v.w.lane && inBox(lo)) {
+      v.boxT = (v.boxT || 0) + dt;
+      if (v.boxT > TUNING.boxStuckSec && v.ghostT <= 0) { v.ghostT = 1.6; v.boxT = 0; this.stats.boxUnjam = (this.stats.boxUnjam || 0) + 1; }
+    } else v.boxT = 0;
   }
 
   /** Alguém com o conector `other` no caminho chega antes ao ponto de conflito? Retorna o slot dele ou -1. */
@@ -805,6 +864,18 @@ export class TrafficSim {
       const gap = dm - du - v.length * 0.5 - u.length * 0.5;
       const it = this._inter(v, vel, gap, u.speed, v.T, v.s0);
       if (it > this._mInter) { this._mInter = it; this._mSpeed = u.speed; this._mSlot = u.slot; bestGap = gap; }
+    }
+    // o JOGADOR também entra no zíper (fusão da alça com a via): quem está mais perto do ponto de junção passa primeiro
+    if (this.player && this.pLaneId >= 0 && !ringT) {
+      const L = lanes[this.pLaneId];
+      if (L.isConnector && L !== conn && L.next[0] === target) {
+        const du = L.length - this.pS;
+        if (du < dm + 0.3) {
+          const gap = dm - du - v.length * 0.5 - this.pL * 0.5;
+          const it = this._inter(v, vel, gap, Math.max(0, this.pSpeed), v.T, v.s0 + 0.5);
+          if (it > this._mInter) { this._mInter = it; this._mSpeed = Math.max(0, this.pSpeed); this._mSlot = -1; bestGap = gap; }
+        }
+      }
     }
     return bestGap;
   }
@@ -865,17 +936,19 @@ export class TrafficSim {
       if (this.laneRing[u.w.lane.id] === ri) continue; // outro esperando na entrada
       if (!this._ringConflict(u.x, u.z, u.speed, u.length, rb, R, band, phiN, gapT)) return false;
     }
-    if (this.player && !this._ringConflict(this.px, this.pz, Math.abs(this.pSpeed), this.pL, rb, R, band, phiN, gapT)) return false;
+    // jogador no balão: perto da entrada é SEMPRE conflito, mesmo parado/devagar (o tempo pela velocidade enganava: carro
+    // quase parado no balão parecia "longe" e a IA entrava em cima dele). Só o ônibus do STJ (evento) entra mesmo assim.
+    if (this.player && !this._ringConflict(this.px, this.pz, Math.abs(this.pSpeed), this.pL, rb, R, band, phiN, gapT, v.stjBus ? 0 : TUNING.ringPlayerArc)) return false;
     return true;
   }
-  _ringConflict(x, z, sp, L, rb, R, band, phiN, gapT) {
+  _ringConflict(x, z, sp, L, rb, R, band, phiN, gapT, minArc = 7) {
     const dx = x - rb.x, dz = z - rb.z, d = Math.sqrt(dx * dx + dz * dz);
     if (Math.abs(d - R) > band) return true;
     const phi = Math.atan2(-dz, dx);
     let a = (phiN - phi) % TAU; if (a < 0) a += TAU;
     let arc = a * R; if (arc > Math.PI * R) arc -= TAU * R;
     if (arc < -(L * 0.5 + 2.5) || arc > 75) return true;
-    if (arc < 7) return false;
+    if (arc < Math.max(7, minArc)) return false;
     return arc / Math.max(sp, 1.5) > gapT;
   }
 
@@ -892,7 +965,9 @@ export class TrafficSim {
     const dxp = v.x - this.px, dzp = v.z - this.pz, dP2 = dxp * dxp + dzp * dzp;
     const leadIsPlayer = v.leadKind === LEAD.PLAYER && v.leadGap < 30;
     // impaciência atrás do jogador parado (buzina)
-    if (leadIsPlayer && v.speed < 0.6 && Math.abs(this.pSpeed) < 0.6 && v.leadGap < 12 && !this._playerFacingRed() && !(this._hasCw && this.cwAhead.dist < 15 && (this.cwAhead.occupied || this.cwAhead.waiting > 0))) {
+    // só buzina se o jogador está parado SEM motivo visível (pista livre à frente, longe de cruzamento/balão e faixa)
+    if (leadIsPlayer && v.speed < 0.6 && Math.abs(this.pSpeed) < 0.6 && v.leadGap < 12 && !this._playerFacingRed() && !(this._hasCw && this.cwAhead.dist < 15 && (this.cwAhead.occupied || this.cwAhead.waiting > 0))
+        && !(this._hasLead && this.lead.gap < 25) && !this._playerAtJunctionEntry()) {
       v.impatT += dtT;
       if (v.impatT > p.honkPatience * (1 - 0.5 * v.aggression)) { this._honk(v, true); v.impatT = -2; v.aggression = Math.min(1, v.aggression + 0.05); }
     } else if (v.impatT > 0) v.impatT = 0; else v.impatT = Math.min(0, v.impatT + dtT);
@@ -907,10 +982,10 @@ export class TrafficSim {
     if (v.revengeT > 0 && dP2 < 400 && v.reactCd <= 0) {
       const rel = -(dxp * Math.sin(this.ph) + dzp * Math.cos(this.ph));
       if (rel < 0 && this.pLaneId === v.w.lane.id && rng() < 0.25) { v.brakeT = 0.8; v.brakeDecel = 5; v.reactCd = 6; }
-      else if (rng() < 0.12) this._honk(v, true);
+      else if (rng() < 0.05) this._honk(v, true);
     }
     // moto buzinando no corredor perto do jogador
-    if (p.honky && v.filtering && dP2 < 225 && rng() < 0.08) this._honk(v, true);
+    if (p.honky && v.filtering && dP2 < 225 && rng() < 0.025) this._honk(v, true);
     this._tryLaneChange(v, false);
   }
 
@@ -1050,6 +1125,26 @@ export class TrafficSim {
     this._rebuildPath(v);
   }
 
+  /** Motivo de o veículo estar parado/lento (para as falas). */
+  _stopWhy(v) {
+    if (v.stalled || v.crashT > 0) return 'quebrado';
+    if (v.stallT > 0 && v.startDelay > 0) return 'morreu';
+    if (v.startDelay > 0) return v.phoneLate ? 'celular' : 'verde';
+    if (v.dwellT > 0 || v.leadKind === LEAD.BUSSTOP) return 'ponto';
+    if (v.speed > 2) return null;
+    if (v.leadKind === LEAD.SIGNAL) return 'sinal';
+    if (v.leadKind === LEAD.CROSSWALK || v.leadKind === LEAD.PED) return 'pedestre';
+    if (v.leadKind === LEAD.RING) return 'balao';
+    if (v.leadKind === LEAD.VEH || v.leadKind === LEAD.CONE) return 'fila';
+    return null;
+  }
+  /** Jogador parado esperando para entrar num cruzamento/balão (fim da faixa, próxima é conector): motivo legítimo. */
+  _playerAtJunctionEntry() {
+    if (this.pLaneId < 0) return false;
+    const L = this.lanes[this.pLaneId];
+    if (L.isConnector) return true;
+    return L.length - this.pS < 18 && L.next.length > 0 && this.lanes[L.next[0]].isConnector;
+  }
   _honk(v, atPlayer) {
     if (v.honkCd > 0) return;
     v.honkT = 0.35 + this.rng() * 0.6; v.honking = true; v.honkCd = 2.5 + this.rng() * 2;
@@ -1192,7 +1287,15 @@ export class TrafficSim {
       if (dx * dx + dz * dz > 49) continue;
       A.x = this.px; A.z = this.pz;
       if (circleVsObb(p.x, p.z, 0.35, A, c)) {
-        if (p.state !== 'down' && pAbs > 0.8) {
+        if (p.state !== 'down' && pAbs > 0.8 && pAbs * 3.6 < TUNING.pedSoftKmh) {
+          // "quase": encostou devagar. O pedestre leva um susto, recua e reclama (mão levantada); ninguém cai
+          if (p.nmCd <= 0) {
+            p.nmCd = 3; p.scaredT = 2.5; p.x += c.nx * (c.depth + 0.35); p.z += c.nz * (c.depth + 0.35);
+            ph.vx *= 0.25; ph.vz *= 0.25; ph.speed = ph.vx * sph + ph.vz * cph;
+            this._emit(EV.COLLISION, { a: 'player', b: 'pedestrian', kind: p.kind, impactKmh: pAbs * 3.6, otherId: p.id, id: p.id, soft: true,
+              x: p.x, z: p.z, nx: -c.nx, nz: -c.nz, playerAtFault: true, crosswalkId: p.crosswalkId });
+          } else { p.x += c.nx * c.depth; p.z += c.nz * c.depth; }
+        } else if (p.state !== 'down' && pAbs > 0.8) {
           p.state = 'down'; p.downT = 6; p.x += c.nx * c.depth; p.z += c.nz * c.depth;
           ph.vx *= 0.88; ph.vz *= 0.88; ph.speed = ph.vx * sph + ph.vz * cph;
           this._emit(EV.COLLISION, { a: 'player', b: 'pedestrian', kind: p.kind, impactKmh: pAbs * 3.6, otherId: p.id, id: p.id,
@@ -1240,6 +1343,9 @@ export class TrafficSim {
     if (bestV && bestGap < 150) {
       const L = this.lead; L.id = bestV.id; L.kind = bestV.kind; L.persona = bestV.persona; L.gap = Math.max(0, bestGap);
       L.speed = bestV.speed; L.closing = this.pSpeed - bestV.speed * Math.cos(wrap(bestV.heading - this.ph)); L.v = bestV;
+      L.onPhone = bestV.onPhone; L.noSignal = bestV.noSignal; L.stalled = bestV.stalled; L.filtering = bestV.filtering;
+      L.lane = bestV.w.lane.isConnector ? -1 : bestV.w.lane.index; L.laneCount = bestV.w.lane.isConnector ? 1 : this.net.siblingLanes(bestV.w.lane).length;
+      L.why = this._stopWhy(bestV);
       this._hasLead = true;
       // jogador colando no da frente => reação sorteada (sai da faixa ou freia de birra)
       if (L.gap < Math.max(3, this.pSpeed * 0.4) && this.pSpeed > 5) {
@@ -1342,12 +1448,15 @@ export class TrafficSim {
   /** m ao longo da faixa de pedestre `cid` (a partir do lado A) do ponto (x, z). */
   cwPos(cid, x, z) { return (x - this.cwAx[cid]) * this.cwUx[cid] + (z - this.cwAz[cid]) * this.cwUz[cid]; }
   /** Alguém atravessando bloqueia a posição `m` (m ao longo da faixa)? Só quem está NELA ou chegando a ela (quem já passou não). */
-  cwBlockedM(cid, m) {
-    if (this.cwCross[cid] <= 0) return false;
-    const ps = this.pedestrians, len = this.cwLen[cid], band = TUNING.cwBand, ahead = TUNING.cwAheadM;
+  cwBlockedM(cid, m, withSignaling = false, aheadM = TUNING.cwAheadM) {
+    if (this.cwCross[cid] <= 0 && !(withSignaling && this.cwWait[cid] > 0)) return false;
+    const ps = this.pedestrians, len = this.cwLen[cid], band = TUNING.cwBand, ahead = aheadM;
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
-      if (p.crosswalkId !== cid || (p.state !== 'crossing' && p.state !== 'down')) continue;
+      if (p.crosswalkId !== cid) continue;
+      // sinalizando na beira da calçada do lado do carro (a ponto de pisar na pista dele)
+      if (withSignaling && p.state === 'waiting' && p.signaling && !p.approach) { const pm = p.from > 0 ? 0 : len; if (Math.abs(m - pm) < band + TUNING.cwCurbM) return true; continue; }
+      if (p.state !== 'crossing' && p.state !== 'down') continue;
       const t = p.t < 0 ? 0 : p.t > 1 ? 1 : p.t, pm = p.from > 0 ? t * len : (1 - t) * len;
       if (p.state === 'down') { if (Math.abs(pm - m) < band + 1.5) return true; continue; }
       const rel = (m - pm) * (p.from > 0 ? 1 : -1); // > 0: a faixa do carro ainda está à frente do pedestre
@@ -1356,7 +1465,7 @@ export class TrafficSim {
     return false;
   }
   /** Idem para um ponto do mundo (jogador, regras). */
-  cwBlockedAt(cid, x, z) { return this.cwBlockedM(cid, this.cwPos(cid, x, z)); }
+  cwBlockedAt(cid, x, z, withSignaling = false) { return this.cwBlockedM(cid, this.cwPos(cid, x, z), withSignaling); }
 
   _cwSafe(cid, thr) {
     const cw = this.net.crosswalks[cid];
@@ -1455,6 +1564,7 @@ export class TrafficSim {
       const p = ps[i];
       if (!p.active) continue;
       if (p.nmCd > 0) p.nmCd -= dt;
+      if (p.scaredT > 0) p.scaredT -= dt;
       p.phase += dt * (p.state === 'waiting' && !p.approach ? 0 : p.speed * 3.2);
       if (p.state === 'down') { p.downT -= dt; if (p.downT <= 0) { p.state = 'gone'; p.active = false; } continue; }
       if (p.crosswalkId === -2) { // passante na calçada
@@ -1707,6 +1817,7 @@ export class TrafficSim {
     if (!r) return null;
     const lane = this.lanes[r.laneId], sib = this.net.siblingLanes(lane);
     const lid = sib.length > 1 ? sib[(rng() * sib.length) | 0] : lane.id;
+    if (rng() > this.laneDensity[lid] / 0.35) return null; // vias calmas (saída de casa) quase não recebem ninguém
     const s = r.s * this.lanes[lid].length / lane.length;
     const o = this.net.sampleLane(this.lanes[lid], s, this._tmpS || (this._tmpS = {}));
     if (!this._spawnClear(o.x, o.z, lid, s, minD)) return null;
@@ -1774,28 +1885,38 @@ export class TrafficSim {
     if (this.stepN % 20 === 3) this._jamLogic();
     this.dirCd -= dt;
     if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
-    if (this.stepN % 15 === 11) this._flowKeeper();
+    if (this.stepN % 15 === 11) this._flowKeeper((this.stepN / 15 | 0) % 2 === 1); // alterna: via atual / próxima via mais movimentada
   }
 
   /** Mantém a via do jogador povoada à frente (TUNING.flowPerLane): repõe fora da vista, proporcional à velocidade dele. */
-  _flowKeeper() {
+  _flowKeeper(lookahead) {
     if (!this.player || this.pLaneId < 0) return;
-    let pl = this.lanes[this.pLaneId];
-    if (pl.isConnector) { if (!pl.next.length) return; pl = this.lanes[pl.next[0]]; }
-    const seg = this.net.getSegment(pl.segId); if (!seg) return;
-    const per = TUNING.flowPerLane[seg.kind] || 0;
-    if (!per || (seg.kind === 'local' && seg.length < TUNING.flowLocalMinLen)) return;
-    const sib = this.net.siblingLanes(pl);
-    let nl = 0; for (let i = 0; i < sib.length; i++) if (this.lanes[sib[i]].kind !== 'bus') nl++;
-    const want = Math.round(per * Math.max(1, nl));
-    const fx = Math.sin(this.ph), fz = Math.cos(this.ph), R = TUNING.flowRange;
+    // via-alvo: a atual ou, se logo adiante no caminho do jogador houver uma via mais movimentada (ex.: saindo do balão
+    // para o Eixo), essa: assim ela já está povoada quando ele chega (senão os primeiros 300 m do Eixo ficavam vazios)
+    const lanes = this.lanes;
+    let L = lanes[this.pLaneId], sFrom = this.pLaneId === L.id && !L.isConnector ? this.pS : 0, best = 0, dist = -this.pS;
+    const perOf = (lane) => { const sg = lane.isConnector ? null : this.net.getSegment(lane.segId); if (!sg) return 0;
+      const p = TUNING.flowPerLane[sg.kind] || 0; return sg.kind === 'local' && sg.length < TUNING.flowLocalMinLen ? 0 : p; };
+    if (!L.isConnector) best = perOf(L);
+    for (let k = 0; k < this.pPathN && dist < 150; k++) {
+      const lk = lanes[this.pPath[k]];
+      if (lookahead && k > 0 && !lk.isConnector && perOf(lk) > best + 0.5) { L = lk; sFrom = 0; best = perOf(lk); break; }
+      if (k === 0 && lk.isConnector && !best) { const nx = lk.next.length ? lanes[lk.next[0]] : null; if (nx) { L = nx; sFrom = 0; best = perOf(nx); } }
+      dist += lk.length;
+    }
+    if (!best || L.isConnector || (lookahead && L.id === this.pLaneId)) return;
+    const sib = this.net.siblingLanes(L);
+    let nl = 0; for (let i = 0; i < sib.length; i++) if (lanes[sib[i]].kind !== 'bus') nl++;
+    const want = Math.round(best * Math.max(1, nl)), R = TUNING.flowRange;
+    // conta quem está nesta via, neste sentido, de sFrom a sFrom + R (pela faixa, não por um cone: segue a curva da via)
     let n = 0;
     for (const v of this.vehicles) {
-      const dx = v.x - this.px, dz = v.z - this.pz, a = dx * fx + dz * fz;
-      if (a > 0 && a < R && Math.abs(dx * fz - dz * fx) < 25 && Math.cos(v.heading - this.ph) > 0.5) n++;
+      const vl = v.w.lane; if (vl.isConnector || vl.segId !== L.segId || vl.dir !== L.dir) continue;
+      const sv = v.w.s * L.length / vl.length; if (sv > sFrom - 5 && sv < sFrom + R) n++;
     }
     if (n >= want) return;
-    // pool cheio: recicla quem ficou para trás (fora da vista) e é mais lento que o jogador
+    // pool cheio: recicla quem ficou para trás (fora da vista)
+    const fx = Math.sin(this.ph), fz = Math.cos(this.ph);
     if (this.vehicles.length >= Math.min(this.maxV, this.poolCap || this.maxV)) {
       let far = null, fd = TUNING.behindRecycle;
       for (const v of this.vehicles) {
@@ -1806,19 +1927,23 @@ export class TrafficSim {
       if (!far) return;
       this._despawn(far);
     }
+    // nasce na via-alvo logo além da vista (distância que cresce com a velocidade do jogador)
     const rng = this.rng, sp = Math.max(0, this.pSpeed);
-    const d = Math.max(TUNING.spawnMin, TUNING.flowAheadBase + sp * TUNING.flowAheadPerMps) + rng() * 60;
-    const r = this.walkAlong(pl.id, Math.max(0, this.pLaneId === pl.id ? this.pS : 0), d, this._wa || (this._wa = {}));
-    if (!r) return;
-    const lane = this.lanes[r.laneId]; if (lane.isConnector) return;
-    const sb = this.net.siblingLanes(lane);
-    const lid = sb.length > 1 ? sb[(rng() * sb.length) | 0] : lane.id;
-    const s2 = r.s * this.lanes[lid].length / lane.length;
-    const o = this.net.sampleLane(this.lanes[lid], s2, this._tmpS || (this._tmpS = {}));
-    const dxp = o.x - this.px, dzp = o.z - this.pz; if (dxp * dxp + dzp * dzp < 95 * 95) return;
-    for (let i = 0; i < this.vehicles.length; i++) { const q = this.vehicles[i], ex = q.x - o.x, ez = q.z - o.z; if (ex * ex + ez * ez < 8 * 8) return; }
-    for (let e = this.laneHead[lid]; e >= 0; e = this.entNext[e]) if (Math.abs(this.entS[e] - s2) < 16) return;
-    if (this.laneJam[lid] >= 0) return; // congestionamento sorteado tem a própria fila
+    const minD = Math.max(TUNING.flowAheadMin, TUNING.flowAheadBase + sp * TUNING.flowAheadPerMps);
+    const lid = sib.length > 1 ? sib[(rng() * sib.length) | 0] : L.id, lane = lanes[lid];
+    let s2 = -1;
+    for (let t = 0; t < 4 && s2 < 0; t++) {
+      const sTry = (sFrom + rng() * R) * lane.length / L.length;
+      if (sTry < 3 || sTry > lane.length - 5) continue;
+      const o = this.net.sampleLane(lane, sTry, this._tmpS || (this._tmpS = {}));
+      const dxp = o.x - this.px, dzp = o.z - this.pz, d2 = dxp * dxp + dzp * dzp;
+      if (d2 < minD * minD || d2 > (minD + TUNING.flowAheadRand + 40) ** 2) continue;
+      let ok = true;
+      for (let i = 0; i < this.vehicles.length && ok; i++) { const q = this.vehicles[i], ex = q.x - o.x, ez = q.z - o.z; if (ex * ex + ez * ez < 8 * 8) ok = false; }
+      for (let e = this.laneHead[lid]; e >= 0 && ok; e = this.entNext[e]) if (Math.abs(this.entS[e] - sTry) < 16) ok = false;
+      if (ok) s2 = sTry;
+    }
+    if (s2 < 0 || this.laneJam[lid] >= 0) return; // congestionamento sorteado tem a própria fila
     const pid = this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
     const v = this.spawn(pid, null, lid, s2, {});
     if (v) { this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1; }
@@ -1874,7 +1999,7 @@ export class TrafficSim {
   _directedSpawn() {
     if (!this.player || this.pLaneId < 0 || this.pSpeed < 4) return;
     if (this.vehicles.length >= this.maxV) return;
-    const pl = this.lanes[this.pLaneId]; if (pl.isConnector) return;
+    const pl = this.lanes[this.pLaneId]; if (pl.isConnector || this.laneDensity[pl.id] < 0.1) return; // trecho calmo: sem "garantia" de gente
     let n = 0;
     for (const v of this.vehicles) {
       const dx = v.x - this.px, dz = v.z - this.pz;

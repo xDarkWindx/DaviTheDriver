@@ -349,7 +349,10 @@
       #ui-layer { font-size: max(9px, min(1.25vw, 2.45vh)); }
       .card-desc, .photo figcaption { display: none; }
       .slogan { margin-bottom: .3em; }
+      /* balões abaixo da faixa dos avisos (no celular o balão só de gesto caía em cima do toast) */
+      .bubbles { top: 7.2em; height: 10em; }
     }
+    .is-touch .bubbles { top: 7.2em; height: 10em; }
     /* retrato no celular: pede para girar */
     #rotate-hint { display: none; }
     @media (orientation: portrait) and (max-width: 600px) {

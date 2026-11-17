@@ -267,8 +267,9 @@ export function buildScenery(sb) {
   const GROUNDISH = 0xb7aa72;
   const mix = (a, b, t) => { const ar = a >> 16 & 255, ag = a >> 8 & 255, ab = a & 255, br = b >> 16 & 255, bg = b >> 8 & 255, bb = b & 255; return (Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t); };
   const soft = (x, z, h, hl, hw, y, col) => {
-    mb.rect(x, z, h, hl + 5, hw + 5, y - 0.008, mix(col, GROUNDISH, 0.72));
-    mb.rect(x, z, h, hl + 2.5, hw + 2.5, y - 0.004, mix(col, GROUNDISH, 0.4));
+    // franjas com degrau de altura maior (6–7 mm): com 4 mm elas "brigavam" (z-fighting) na câmera afastada
+    mb.rect(x, z, h, hl + 5, hw + 5, y - 0.013, mix(col, GROUNDISH, 0.72));
+    mb.rect(x, z, h, hl + 2.5, hw + 2.5, y - 0.0065, mix(col, GROUNDISH, 0.4));
     mb.rect(x, z, h, hl, hw, y, col);
   };
   soft(-350, 0, Math.PI / 2, 1100, 33.5, 0.02, LAWN);
@@ -281,6 +282,16 @@ export function buildScenery(sb) {
   mb.ring(-800, 420, 36, 38, 0.031, 0xcfc8b0, 28);
   const lake = makeCircle(-800, 420, 36); lake.kind = 'water'; sb.colliders.add(lake);
 
+  // --- saída de casa: terreno gramado/terra vermelha a leste da marginal; estacionamento de bloquete em frente ao prédio
+  soft(-1440, 150, 0, 34, 22, 0.02, LAWN2);
+  mb.rect(-1432, 140, 0.3, 14, 10, 0.027, 0xb4613d);              // terra vermelha
+  mb.rect(-1385, 187, 0, 6.5, 18.5, 0.024, 0xb3a28a);               // vagas de bloquete
+  for (const dx of [-14, -10.9, -7.8, -4.7, 4.7, 7.8, 10.9, 14]) if (rng() < 0.8 || Math.abs(dx) < 5) sb.parkedCar(-1385 + dx, 187, 0, rng.pick(PARKED_COLORS)); // vizinhos da vaga (a vaga do Davi é a do meio)
+  for (const [x, z] of [[-1406, 181], [-1364, 181], [-1412, 192]]) sb.tree(x, z, 'palmeira', 1);
+  for (const x of [-1403.5, -1366.5]) sb.inst.add('lixeira', x, 0, 193, 0, 1, 1, 1, 0x2f62b5);    // lixeiras azuis
+  // árvores no gramado entre a marginal e a avenida
+  for (let z = 128; z <= 190; z += 12) sb.tree(-1487 + rng.range(-1, 1), z, rng() < 0.5 ? 'mangueira' : 'ipe_amarelo', 0.8);
+
   // Av. das Jaqueiras: mangueiras e jaqueiras SÓLIDAS rente ao meio-fio (posições em net.avenueTreeSlots)
   for (const t of net.avenueTreeSlots) sb.tree(t.x, t.z, t.kind, 1.05, 0.8);
 
@@ -288,6 +299,7 @@ export function buildScenery(sb) {
   for (let z = 110; z <= 600; z += 44) {
     for (let x = -1470; x <= -1090; x += 62) {
       if (Math.abs(x + 1390) < 40 && Math.abs(z - 165) < 30) continue; // casa
+      if (x < -1430 && z < 200) continue; // terreno grande ao lado da marginal (gramado e terra vermelha)
       sb.building(x + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6, balconies: true });
     }
   }
@@ -392,7 +404,7 @@ export function buildScenery(sb) {
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
   for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_n2', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
     sb.lampsAlong(id, 46, [0]);
-  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
+  for (const id of ['qrsw2', 'qrsw2_v', 'qrsw2_e', 'marg_jaq', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
   for (const id of ['tes', 'eixao_ramp', 'alca_eixao', 'alca_rodo']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
 
