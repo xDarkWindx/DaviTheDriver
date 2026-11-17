@@ -25,7 +25,7 @@ export const MAP = {
     // Sudoeste
     // Regra de projeto: o Sudoeste só se liga ao resto da cidade pela Av. das Jaqueiras (e Primeira Avenida),
     // senão o GPS foge das rotas descritas (ver README). Ruas internas são lentas (30 km/h) e tortas.
-    J_JAQ2: { x: -1500, z: 120 },    // Jaqueiras × marginal (a saída da QRSW 2 entra na avenida mais ao norte)
+    J_JAQ2: { x: -1500, z: 142 },    // Jaqueiras × marginal (a saída da QRSW 2 entra na avenida mais ao norte)
     J_MQ: { x: -1468, z: 200 },      // fim da rua da QRSW 2 × marginal (vira à direita, para o norte)
     J_Q2V: { x: -1385, z: 200 },     // rua da QRSW 2 × vagas em frente ao prédio (largada/chegada de casa)
     D_Q2V: { x: -1385, z: 178, type: 'deadend', r: 2.5 },
@@ -155,7 +155,7 @@ export const MAP = {
     { id: 'qrsw2', name: 'QRSW 2 — Sudoeste', from: 'J_MQ', to: 'J_Q2V', lanesF: 1, lanesB: 1, laneW: 3.4, limitKmh: 30, kind: 'local' },
     { id: 'qrsw2_v', name: 'QRSW 2 — Sudoeste', from: 'J_Q2V', to: 'J_Q2a', lanesF: 1, lanesB: 1, laneW: 3.4, limitKmh: 30, kind: 'local' },
     // sai da avenida em ângulo reto (senão a conversão à esquerda de quem desce a Jaqueiras cortava a fila parada da marginal)
-    { id: 'marg_jaq', name: 'Marginal da Av. das Jaqueiras', from: 'J_JAQ2', to: 'J_MQ', via: [[-1474, 120], [-1468, 134], [-1468, 165]], corner: 8,
+    { id: 'marg_jaq', name: 'Marginal da Av. das Jaqueiras', from: 'J_JAQ2', to: 'J_MQ', via: [[-1474, 142], [-1468, 154], [-1468, 176]], corner: 8,
       lanesF: 1, lanesB: 1, laneW: 3.2, limitKmh: 40, kind: 'local' },
     { id: 'qrsw2_e', name: 'QRSW 2 — Sudoeste', from: 'J_Q2a', to: 'rq_w', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
     { id: 'eqrsw', name: 'EQRSW (sem saída)', from: 'rq_e', to: 'D_EQ', via: [[-1190, 206]], corner: 30, lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
@@ -397,3 +397,29 @@ export const MAP = {
     stj_leste: { x: 880, z: 192, heading: -15 * D2R },  // fundo do Leste, rumo à Rotatória 2
   },
 };
+
+// ---------------------------------------------------------------- Eixo mais curto (fase 5)
+// O mapa acima está nas coordenadas "de autor". Para encurtar a reta do Eixo (S1/N1) sem redesenhar tudo, a faixa entre a EPIG e
+// a W3 (x de SQUEEZE.x0 a SQUEEZE.x1) é comprimida e tudo a oeste dela (Cruzeiro, Jaqueiras, Sudoeste, EPIG) anda SQUEEZE.d m para
+// leste. Topologia, larguras, raios de balão e o lado leste do mapa não mudam. Quem tem coordenada fixa fora daqui (cenário,
+// marcos, placas) usa sqx() / sqxRange().
+export const SQUEEZE = { x0: -1000, x1: -460, d: 300 };
+const SQ_K = (SQUEEZE.x1 - SQUEEZE.x0 - SQUEEZE.d) / (SQUEEZE.x1 - SQUEEZE.x0);
+/** x de autor -> x do jogo. */
+export function sqx(x) {
+  if (x >= SQUEEZE.x1) return x;
+  if (x >= SQUEEZE.x0) return SQUEEZE.x1 + (x - SQUEEZE.x1) * SQ_K;
+  return x + SQUEEZE.d;
+}
+/** Intervalo [a, b] de autor -> [a', b'] do jogo (para retângulos e áreas de cenário). */
+export function sqxRange(a, b) { return [sqx(a), sqx(b)]; }
+(function squeezeMap(M) {
+  for (const k in M.nodes) M.nodes[k].x = sqx(M.nodes[k].x);
+  for (const r of M.roundabouts) r.x = sqx(r.x);
+  for (const r of M.roads) if (r.via) for (const v of r.via) v[0] = sqx(v[0]);
+  for (const list of [M.crosswalks, M.busStops, M.radars, M.agentHideouts]) for (const e of list) e.at[0] = sqx(e.at[0]);
+  for (const k in M.zones) M.zones[k].x = sqx(M.zones[k].x);
+  for (const k in M.starts) M.starts[k].x = sqx(M.starts[k].x);
+  for (const a of M.parkingAreas) { a[0] = sqx(a[0]); a[2] = sqx(a[2]); }
+  M.bounds.minX = sqx(M.bounds.minX);
+})(MAP);

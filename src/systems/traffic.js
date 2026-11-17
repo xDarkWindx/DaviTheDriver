@@ -14,6 +14,7 @@
 //   inJam() -> jam | null (o jogador está na fila)
 //   leadInfo() -> { id, kind, persona, gap, speed, closing } | null      rearInfo() -> idem (closing = quanto o de trás se aproxima)
 //   freeAhead() -> m (≤150)     neighbors(radius) -> vehicles[] (array reutilizado)
+//   sideFree() -> bool (faixa ao lado com brecha)   hazardAhead() -> { kind:'manga'|'jaca', dist } | null
 //   crosswalkAhead() -> { crosswalkId, dist, occupied, pedCount, waiting, x, z, signalized } | null
 //   crosswalkBlockedAt(cid, x, z) -> bool (bloqueio por faixa de rolamento: o pedestre está nela ou chegando)
 //   provoke(amount, radius) -> nº de afetados     flashLead() -> { id, kind, persona, reaction:'yield'|'brake'|'ignore', gap } | null
@@ -75,17 +76,20 @@ const api = {
     st.traffic.tripSeed = seed;
     sim.setPlayer(ctx.player);
     // faixas das duas rotas da viagem (Eixo = GPS livre; Parque = corredor): onde os congestionamentos podem cair
-    const routeLanes = new Set();
+    const routeLanes = new Set(), routeSets = [];
     try {
       const net = ctx.net, p = ctx.player.phys, near = net.nearestLane(p.x, p.z, {}, p.heading, 1.2), dest = ctx.trip._dest && ctx.trip._dest.targets;
       if (near && dest) {
-        for (const id of net.planRoute(near.laneId, near.s, dest, []) || []) routeLanes.add(id);
+        const r1 = net.planRoute(near.laneId, near.s, dest, []) || [];
+        for (const id of r1) routeLanes.add(id);
         const via = net.routeCorridors.parque && net.routeCorridors.parque[trip.routeId];
-        if (via) for (const id of net.planRouteVia(near.laneId, near.s, via, dest, []) || []) routeLanes.add(id);
+        const r2 = via ? net.planRouteVia(near.laneId, near.s, via, dest, []) || [] : [];
+        for (const id of r2) routeLanes.add(id);
+        routeSets.push(r1, r2); // rotas exatas (GPS e Parque): manga garantida no caminho
         for (const id of [...routeLanes]) { const l = net.getLane(id); if (!l.isConnector) for (const sid of net.siblingLanes(l)) routeLanes.add(sid); }
       }
     } catch (e) { /* sem rotas: congestionamento cai em qualquer sentido */ }
-    sim.reset({ seed, timeOfDay: trip.timeOfDay, route: ctx.trip.route, routeId: trip.routeId, routeLanes, jams: st.traffic.jams, jamSpot: st.traffic.jamSpot, stjBus: st.traffic.stjBus });
+    sim.reset({ seed, timeOfDay: trip.timeOfDay, route: ctx.trip.route, routeId: trip.routeId, routeLanes, routeSets, jams: st.traffic.jams, jamSpot: st.traffic.jamSpot, stjBus: st.traffic.stjBus });
     api.jams = sim.jams; st.traffic.jamList = sim.jams.map((j) => j.label);
     perf.avg = 0; perf.max = 0; perf.n = 0;
   },
@@ -132,6 +136,10 @@ const api = {
   inJam() { return sim ? sim.inJam() : null; },
   rearInfo() { return sim ? sim.rearInfo() : null; },
   freeAhead() { return sim ? sim.freeAhead() : 150; },
+  /** Faixa ao lado com brecha para passar o da frente? (via de várias faixas) */
+  sideFree() { return sim ? sim.sideFree() : false; },
+  /** Fruta no caminho à frente: { kind, dist } | null */
+  hazardAhead() { return sim ? sim.hazardAhead() : null; },
   neighbors(radius = 30) { return sim ? sim.neighbors(radius) : []; },
   crosswalkAhead() { return sim ? sim.crosswalkAhead() : null; },
   /** Alguém atravessando a faixa `cid` bloqueia o ponto (x, z)? (só a faixa de rolamento onde o pedestre está ou vai chegar) */

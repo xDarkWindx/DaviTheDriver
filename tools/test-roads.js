@@ -1,5 +1,5 @@
 // Testes da API da malha viária (Node puro, sem navegador):  npm test
-import { MAP } from '../src/world/mapData.js';
+import { MAP, sqx } from '../src/world/mapData.js';
 import { RoadNetwork } from '../src/world/roadNetwork.js';
 import assert from 'node:assert/strict';
 
@@ -147,9 +147,9 @@ test('roadInfoAt: pista, canteiro, fora', () => {
   assert.equal(o.limitKmh, 80);
   assert.ok(!net.roadInfoAt(-300, 0, o).onRoad, 'gramado central do Eixo não é pista');
   assert.ok(!net.roadInfoAt(-430, 600, o).onRoad, 'canteiro da W3 não é pista');
-  assert.ok(net.roadInfoAt(-1050 + 26, 680, o).onRoad, 'balão');
-  assert.ok(!net.roadInfoAt(-1050, 680, o).onRoad, 'ilha do balão');
-  assert.ok(!net.roadInfoAt(-800, 300, o).onRoad, 'parque');
+  assert.ok(net.roadInfoAt(sqx(-1050) + 26, 680, o).onRoad, 'balão');
+  assert.ok(!net.roadInfoAt(sqx(-1050), 680, o).onRoad, 'ilha do balão');
+  assert.ok(!net.roadInfoAt(sqx(-800), 300, o).onRoad, 'parque');
   assert.equal(net.speedLimitAt(0, 470, Math.PI), 80);
 });
 
@@ -167,7 +167,7 @@ test('desníveis encontrados', () => {
 
 test('clearance: negativo na pista, positivo no parque', () => {
   assert.ok(net.clearance(-300, 40) < 0);
-  assert.ok(net.clearance(-800, 300) > 10);
+  assert.ok(net.clearance(sqx(-800), 300) > 10);
 });
 
 test('walker percorre 3 km sem travar', () => {

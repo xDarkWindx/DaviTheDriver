@@ -85,7 +85,8 @@ test(`${MIN} min simulados em 4 regiões: sem engavetamento, ninguém preso para
       pairSeen.set(o.key, o);
       const same = o.a.w.lane.id === o.b.w.lane.id || o.a.path.slice(0, o.a.pathN).includes(o.b.w.lane.id) || o.b.path.slice(0, o.b.pathN).includes(o.a.w.lane.id);
       // moto no corredor encosta de lado por desenho; encostos rasos (< 0,5 m) em fila contam como raspão visual, não engavetamento
-      const shallow = o.depth < 0.5 || o.a.filtering || o.b.filtering || o.a.persona === 'moto' && o.b.persona === 'moto';
+      // motoboy espreme entre carros por desenho (corredor, entra em brecha curta): encostar nele não é engavetamento de carros
+      const shallow = o.a.persona === 'moto' || o.b.persona === 'moto';
       if (same) { if (!shallow) rearEnds++; } else crossings++;
       if (process.env.VERBOSE) console.log('      sobreposição', o.key, same ? 'mesma faixa' : 'cruzando', o.a.persona, o.a.w.lane.id, o.a.w.lane.isConnector, o.b.persona, o.b.w.lane.id, o.b.w.lane.isConnector, o.depth.toFixed(2), 'lead', o.a.leadKind, o.b.leadKind, 'ghost', o.a.ghostT > 0, o.b.ghostT > 0);
     }
@@ -106,8 +107,8 @@ test(`${MIN} min simulados em 4 regiões: sem engavetamento, ninguém preso para
   console.log(`       ${steps} passos, até ${maxActive} veículos ativos; spawns ${sim.stats.spawned}, despawns ${sim.stats.despawned}, fantasmas ${sim.stats.ghosted}, presos removidos ${sim.stats.stuckRemoved}`);
   console.log(`       sobreposições IA×IA: ${rearEnds} na mesma faixa/caminho, ${crossings} cruzando; maior parada contínua ${worstStop.toFixed(1)} s (${worstWho})`);
   console.log(`       custo do passo com a frota cheia: média ${avg.toFixed(3)} ms, pior ${tMax.toFixed(2)} ms (${nStep} amostras)`);
-  assert.ok(maxActive >= sim.maxV * 0.75, 'frota não encheu: ' + maxActive);
-  assert.ok(rearEnds <= 1, 'engavetamento na mesma faixa: ' + rearEnds); // (o HEAD anterior já tinha 1 caso raro: dois ônibus no ponto do Eixo)
+  assert.ok(maxActive >= sim.targetCount * 0.9, 'frota não encheu: ' + maxActive + ' de ' + sim.targetCount); // (o fundo enche até targetCount; a via do jogador, até o teto)
+  assert.equal(rearEnds, 0, 'engavetamento na mesma faixa');
   assert.ok(crossings <= Math.max(2, MIN), 'muitas sobreposições em cruzamentos: ' + crossings);
   assert.ok(worstStop < 120, 'IA presa por ' + worstStop.toFixed(0) + ' s: ' + worstWho);
 });
@@ -281,7 +282,7 @@ test('apressado atrás do jogador lento: cola, pisca, ultrapassa e fecha; provok
 });
 
 test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)', () => {
-  const { sim, events, sig } = makeSim(null, { max: 64 }); // pool do perfil leve (QUALITY.leve.maxTrafficVehicles)
+  const { sim, events, sig } = makeSim(null, { max: 88 }); // pool do perfil leve (QUALITY.leve.maxTrafficVehicles)
   const got = {};
   for (const k of ['OVERTAKEN', 'CUT_OFF', 'COLLISION', 'PLAYER_OVERTOOK', 'TAILGATED', 'HONKED_AT', 'NEAR_MISS', 'FLASHED', 'PEDESTRIAN_CROSSING', 'HAZARD_HIT']) events.on(EV[k], (p) => { (got[k] = got[k] || []).push(p); });
   let aiFault = 0, worst = 0, totalT = 0, ovl = 0;
@@ -320,8 +321,8 @@ test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)'
   console.log(`       colisões em que a IA bateu no jogador: ${aiFault}; sobreposições IA×IA: ${ovl}`);
   console.log('       veículos à frente (0..60 m) por tipo de via:', Object.entries(vis).map(([k, o]) => `${k} ${(o.sum / o.n).toFixed(1)} (vazio ${(o.zero / o.n * 100).toFixed(0)}%)`).join(' · '));
   // Eixo: sempre gente à frente para desviar (faixa-alvo 6–12 visíveis na tela; aqui só o mesmo sentido e 60 m à frente)
-  assert.ok(vis.eixo && vis.eixo.sum / vis.eixo.n >= 4 && vis.eixo.sum / vis.eixo.n <= 14, 'Eixo sem carros à frente: ' + JSON.stringify(vis.eixo));
-  assert.ok(vis.eixo.zero / vis.eixo.n <= 0.15, 'Eixo vazio em ' + (vis.eixo.zero / vis.eixo.n * 100).toFixed(0) + '% das amostras'); // (logo depois do balão; no robô fica em 3–9%)
+  assert.ok(vis.eixo && vis.eixo.sum / vis.eixo.n >= 5 && vis.eixo.sum / vis.eixo.n <= 16, 'Eixo sem carros à frente: ' + JSON.stringify(vis.eixo));
+  assert.ok(vis.eixo.zero / vis.eixo.n <= 0.1, 'Eixo vazio em ' + (vis.eixo.zero / vis.eixo.n * 100).toFixed(0) + '% das amostras');
   // nunca um trecho LONGO totalmente vazio (as ruas internas do Sudoeste e estacionamentos são calmas por desenho)
   // (uma semente só, 2 viagens: a amostra é pequena; no playtest com o robô a média fica em 2–6 por via longa, 5–20% vazio)
   for (const k of ['urban+longo', 'arterial+longo']) assert.ok(!vis[k] || vis[k].zero / vis[k].n <= 0.65, `${k} vazio demais: ` + JSON.stringify(vis[k]));
@@ -396,3 +397,26 @@ test('fiscalização e frutas sorteadas por semente (reprodutível)', () => {
 
 console.log(fails ? `\n${fails} FALHA(S)` : '\ntudo ok');
 process.exit(fails ? 1 : 0);
+
+// ---------------------------------------------------------------- manga garantida na Jaqueiras
+test('manga garantida: 20 sementes × 2 rotas × 2 sentidos (e os 2 estacionamentos) têm manga no caminho do GPS na Jaqueiras', () => {
+  const { sim } = makeSim(fakeSignals('green'));
+  const far = parkingSpot('local'); sim.setPlayer(makePlayer(far.x, far.z));
+  sim.autoSpawn = false;
+  let checked = 0;
+  for (const [from, to, rid] of [['casa', 'stj_norte', 'casa-stj'], ['casa', 'stj_leste', 'casa-stj'], ['stj_norte', 'casa', 'stj-casa'], ['stj_leste', 'casa', 'stj-casa']]) {
+    const st = net.snapStart(net.starts[from]), dest = net.laneForZone(to).targets;
+    const r1 = net.planRoute(st.lane.id, st.s, dest, []), r2 = net.planRouteVia(st.lane.id, st.s, net.routeCorridors.parque[rid], dest, []);
+    for (let seed = 1; seed <= 20; seed++) {
+      sim.reset({ seed, routeSets: [r1, r2], jams: 0 });
+      for (const [name, r] of [['eixo', r1], ['parque', r2]]) {
+        const jaq = new Set(r.filter((id) => { const l = net.lanes[id]; return !l.isConnector && /^jaq_/.test(l.segId); }));
+        if (!jaq.size) continue;
+        const ok = sim.hazards.some((h) => h.active && h.kind === 'manga' && jaq.has(h.laneId));
+        assert.ok(ok, `sem manga no caminho: ${from}→${to} ${name} semente ${seed}`);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked >= 150, 'poucas viagens conferidas: ' + checked);
+});

@@ -25,13 +25,15 @@ export const TUNING = {
   lookMax: 130,        // horizonte do IDM (m)
   pathMax: 12,
   thinkEvery: 15,      // passos entre decisões de cada veículo (fatias: 1/15 da frota por passo)
-  todDensity: { manha: 0.75, tarde: 0.85 },
+  todDensity: { manha: 0.6, tarde: 0.7 }, // fundo (fora da vista); a via do jogador é povoada pelo _flowKeeper
   // PRESENÇA na via do jogador: veículos no mesmo sentido em 0..flowRange m à frente, por faixa (sem a de ônibus) e tipo de
   // via. Abaixo disso nasce gente à frente, fora da vista, a uma distância que cresce com a velocidade do jogador.
-  flowRange: 160, flowPerLane: { eixo: 6, eixao: 5, urban: 3.2, arterial: 3, ramp: 1.2, local: 0.8 }, flowLocalMinLen: 400,
+  flowRange: 150, flowPerLane: { eixo: 7, eixao: 6, urban: 3.2, arterial: 3, ramp: 1.2, local: 0.8 }, flowLocalMinLen: 400,
   // trecho calmo da saída de casa: quase ninguém (um ou outro carro saindo de vaga)
   quietSegs: ['vaga_casa', 'qrsw2', 'qrsw2_v', 'marg_jaq'], quietMul: 0.15,
-  flowAheadBase: 62, flowAheadPerMps: 2.2, flowAheadMin: 95, flowAheadRand: 40, behindRecycle: 130,
+  flowAheadBase: 62, flowAheadPerMps: 2.2, flowAheadMin: 82, flowAheadRand: 40, behindRecycle: 120,
+  flowNoSpawnR: 70,   // m: nunca nasce mais perto do jogador que isso (a vista tem ~78 × 44 m; com zoom de velocidade, um pouco mais)
+  flowBehind: [72, 105], flowBehindFrac: 0.35, // também repõe ATRÁS (logo fora da vista), gente mais rápida que vai passar o jogador
   ringPlayerArc: 18,   // m: jogador no balão a menos disso da entrada = sem brecha (qualquer velocidade)
   boxStuckSec: 2.5,    // parado dentro do cruzamento sem motivo legítimo => desocupa (ignora veículos por 1,6 s)
   stuckSec: 25,        // parado sem motivo legítimo => "fantasma" por 3 s (ou some, se longe)
@@ -344,7 +346,7 @@ export class TrafficSim {
     for (const p of this.peds) { p.active = false; p.state = 'gone'; p.w.rng = makeRng((this.seed ^ (p.slot * 3266489917)) >>> 0 || 5); }
     this.vehicles.length = 0; this.pedestrians.length = 0;
     const erng = makeRng((this.seed * 2654435761) >>> 0 || 7);
-    this._rollHazards(erng);
+    this._rollHazards(erng, opts.routeSets);
     this._rollEnforcement(erng);
     this._rollJams(erng, opts);
     const stjOn = opts.stjBus != null ? !!opts.stjBus : erng() < TUNING.stjBusChance;
@@ -1138,6 +1140,41 @@ export class TrafficSim {
     this._rebuildPath(v);
   }
 
+  /** Fruta ativa no caminho do jogador até 70 m: { kind, dist } ou null (para a fala "manga!"). */
+  hazardAhead() {
+    if (this.pPathN <= 0 || !this.hazards.length) return null;
+    const o = this._hzOut || (this._hzOut = { kind: '', dist: 0 });
+    let base = -this.pS, best = 1e9, kind = '';
+    for (let k = 0; k < this.pPathN && base < 70; k++) {
+      const lane = this.lanes[this.pPath[k]];
+      for (let i = 0; i < this.hazards.length; i++) {
+        const h = this.hazards[i]; if (!h.active || h.squashed || h.laneId !== lane.id) continue;
+        if (h.s == null) h.s = this.net.projectOnLane(lane, h.x, h.z);
+        const d = base + h.s; if (d > 0 && d < best) { best = d; kind = h.kind; }
+      }
+      base += lane.length;
+    }
+    if (best > 70) return null;
+    o.kind = kind; o.dist = best; return o;
+  }
+  /** Há faixa ao lado (mesmo sentido, sem ser a de ônibus) com brecha para ultrapassar o da frente? */
+  sideFree() {
+    if (this.pLaneId < 0) return false;
+    const L = this.lanes[this.pLaneId]; if (L.isConnector) return false;
+    const sib = this.net.siblingLanes(L), lead = this._hasLead ? this.lead : null;
+    for (let i = 0; i < sib.length; i++) {
+      const C = this.lanes[sib[i]]; if (C === L || C.kind === 'bus' || Math.abs(C.index - L.index) !== 1) continue;
+      const sC = this.pS * C.length / L.length; let ok = true, aheadGap = 1e9, aheadV = 99;
+      for (let e = this.laneHead[C.id]; e >= 0 && ok; e = this.entNext[e]) {
+        const slot = this.entVeh[e]; if (slot < 0) continue;
+        const o = this.veh[slot], d = this.entS[e] - sC;
+        if (d < 0 && d > -(this.pL + o.length) * 0.5 - 6 - Math.max(0, o.speed - this.pSpeed) * 1.5) ok = false; // alguém do lado/chegando
+        else if (d >= 0 && d < aheadGap) { aheadGap = d; aheadV = o.speed; }
+      }
+      if (ok && (aheadGap > 30 || (lead && aheadV > lead.speed + 2))) return true;
+    }
+    return false;
+  }
   /** Motivo de o veículo estar parado/lento (para as falas). */
   _stopWhy(v) {
     if (v.stalled || v.crashT > 0) return 'quebrado';
@@ -1641,7 +1678,7 @@ export class TrafficSim {
   }
 
   // =============================================================== perigos e fiscalização
-  _rollHazards(rng) {
+  _rollHazards(rng, routeSets) {
     this.hazards.length = 0;
     const spots = this.net.fruitSpots || [];
     if (!spots.length) return;
@@ -1659,6 +1696,22 @@ export class TrafficSim {
       const s = mangas[(rng() * mangas.length) | 0]; if (used.has(s.id)) continue; used.add(s.id); add(s, 'manga');
     }
     if (jacas.length && rng() < 0.4) add(jacas[(rng() * jacas.length) | 0], 'jaca');
+    // MANGA GARANTIDA: em cada rota da viagem (GPS e Parque) que passa pela Jaqueiras, um cacho na faixa que o caminho usa
+    // (e outro, um pouco adiante, na faixa ao lado do mesmo sentido: troca de faixa não escapa) sob uma mangueira
+    for (const route of routeSets || []) {
+      if (!route || !route.length) continue;
+      const set = new Set(route);
+      if (this.hazards.some((h) => h.kind === 'manga' && set.has(h.laneId))) continue;
+      const cand = mangas.filter((sp) => sp.lanes.some((l) => set.has(l.laneId)));
+      if (!cand.length) continue;
+      const spot = cand[(rng() * cand.length) | 0], ln = spot.lanes.find((l) => set.has(l.laneId));
+      const fx = Math.sin(spot.heading), fz = Math.cos(spot.heading);
+      const put = (l, ds) => this.hazards.push({ id: this.hazards.length, kind: 'manga', x: l.x + fx * ds, z: l.z + fz * ds, r: 0.5,
+        active: true, squashed: false, rot: rng() * Math.PI * 2, spotId: spot.id, laneId: l.laneId, guaranteed: true });
+      put(ln, 0);
+      const other = spot.lanes.find((l) => l !== ln);
+      if (other) put(other, 7);
+    }
   }
 
   _rollEnforcement(rng) {
@@ -1765,6 +1818,18 @@ export class TrafficSim {
     ts.total++; if (v.speeder) ts.speeder++; if (v.onPhone) ts.onPhone++; if (v.noYield) ts.noYield++; if (v.noSignal) ts.noSignal++;
     v.aggression = Math.min(1, (p.aggr || 0) + rng() * 0.1);
     v.rbT = p.randomBrake ? rr(rng, p.randomBrake) : 0;
+    // via de várias faixas: quem é mais lento nasce à direita, quem corre à esquerda (sempre sobra faixa para costurar)
+    if (!opts.exact && !lane.isConnector && !p.bus && !p.preferLeft) {
+      const sib = this.net.siblingLanes(lane);
+      let nb = 0; for (let i = 0; i < sib.length; i++) if (this.lanes[sib[i]].kind === 'bus') nb++;
+      const nn = sib.length - nb;
+      if (nn >= 3) {
+        const vm = slowP ? 0.6 : v.v0mul, f = Math.max(0, Math.min(1, (vm - 0.84) / (1.22 - 0.84)));
+        let idx = nb + Math.round(f * (nn - 1) + (rng() - 0.5) * 1.2);
+        idx = Math.max(nb, Math.min(sib.length - 1, idx));
+        if (idx !== lane.index) { const nl = this.lanes[sib[idx]]; if (nl.kind !== 'bus') { s = s * nl.length / lane.length; lane = nl; } }
+      }
+    }
     const w = v.w; w.lane = lane; w.s = Math.min(Math.max(0, s), lane.length - 0.1); w.ended = false; w._sample();
     this._rebuildPath(v);
     v.v0 = this._v0For(v, lane);
@@ -1898,7 +1963,7 @@ export class TrafficSim {
     if (this.stepN % 20 === 3) this._jamLogic();
     this.dirCd -= dt;
     if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
-    if (this.stepN % 15 === 11) this._flowKeeper((this.stepN / 15 | 0) % 2 === 1); // alterna: via atual / próxima via mais movimentada
+    if (this.stepN % 10 === 3) this._flowKeeper((this.stepN / 10 | 0) % 2 === 1); // alterna: via atual / próxima via mais movimentada
   }
 
   /** Mantém a via do jogador povoada à frente (TUNING.flowPerLane): repõe fora da vista, proporcional à velocidade dele. */
@@ -1920,52 +1985,63 @@ export class TrafficSim {
     if (!best || L.isConnector || (lookahead && L.id === this.pLaneId)) return;
     const sib = this.net.siblingLanes(L);
     let nl = 0; for (let i = 0; i < sib.length; i++) if (lanes[sib[i]].kind !== 'bus') nl++;
-    const want = Math.round(best * Math.max(1, nl)), R = TUNING.flowRange;
-    // conta quem está nesta via, neste sentido, de sFrom a sFrom + R (pela faixa, não por um cone: segue a curva da via)
-    let n = 0;
+    const rng = this.rng, sp = Math.max(0, this.pSpeed);
+    // janela à frente: do jogador até logo além da borda de spawn (que se afasta com a velocidade)
+    const minD = lookahead ? 0 : Math.max(TUNING.flowAheadMin, TUNING.flowAheadBase + sp * TUNING.flowAheadPerMps);
+    const W = Math.max(TUNING.flowRange, minD + TUNING.flowAheadRand + 20);
+    const want = Math.round(best * Math.max(1, nl) * W / TUNING.flowRange);
+    let n = 0, nb = 0;
     for (const v of this.vehicles) {
       const vl = v.w.lane; if (vl.isConnector || vl.segId !== L.segId || vl.dir !== L.dir) continue;
-      const sv = v.w.s * L.length / vl.length; if (sv > sFrom - 5 && sv < sFrom + R) n++;
+      const sv = v.w.s * L.length / vl.length;
+      if (sv > sFrom - 5 && sv < sFrom + W) n++;
+      else if (sv <= sFrom && sv > sFrom - TUNING.flowBehind[1]) nb++;
     }
-    if (n >= want) return;
-    // pool cheio: recicla quem ficou para trás (fora da vista)
+    // atrás do jogador (logo fora da vista): quem vem mais rápido e vai passar por ele
+    const behindSpawn = !lookahead && sFrom > TUNING.flowBehind[1] && sp > 8 && nb < best * nl * TUNING.flowBehindFrac * TUNING.flowBehind[1] / TUNING.flowRange;
+    let budget = Math.min(3, Math.max(0, want - n) + (behindSpawn ? 1 : 0));
     const fx = Math.sin(this.ph), fz = Math.cos(this.ph);
-    if (this.vehicles.length >= Math.min(this.maxV, this.poolCap || this.maxV)) {
-      let far = null, fd = TUNING.behindRecycle;
-      for (const v of this.vehicles) {
-        if (v.stalled || v.stjBus) continue;
-        const dx = v.x - this.px, dz = v.z - this.pz, a = -(dx * fx + dz * fz), d = Math.sqrt(dx * dx + dz * dz);
-        if (a > 0 && d > fd) { fd = d; far = v; }
+    for (let b = 0; b < budget; b++) {
+      const behind = behindSpawn && b === 0;
+      // pool cheio: recicla quem ficou para trás (fora da vista)
+      if (this.vehicles.filter((q) => q.active).length >= Math.min(this.maxV, this.poolCap || this.maxV)) {
+        let far = null, fd = TUNING.behindRecycle;
+        for (const v of this.vehicles) {
+          if (!v.active || v.stalled || v.stjBus) continue;
+          const dx = v.x - this.px, dz = v.z - this.pz, a = -(dx * fx + dz * fz), d = Math.sqrt(dx * dx + dz * dz);
+          if (a > 0 && d > fd) { fd = d; far = v; }
+        }
+        if (!far) return;
+        this._despawn(far);
       }
-      if (!far) return;
-      this._despawn(far);
+      const lid = sib.length > 1 ? sib[(rng() * sib.length) | 0] : L.id, lane = lanes[lid];
+      let s2 = -1;
+      for (let t = 0; t < 5 && s2 < 0; t++) {
+        const sA = behind ? sFrom - TUNING.flowBehind[0] - rng() * (TUNING.flowBehind[1] - TUNING.flowBehind[0])
+          : sFrom + minD + rng() * (W - minD);
+        const sTry = sA * lane.length / L.length;
+        if (sTry < 3 || sTry > lane.length - 5) continue;
+        const o = this.net.sampleLane(lane, sTry, this._tmpS || (this._tmpS = {}));
+        const dxp = o.x - this.px, dzp = o.z - this.pz, d2 = dxp * dxp + dzp * dzp;
+        if (d2 < TUNING.flowNoSpawnR * TUNING.flowNoSpawnR) continue; // nunca dentro da vista
+        let ok = true;
+        for (let i = 0; i < this.vehicles.length && ok; i++) { const q = this.vehicles[i]; if (!q.active) continue; const ex = q.x - o.x, ez = q.z - o.z; if (ex * ex + ez * ez < 8 * 8) ok = false; }
+        for (let e = this.laneHead[lid]; e >= 0 && ok; e = this.entNext[e]) if (Math.abs(this.entS[e] - sTry) < 16) ok = false;
+        if (ok) s2 = sTry;
+      }
+      if (s2 < 0 || this.laneJam[lid] >= 0) continue; // congestionamento sorteado tem a própria fila
+      const pid = behind ? pickWeighted({ apressado: 0.4, moto: 0.25, normal: 0.35 }, rng()) : this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
+      const v = this.spawn(pid, null, lid, s2, behind ? { v0min: sp + 3, speed: sp + 2 } : {});
+      if (!v) return;
+      // a persona pode ter trocado a faixa (ônibus vai para a exclusiva, lento para a direita): confere a folga na faixa final
+      let clash = false;
+      for (let i = 0; i < this.vehicles.length; i++) {
+        const q = this.vehicles[i]; if (q === v || !q.active || q.w.lane !== v.w.lane) continue;
+        if (Math.abs(q.w.s - v.w.s) < (q.length + v.length) * 0.5 + 6) { clash = true; break; }
+      }
+      if (clash) { this._despawn(v); continue; }
+      this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1;
     }
-    // nasce na via-alvo logo além da vista (distância que cresce com a velocidade do jogador)
-    const rng = this.rng, sp = Math.max(0, this.pSpeed);
-    const minD = Math.max(TUNING.flowAheadMin, TUNING.flowAheadBase + sp * TUNING.flowAheadPerMps);
-    const lid = sib.length > 1 ? sib[(rng() * sib.length) | 0] : L.id, lane = lanes[lid];
-    let s2 = -1;
-    for (let t = 0; t < 4 && s2 < 0; t++) {
-      const sTry = (sFrom + rng() * R) * lane.length / L.length;
-      if (sTry < 3 || sTry > lane.length - 5) continue;
-      const o = this.net.sampleLane(lane, sTry, this._tmpS || (this._tmpS = {}));
-      const dxp = o.x - this.px, dzp = o.z - this.pz, d2 = dxp * dxp + dzp * dzp;
-      if (d2 < minD * minD || d2 > (minD + TUNING.flowAheadRand + 40) ** 2) continue;
-      let ok = true;
-      for (let i = 0; i < this.vehicles.length && ok; i++) { const q = this.vehicles[i], ex = q.x - o.x, ez = q.z - o.z; if (ex * ex + ez * ez < 8 * 8) ok = false; }
-      for (let e = this.laneHead[lid]; e >= 0 && ok; e = this.entNext[e]) if (Math.abs(this.entS[e] - sTry) < 16) ok = false;
-      if (ok) s2 = sTry;
-    }
-    if (s2 < 0 || this.laneJam[lid] >= 0) return; // congestionamento sorteado tem a própria fila
-    const pid = this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
-    const v = this.spawn(pid, null, lid, s2, {});
-    if (!v) return;
-    // a persona pode ter trocado a faixa (ônibus vai para a exclusiva, lento para a direita): confere a folga na faixa final
-    for (let i = 0; i < this.vehicles.length; i++) {
-      const q = this.vehicles[i]; if (q === v || q.w.lane !== v.w.lane) continue;
-      if (Math.abs(q.w.s - v.w.s) < (q.length + v.length) * 0.5 + 6) { this._despawn(v); return; }
-    }
-    this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1;
   }
 
   _pedSpawnTick(initial) {

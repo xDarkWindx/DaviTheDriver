@@ -52,7 +52,7 @@ export const QUALITY = {
     },
     vehicleLOD: 'high',          // M  'low' | 'high' — carros com carroceria modelada (~2-3 mil tri)
     landmarkLOD: 'high',         // M  'low' | 'high'
-    maxTrafficVehicles: 64,      // -  teto p/ systems/traffic.js (o degrau 3 do ajuste automático usa 60% disso)
+    maxTrafficVehicles: 88,      // -  teto p/ systems/traffic.js (o degrau 3 do ajuste automático usa 60% disso)
     maxPedestrians: 24,          // -  teto p/ systems/traffic.js
     maxParticles: 300,           // -  teto p/ systems/fx.js
     fxSkidMax: 160,              // -  pool de marcas de pneu (quads instanciados) — systems/fx.js

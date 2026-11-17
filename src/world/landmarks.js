@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GeoBuilder } from '../render/geo.js';
 import { makeOBB, makeCircle } from '../core/collision.js';
+import { sqx } from './mapData.js';
 
 const WHITE = 0xf2f0ea, CONCRETE = 0xd8d3c6, GLASS = 0x3f6f7d, DARKGLASS = 0x2c4650, GREEN_GLASS = 0x4f8a7a;
 
@@ -198,6 +199,7 @@ function catedralMilitar(b) {
 export function buildLandmarks(scene, colliders, material) {
   const list = [], meshes = [];
   const place = (id, name, x, z, rotY, fn, colliderSpecs) => {
+    x = sqx(x); // coordenadas de autor -> jogo (Eixo encurtado)
     const b = new GeoBuilder();
     fn(b);
     const mesh = new THREE.Mesh(b.build(), material);

@@ -143,6 +143,8 @@ export default {
       inp.inRing = !!(node && (node.type === 'ring' || node.roundaboutId != null));
     }
     inp.freeAhead = T.freeAhead();
+    inp.sideFree = T.sideFree();
+    const hz = T.hazardAhead(); inp.hazardAhead = hz ? hz.kind : null;
     inp.lead = T.leadInfo();
     inp.jam = !!T.inJam();
     // parado no vermelho

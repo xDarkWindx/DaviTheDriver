@@ -3,6 +3,7 @@
 // Densidades vêm de quality.density. Tudo é determinístico (seed fixa).
 import { makeOBB, makeCircle, makeContact, collide } from '../core/collision.js';
 import { samplePts } from './roadNetwork.js';
+import { sqx } from './mapData.js';
 
 const GREEN_GLASS_BAND = 0x3f7d6c;
 const RES_COLORS = [0xf3ecdf, 0xefe2cf, 0xe9d8c4, 0xf1d6cf, 0xd9e3e6, 0xe7e0c9, 0xf6f3ec, 0xdfd0e0];
@@ -272,25 +273,26 @@ export function buildScenery(sb) {
     mb.rect(x, z, h, hl + 2.5, hw + 2.5, y - 0.0065, mix(col, GROUNDISH, 0.4));
     mb.rect(x, z, h, hl, hw, y, col);
   };
-  soft(-350, 0, Math.PI / 2, 1100, 33.5, 0.02, LAWN);
+  const X = sqx, cx = (a, b) => (X(a) + X(b)) / 2, hx = (a, b) => (X(b) - X(a)) / 2; // coordenadas de autor -> jogo
+  soft(cx(-1450, 750), 0, Math.PI / 2, hx(-1450, 750), 33.5, 0.02, LAWN);
   soft(560, 72, Math.PI / 2, 200, 24, 0.02, LAWN2);
   soft(560, -72, Math.PI / 2, 200, 24, 0.02, LAWN2);
-  soft(-720, 440, 0, 300, 230, 0.02, PARK);
-  soft(-1130, 560, 0, 60, 70, 0.02, PARK);
+  soft(cx(-950, -490), 440, 0, 300, hx(-950, -490), 0.02, PARK);
+  soft(X(-1130), 560, 0, 60, 70, 0.02, PARK);
   // lago do Parque da Cidade
-  mb.disc(-800, 420, 36, 0.03, 0x4f86a0, 28);
-  mb.ring(-800, 420, 36, 38, 0.031, 0xcfc8b0, 28);
-  const lake = makeCircle(-800, 420, 36); lake.kind = 'water'; sb.colliders.add(lake);
+  mb.disc(X(-800), 420, 36, 0.03, 0x4f86a0, 28);
+  mb.ring(X(-800), 420, 36, 38, 0.031, 0xcfc8b0, 28);
+  const lake = makeCircle(X(-800), 420, 36); lake.kind = 'water'; sb.colliders.add(lake);
 
   // --- saída de casa: terreno gramado/terra vermelha a leste da marginal; estacionamento de bloquete em frente ao prédio
-  soft(-1440, 150, 0, 34, 22, 0.02, LAWN2);
-  mb.rect(-1432, 140, 0.3, 14, 10, 0.027, 0xb4613d);              // terra vermelha
-  mb.rect(-1385, 187, 0, 6.5, 18.5, 0.024, 0xb3a28a);               // vagas de bloquete
-  for (const dx of [-14, -10.9, -7.8, -4.7, 4.7, 7.8, 10.9, 14]) if (rng() < 0.8 || Math.abs(dx) < 5) sb.parkedCar(-1385 + dx, 187, 0, rng.pick(PARKED_COLORS)); // vizinhos da vaga (a vaga do Davi é a do meio)
-  for (const [x, z] of [[-1406, 181], [-1364, 181]]) sb.tree(x, z, 'palmeira', 1);
-  for (const x of [-1403.5, -1366.5]) sb.inst.add('lixeira', x, 0, 193, 0, 1, 1, 1, 0x2f62b5);    // lixeiras azuis
+  soft(X(-1440), 160, 0, 30, 22, 0.02, LAWN2);
+  mb.rect(X(-1432), 150, 0.3, 14, 10, 0.027, 0xb4613d);              // terra vermelha
+  mb.rect(X(-1385), 187, 0, 6.5, 18.5, 0.024, 0xb3a28a);               // vagas de bloquete
+  for (const dx of [-14, -10.9, -7.8, -4.7, 4.7, 7.8, 10.9, 14]) if (rng() < 0.8 || Math.abs(dx) < 5) sb.parkedCar(X(-1385) + dx, 187, 0, rng.pick(PARKED_COLORS)); // vizinhos da vaga (a vaga do Davi é a do meio)
+  for (const [x, z] of [[-1406, 181], [-1364, 181]]) sb.tree(X(x), z, 'palmeira', 1);
+  for (const x of [-1403.5, -1366.5]) sb.inst.add('lixeira', X(x), 0, 193, 0, 1, 1, 1, 0x2f62b5);    // lixeiras azuis
   // árvores no gramado entre a marginal e a avenida
-  for (let z = 132; z <= 190; z += 19) sb.tree(-1487 + rng.range(-1, 1), z, 'ipe_amarelo', 0.8);
+  for (let z = 156; z <= 192; z += 18) sb.tree(X(-1487) + rng.range(-1, 1), z, 'ipe_amarelo', 0.8);
 
   // Av. das Jaqueiras: mangueiras e jaqueiras SÓLIDAS rente ao meio-fio (posições em net.avenueTreeSlots)
   for (const t of net.avenueTreeSlots) sb.tree(t.x, t.z, t.kind, 1.05, 0.8);
@@ -300,32 +302,32 @@ export function buildScenery(sb) {
     for (let x = -1470; x <= -1090; x += 62) {
       if (Math.abs(x + 1390) < 40 && Math.abs(z - 165) < 30) continue; // casa
       if (x < -1430 && z < 200) continue; // terreno grande ao lado da marginal (gramado e terra vermelha)
-      sb.building(x + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6, balconies: true });
+      sb.building(X(x) + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6, balconies: true });
     }
   }
   for (let x = -1330; x <= -1270; x += 30) { // CCSW (comércio local), toldos coloridos
     for (const zz of [228, 268]) {
-      if (sb.building(x, zz, 24, 10, 0, { facade: null, floors: 2, floorH: 3.4, color: 0xe9e2d2, bandColor: rng.pick([0xc9443a, 0x2f7fb5, 0xe0a52a, 0x3f9b55]), minClear: 2.6 })) {
-        sb.inst.add('box', x, 3.2, zz - 5.6, 0, 22, 0.25, 2.2, rng.pick([0xd8573e, 0x3b88c4, 0xe9b33b, 0x55a868]));
+      if (sb.building(X(x), zz, 24, 10, 0, { facade: null, floors: 2, floorH: 3.4, color: 0xe9e2d2, bandColor: rng.pick([0xc9443a, 0x2f7fb5, 0xe0a52a, 0x3f9b55]), minClear: 2.6 })) {
+        sb.inst.add('box', X(x), 3.2, zz - 5.6, 0, 22, 0.25, 2.2, rng.pick([0xd8573e, 0x3b88c4, 0xe9b33b, 0x55a868]));
       }
     }
   }
-  sb.forest(-1490, 90, -1080, 620, 260, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1, palmeira: 0.8, arbusto: 2 });
-  sb.forest(-1170, 520, -1080, 620, 40, { ipe_amarelo: 2, ipe_roxo: 1, mangueira: 2 });     // Parque Urbano do Sudoeste
+  sb.forest(X(-1490), 90, X(-1080), 620, 260, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1, palmeira: 0.8, arbusto: 2 });
+  sb.forest(X(-1170), 520, X(-1080), 620, 40, { ipe_amarelo: 2, ipe_roxo: 1, mangueira: 2 });     // Parque Urbano do Sudoeste
   // Cruzeiro (a oeste da Jaqueiras): casas baixas
   for (let i = 0; i < 70; i++) {
-    sb.building(-1760 + rng() * 220, 120 + rng() * 950, 12 + rng() * 8, 10 + rng() * 6, rng() < 0.5 ? 0 : Math.PI / 2,
+    sb.building(X(-1760) + rng() * 220, 120 + rng() * 950, 12 + rng() * 8, 10 + rng() * 6, rng() < 0.5 ? 0 : Math.PI / 2,
       { facade: null, stair: false, floors: 1, floorH: 3.2, color: rng.pick([0xf2e3c8, 0xe8c9a8, 0xd9e6e8, 0xf0d0c0]), bandColor: 0x6b5b4b, roof: 0xb4553a, minClear: 4 });
   }
 
   // --- Setor de Indústrias Gráficas (SIG): galpões baixos entre EPIG e Parque, perto do Eixo
   for (let i = 0; i < 22; i++) {
-    sb.building(-960 + rng() * 380, 90 + rng() * 90, 26 + rng() * 20, 18 + rng() * 10, 0,
+    sb.building(X(-960 + rng() * 380), 90 + rng() * 90, 18 + rng() * 14, 18 + rng() * 10, 0,
       { facade: null, stair: false, floors: 2, floorH: 4, color: rng.pick([0xd8d5cc, 0xc9c4b8, 0xe2ded4]), bandColor: 0x7a8a96, roof: 0x9a9890, minClear: 5 });
   }
 
   // --- Parque da Cidade (enorme, ao sul do Eixo, entre EPIG e W3)
-  sb.forest(-990, 190, -460, 800, 620, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
+  sb.forest(X(-990), 190, X(-460), 800, 380, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
 
   // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2; além da L2)
   const superquadra = (x0, z0, x1, z1) => {
@@ -343,7 +345,7 @@ export function buildScenery(sb) {
   superquadra(120, 805, 470, 1150);
   superquadra(530, 520, 1150, 680);
   superquadra(530, 730, 1150, 1150);
-  superquadra(-1000, 820, -460, 1150);
+  superquadra(X(-1000), 820, X(-460), 1150);
 
   // --- Setores comerciais/autarquias (prédios altos de vidro)
   const setor = (x0, z0, x1, z1, n) => {
@@ -360,7 +362,7 @@ export function buildScenery(sb) {
   // (a quadra entre a avenida, a SAFS Q. 2 e a transversal é o complexo do STJ + Estacionamento Norte: sem torres genéricas)
   setor(-460, -340, -60, -70, 22);  // Setor Comercial/Hoteleiro Norte
   setor(60, -340, 330, -170, 10);
-  setor(-560, -700, -60, -380, 18);
+  setor(X(-560), -700, -60, -380, 18);
   setor(860, 300, 1150, 420, 6);    // SAFS: TST, TSE e vizinhos
   setor(840, 60, 1000, 130, 3);
 
@@ -371,7 +373,7 @@ export function buildScenery(sb) {
   }
 
   // --- Eixo: ipês no gramado central
-  for (let x = -1380; x < 720; x += 55) {
+  for (let x = X(-1380); x < 720; x += 55) {
     if (Math.abs(x + 330) < 30 || Math.abs(x - 60) < 50) continue;
     sb.tree(x + rng.range(-8, 8), rng.range(-22, 22), rng.pick(['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'ipe_roxo']), 0.9);
   }
@@ -379,13 +381,13 @@ export function buildScenery(sb) {
   // --- cerrado aberto nas sobras do mapa
   const B = net.bounds;
   sb.forest(B.minX, B.minZ, B.maxX, -380, 260, { cerrado: 6, ipe_amarelo: 1, ipe_roxo: 0.5, palmeira: 1, arbusto: 3 });
-  sb.forest(-1450, -360, -760, -60, 160, { cerrado: 5, ipe_amarelo: 1, palmeira: 1, arbusto: 3 });
+  sb.forest(X(-1450), -360, X(-760), -60, 120, { cerrado: 5, ipe_amarelo: 1, palmeira: 1, arbusto: 3 });
   sb.forest(1000, -700, B.maxX, 240, 100, { cerrado: 5, ipe_amarelo: 1 });
-  sb.forest(-1480, 640, -1080, B.maxZ, 160, { cerrado: 5, ipe_amarelo: 1, mangueira: 1 });
+  sb.forest(X(-1480), 640, X(-1080), B.maxZ, 160, { cerrado: 5, ipe_amarelo: 1, mangueira: 1 });
 
   // capim do cerrado (tufos baixos) — sensação de velocidade à beira da pista
   sb.scrub(B.minX, B.minZ, B.maxX, B.maxZ, 2600);
-  sb.scrub(-1500, 0, 0, 700, 500);
+  sb.scrub(X(-1500), 0, 0, 700, 400);
 
   // --- fileiras de árvores à beira das vias
   for (const id of ['qrsw2', 'qrsw2_e', 'quarta_av', 'quarta_av_s', 'terceira_w', 'terceira_m', 'terceira_e', 'segunda_w', 'segunda_e', 'eqrsw',

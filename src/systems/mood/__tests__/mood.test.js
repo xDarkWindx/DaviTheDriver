@@ -250,3 +250,26 @@ test('falas: situação tem preferência e o enchimento só preenche silêncio l
   assert.ok(sp.say(3.5, 'sitVerdeAuto', { prio: 1 }), 'situação passa');
   assert.ok(sp.say(12, 'idle'), 'enchimento depois de silêncio');
 });
+
+test('embalo: 10 s a 100 km/h numa via de 80 com pista livre derruba o estresse; a 60 bem menos; pardal sobe de volta', () => {
+  const at = (kmh) => { const m = model('davi'); m.davi.stress = 70; m.davi.anxiety = 70; run(m, base({ speedKmh: kmh, limitKmh: 80, freeAhead: 150, throttle: 1 }), 10); return m; };
+  const fast = at(100), slow = at(60);
+  assert.ok(fast.davi.stress <= 45, 'a 100 km/h o estresse cai bem: ' + fast.davi.stress.toFixed(1));
+  assert.ok(slow.davi.stress >= fast.davi.stress + 15, `a 60 cai bem menos: ${slow.davi.stress.toFixed(1)} vs ${fast.davi.stress.toFixed(1)}`);
+  assert.ok(fast.davi.anxiety < slow.davi.anxiety, 'ansiedade também cai mais correndo');
+  const before = fast.davi.stress; moodEvent(fast, 'fine', { code: 'speed', by: 'radar' }, base({ speedKmh: 100 }));
+  assert.ok(fast.davi.stress >= before + 10, 'multa do pardal sobe o estresse de volta');
+  // carona: o Leandro acelerando com pista livre acalma o Davi passageiro, e as barras do Leandro não mudam com isso
+  const c = model('carona'); c.davi.stress = 70; const d0 = { a: c.dono.anxiety, s: c.dono.stress };
+  const inp = base({ speedKmh: 100, limitKmh: 80, freeAhead: 150, throttle: 1 });
+  for (let i = 0; i < 600; i++) { stepMood(c, inp, DT); drainOut(c); }
+  assert.ok(c.davi.stress < 50, 'Davi passageiro se acalma: ' + c.davi.stress.toFixed(1));
+});
+
+test('embalo cortado: depois de embalado, a queda brusca de velocidade dá pico de ansiedade e fala', () => {
+  const m = model('davi');
+  run(m, base({ speedKmh: 95, limitKmh: 80, freeAhead: 150 }), 6);
+  const a0 = m.davi.anxiety; const said = [];
+  for (let i = 0; i < 60; i++) { stepMood(m, base({ speedKmh: 20, limitKmh: 80, freeAhead: 10, lead: { gap: 8, speed: 5, kind: 'sedan', persona: 'normal' } }), DT); for (const s of drainOut(m).says) said.push(s.bank); }
+  assert.ok(m.davi.anxiety > a0 + 8, 'pico de ansiedade'); assert.ok(said.includes('sitEmbaloCortado'));
+});

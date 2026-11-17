@@ -56,7 +56,7 @@ export function createMoodModel(mode = 'davi', opts = {}) {
     takeoverT: 0, takenOver: false, complainT: 3, hardBrakeT: 0,
     // falas do Davi motorista
     slowLineT: 0.8, idleT: 5, autoHornCd: 0, autoCurseCd: 0,
-    sitId: null, sitT: 0, sitSaid: false, saidStart: false, queued: false,
+    sitId: null, sitT: 0, sitSaid: false, saidStart: false, queued: false, embaloT: 0, embaloV: 0, embaloCut: 0, reliefOn: false,
     stats: { panicSecs: 0, donoCalmSecs: 0, outbursts: 0, avoided: 0, maxBehindSlow: 0, hazards: 0, scrapes: 0, curses: 0, breaths: 0,
       maxDonoAnx: 0, maxDonoStress: 0, peaks: 0 },
     out: { says: [], provokes: [], autoHorn: false, flashLead: false, takeover: false, peaks: [], yawKick: 0 },
@@ -107,7 +107,10 @@ export function stepMood(m, inp, dt) {
   // atrás de LENTO = o da frente ANDA devagar (ou demora a sair no verde / deixou morrer). Fila parada no sinal, na faixa
   // ou no balão é "fila" (taxa própria, bem menor): senão a barra subia o tempo todo em qualquer parada.
   const leadMoving = !!(lead && (leadKmh > AX.slowMinKmh || lead.why === 'verde' || lead.why === 'celular' || lead.why === 'morreu'));
-  const blocked = m.blocked = !jam && !!(lead && leadMoving && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
+  const slowAhead = !jam && !!(lead && leadMoving && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
+  // com faixa livre ao lado, não é "preso atrás de lento": é só mudar de faixa (vira fala de situação, não ansiedade)
+  const blocked = m.blocked = slowAhead && !inp.sideFree;
+  m.canPass = slowAhead && !!inp.sideFree;
   const queued = m.queued = !jam && !blocked && !!(lead && lead.gap < AX.queueGap && leadKmh <= AX.slowMinKmh && speed < 8);
   if (blocked) m.behindSlow += dt; else m.behindSlow = Math.max(0, m.behindSlow - AX.slowDecay * dt);
   if (m.behindSlow > m.stats.maxBehindSlow) m.stats.maxBehindSlow = m.behindSlow;
@@ -152,6 +155,27 @@ export function stepMood(m, inp, dt) {
   if (davi.anxiety > SX.anxCoupleFrom) rs += SX.anxCouple;
   if (jam) rs += JM.str + JM.strGrow * Math.min(m.jamT, JM.cap);
 
+  // ---------------- EMBALO: correr com pista razoavelmente livre é o grande alívio do Davi (as duas barras, até o piso).
+  // Perto do limite alivia um pouco; acima dele, proporcional ao excesso. Costurar (faixa ao lado livre) também vale:
+  // carro por perto não anula o alívio, só estar preso atrás de alguém sem saída.
+  const SP = B.speedRelief, over = limit > 0 ? speed / limit - 1 : -1;
+  const flowing = !blocked && !jam && (free > SP.minFree || inp.sideFree || (lead && lead.speed * 3.6 >= speed - 3));
+  const reliefOn = flowing && limit > 0 && over >= SP.fromFrac - 1;
+  if (reliefOn) {
+    const k = (asPass ? SP.passengerMul : 1) * (m.mode === 'perigo' ? SP.perigoMul : 1);
+    const ex = Math.max(0, over), near = Math.min(1, (over - (SP.fromFrac - 1)) / (1 - SP.fromFrac));
+    ra -= (SP.anxNear * near + SP.anxPerOver * ex) * k;
+    rs -= (SP.strNear * near + SP.strPerOver * ex) * k;
+    m.embaloT += dt; m.embaloV = Math.max(m.embaloV, speed);
+  } else if (m.embaloT > 0) {
+    // corte brusco do embalo ("tava tão bom"): pico de ansiedade
+    if (m.embaloT > SP.cutAfter && speed < m.embaloV * SP.cutFrac) {
+      addBar(davi, 'anxiety', SP.cutSpike); m.embaloT = 0; m.embaloV = 0; m.embaloCut = 1.5;
+      if (m.daviDrives) say(m, 'sitEmbaloCortado', 1);
+    } else { m.embaloT = Math.max(0, m.embaloT - dt * 2); if (m.embaloT === 0) m.embaloV = 0; }
+  }
+  m.reliefOn = reliefOn && (over >= 0 || asPass);
+
   addBar(davi, 'anxiety', ra * dt);
   addBar(davi, 'stress', rs * dt);
 
@@ -171,7 +195,7 @@ export function stepMood(m, inp, dt) {
   // ---------------- papéis
   if (m.mode === 'carona') stepCarona(m, inp, dt, { blocked, f, under, speed, limit, desired });
   if (m.mode === 'perigo') stepPerigo(m, inp, dt, { speed, limit, lead });
-  stepSituation(m, inp, dt, { blocked, speed, limit, lead });
+  stepSituation(m, inp, dt, { blocked, speed, limit, lead, canPass: m.canPass, embalo: m.reliefOn && m.embaloT > B.speedRelief.praiseAfter });
   if (m.daviDrives) stepDaviDriverLines(m, inp, dt, { blocked, f, under, speed, limit, free, lead });
 
   // ---------------- efeitos no volante
@@ -192,9 +216,9 @@ export function stepMood(m, inp, dt) {
 
 // ---------------- FALAS DE SITUAÇÃO: narram o que está na tela (quem está na frente, por que parou, pedestre...)
 const SIT_CARONA = { Verde: 'psVerde', VerdeAuto: 'psVerdeAuto', VerdeCel: 'psVerdeCel', VerdeOnibus: 'psVerde', VerdeMudanca: 'psVerde', VerdeTio: 'psVerde',
-  Ped: 'psPed', Offroad: 'psOffroad', TioEsq: 'psTioEsq', Tio: 'psLento', Auto: 'psLento', Mudanca: 'psLento', Cel: 'psLento', Onibus: 'psOnibus', Ponto: 'psOnibus', Pardal: 'psPardal' };
+  Ped: 'psPed', Offroad: 'psOffroad', Manga: 'psManga', Jaca: 'psManga', MudaFaixa: 'psMudaFaixa', Embalo: 'psEmbalo', TioEsq: 'psTioEsq', Tio: 'psLento', Auto: 'psLento', Mudanca: 'psLento', Cel: 'psLento', Onibus: 'psOnibus', Ponto: 'psOnibus', Pardal: 'psPardal' };
 const SIT_DONO = { VerdeAuto: 'osVerdeAuto', Verde: 'osVerde', VerdeCel: 'osVerde', VerdeOnibus: 'osVerde', VerdeMudanca: 'osVerde', VerdeTio: 'osVerde',
-  Ped: 'osPed', Offroad: 'osOffroad', TioEsq: 'osLento', Tio: 'osLento', Auto: 'osLento', Mudanca: 'osLento', Onibus: 'osLento' };
+  Ped: 'osPed', Offroad: 'osOffroad', Manga: 'osManga', Jaca: 'osManga', TioEsq: 'osLento', Tio: 'osLento', Auto: 'osLento', Mudanca: 'osLento', Onibus: 'osLento' };
 /** Situação atual (id curto) ou null. Puro: depende só das entradas. */
 export function situationOf(inp, c) {
   const lead = c.lead, sp = c.speed;
@@ -208,6 +232,7 @@ export function situationOf(inp, c) {
     return 'Verde';
   }
   if (inp.offroad && sp > 5) return 'Offroad';
+  if (inp.hazardAhead === 'manga' || inp.hazardAhead === 'jaca') return inp.hazardAhead === 'jaca' ? 'Jaca' : 'Manga';
   if (inp.crosswalkWait) return 'Ped';
   if (lead && lead.why === 'quebrado' && lead.gap < 40) return 'Quebrado';
   if (c.blocked && lead) {
@@ -218,9 +243,11 @@ export function situationOf(inp, c) {
     if (lead.persona === 'onibus') return 'Onibus';
     if (lead.onPhone) return 'Cel';
   }
+  if (c.canPass) return 'MudaFaixa';
   if (inp.stoppedAtRed && !(lead && lead.gap < 20)) return 'SinalLivre';
   if (inp.radarAhead && c.limit > 0 && sp > c.limit * 1.05) return 'Pardal';
   if (inp.busLaneBeside) return 'FaixaOnibus';
+  if (c.embalo) return 'Embalo';
   return null;
 }
 

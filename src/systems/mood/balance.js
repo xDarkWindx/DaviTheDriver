@@ -49,6 +49,15 @@ export const MOOD_BALANCE = {
     stressCouple: 0.5,
   },
 
+  // ---- EMBALO: correr com pista razoavelmente livre alivia as DUAS barras do Davi (até o piso), pontos/s.
+  // Perto do limite (a partir de fromFrac × limite) já alivia um pouco (…Near); acima, cresce com o excesso (…PerOver × fração acima).
+  // Ex.: 100 km/h numa via de 80 (25% acima): estresse −(1,2 + 16×0,25) ≈ −5,2/s; ansiedade −(2 + 22×0,25) ≈ −7,5/s.
+  speedRelief: { fromFrac: 0.9, minFree: 30, anxNear: 2.0, anxPerOver: 22, strNear: 1.2, strPerOver: 16,
+    passengerMul: 0.75,  // carona: o Leandro acelerando com pista livre acalma o Davi passageiro (as barras do Leandro não mudam)
+    perigoMul: 1.25,     // perigo: o Cactus anda — alivia o Davi ainda mais (e é o que apavora o Leandro)
+    praiseAfter: 3,      // s embalado para a fala de satisfação
+    cutAfter: 4, cutFrac: 0.55, cutSpike: 12 }, // embalado > 4 s e a velocidade cai abaixo de 55%: "tava tão bom" (+12 ansiedade)
+
   // ---- CONGESTIONAMENTO (traffic.inJam): sobe ANSIEDADE e ESTRESSE juntos, crescendo com o tempo parado na fila
   // (substitui o "atrás de lento" enquanto durar). Perigo: para o dono é quase um alívio.
   jam: { minKmh: 15, anx: 0.6, anxGrow: 0.06, str: 0.5, strGrow: 0.05, cap: 25, decay: 2, lineEvery: 4.5, palpiteMul: 0.6,

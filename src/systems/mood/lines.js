@@ -247,6 +247,22 @@ export const BANKS = {
   fineOffroad: { who: D, role: 'driver', tone: 'stress', cd: 4, prio: 1, lines: [
     'Era só um atalho!', ['Multa por andar na grama? Porra!', 'Multa por andar na grama? Sério?'], 'Tinha câmera no gramado?!',
   ] },
+  sitManga: { who: D, role: 'driver', tone: 'anx', cd: 10, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Manga! Manga na pista!', 'Olha a manga!', ['Manga no asfalto, porra!', 'Manga no asfalto, gente!'], 'Ih, caiu manga do pé…',
+  ] },
+  sitJaca: { who: D, role: 'driver', tone: 'panic', cd: 10, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'JACA! Jaca na pista!', 'Uma jaca inteira ali!',
+  ] },
+  sitMudaFaixa: { who: D, role: 'driver', tone: 'anx', cd: 9, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Muda de faixa!', 'A da esquerda tá livre, vai!', 'Passa, passa por fora!', 'Tem espaço do lado…',
+  ] },
+  sitEmbalo: { who: D, role: 'driver', tone: 'calm', cd: 14, prio: 1, situ: 1, gestures: ['joinha'], lines: [
+    'Agora sim!', 'É disso que eu tô falando!', 'Hahaha! Isso!', 'Vento na cara, Eixo livre…', ['Agora sim, porra!', 'Agora sim, meu Deus!'],
+    'Isso aqui é vida.',
+  ] },
+  sitEmbaloCortado: { who: D, role: 'driver', tone: 'stress', cd: 10, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'Tava tão bom…', 'Não, não, não, tava andando!', ['Ah, porra, tava embalado!', 'Ah, não, tava embalado!'],
+  ] },
   // =============================== DAVI DE PASSAGEIRO (carona) ===============================
   pGo: { who: D, role: 'passenger', tone: 'anx', cd: 2, gestures: ['apontando', 'bracoPraFora'], lines: [
     'Vai! VAI!', 'Agora vai, agora!', 'Entra, entra, entra!', 'Muda de faixa! Agora!', 'Passa ele! Passa!', 'Cabe! Cabe, vai!',
@@ -442,6 +458,18 @@ export const BANKS = {
   ] },
   osOffroad: { who: O, role: 'passenger', tone: 'panic', cd: 6, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
     'O gramado NÃO, Davi!', 'Isso é canteiro! CANTEIRO!', 'A suspensão, Davi… a suspensão!',
+  ] },
+  psManga: { who: D, role: 'passenger', tone: 'anx', cd: 10, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Desvia da manga!', 'Manga! Olha a manga!',
+  ] },
+  psMudaFaixa: { who: D, role: 'passenger', tone: 'anx', cd: 9, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Muda de faixa, Leandro!', 'A do lado tá livre!', 'Passa por fora!',
+  ] },
+  osManga: { who: O, role: 'passenger', tone: 'panic', cd: 10, prio: 1, situ: 1, lines: [
+    'Cuidado com a manga, Davi!', 'Manga! Devagar!',
+  ] },
+  psEmbalo: { who: D, role: 'passenger', tone: 'calm', cd: 14, prio: 1, situ: 1, gestures: ['joinha'], lines: [
+    'Isso, Leandro! Pisa!', 'Agora sim, hein!', 'Esse turbo, hein… isso!', 'Assim que é bom.',
   ] },
 };
 

@@ -11,7 +11,7 @@ export const BOT_PROFILES = {
   cuidadoso: { speedMul: 0.95, speedAdd: 0, T: 1.8, s0: 3.5, a: 2.2, b: 2.8, latA: 3.4, yellowDecel: 6, busLane: false,
     overtake: 0.7, overtakeFree: 55, breatheAt: 58, hornBlocked: 0, flashBlocked: 0, waitPed: true },
   normal: { speedMul: 1.0, speedAdd: 6, T: 1.2, s0: 2.5, a: 3.0, b: 3.4, latA: 4.6, yellowDecel: 4.5, busLane: false,
-    overtake: 0.92, overtakeFree: 40, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
+    overtake: 0.95, overtakeFree: 55, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
   apressado: { speedMul: 1.35, speedAdd: 6, T: 0.7, s0: 1.5, a: 4.5, b: 5.0, latA: 6.2, yellowDecel: 2.2, busLane: true,
     overtake: 0.95, overtakeFree: 26, breatheAt: 95, hornBlocked: 2.5, flashBlocked: 1.5, waitPed: false },
 };
@@ -368,7 +368,7 @@ export function createAutopilot(ctx) {
       }
       this.needLC = false;
       const vNow = Math.max(0, st.player.speed), prep = Math.max(120, vNow * 9);
-      if (this.t - this.lastLC < 3.5) { this.needLC = T.id !== D.id && left < prep; return; }
+      if (this.t - this.lastLC < (this.profile === 'cuidadoso' ? 3.5 : 2.0)) { this.needLC = T.id !== D.id && left < prep; return; }
       const ld = ctx.modules.traffic.leadInfo();
       const v = Math.max(0, st.player.speed);
       const want = Math.max(15, T.limitKmh * prof.speedMul) / 3.6;
@@ -392,7 +392,8 @@ export function createAutopilot(ctx) {
         if (nid < 0) return;
         const urgent = left < Math.max(70, vNow * 5.5) || (T.kind === 'bus' && !prof.busLane && D.kind !== 'bus');
         const onBus = T.kind === 'bus' && !prof.busLane && D.kind !== 'bus';
-        const stay = slowLead === false && !onBus && !urgent && T.kind !== 'bus' && this.profile === 'apressado' && left > 200;
+        // fora da hora de sair, fica na faixa que está andando (como um jogador costurando), só volta perto da saída
+        const stay = slowLead === false && !onBus && !urgent && T.kind !== 'bus' && this.profile !== 'cuidadoso' && left > (this.profile === 'apressado' ? 200 : 260);
         if (stay) return;
         if (this._laneFree(nid, this.s, urgent ? 4 : 9, urgent ? 10 : 22) || left < 25) { this.track = nid; this.lastLC = this.t; }
         else if (left < prep) this.needLC = true; // tira o pé para achar a brecha

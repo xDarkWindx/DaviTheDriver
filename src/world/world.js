@@ -11,6 +11,7 @@ import { buildRoadMeshes } from './roadMesh.js';
 import { samplePts } from './roadNetwork.js';
 import { SceneryBuilder, buildScenery } from './scenery.js';
 import { buildLandmarks } from './landmarks.js';
+import { sqx } from './mapData.js';
 import { SignalController } from './signals.js';
 import { VEHICLES } from '../config.js';
 import { buildVehicleModel, buildTrafficModel, buildPersonModel, makeVehicleMaterial, TRAFFIC_MODELS } from '../player/vehicleModels.js';
@@ -49,13 +50,14 @@ const SIGN_ENTRIES = [
 ];
 // placas de quadra: [texto, x, z]
 const QUADRA_SPOTS = [['QRSW 2', -1338, 210], ['QRSW 1', -1318, 150], ['QRSW 3/4', -1350, 300], ['QRSW 5/6', -1408, 470], ['CLSW', -1160, 570],
-  ['EQRSW', -1200, 188], ['SCS Q.2', -330, 200], ['SAUS Q.3', 260, 245], ['SAFS Q.6', 700, 245], ['SQS 102', -60, 690], ['SQS 302', -330, 690], ['SQS 104', 260, 690]];
+  ['EQRSW', -1200, 188], ['SCS Q.2', -330, 200], ['SAUS Q.3', 260, 245], ['SAFS Q.6', 700, 245], ['SQS 102', -60, 690], ['SQS 302', -330, 690], ['SQS 104', 260, 690]]
+  .map(([t, x, z]) => [t, sqx(x), z]);
 // [chave, x, z] — placas em pé, viradas para a câmera (sempre legíveis na isométrica)
 const SIGN_SPOTS = [
   ['sudoeste', -1460, 214], ['jaqueiras', -1484, 150], ['eixo', -1380, 58], ['epig', -985, 70], ['parque', -470, 214],
   ['w3', -414, 70], ['eixao', 22, 420], ['tesourinha', -40, 718], ['l2', 516, 640], ['s2', 120, 60], ['s3', 260, 276],
   ['safs', 818, 200], ['esplanada', 360, 58], ['rodo', 120, -28], ['eixo', -700, 58], ['s3', -170, 252], ['epig', -1050, 640],
-];
+].map(([k, x, z]) => [k, sqx(x), z]);
 
 /** Ruído 2D barato e determinístico (soma de senos), ~[0, 1]. */
 function noise2(x, z, seed) {
@@ -367,7 +369,7 @@ function buildSigns(atlas, camDir, inst, colliders, net) {
     inst.add('box', cx - dx * 0.05, 0, cz - dz * 0.05, 0, 0.1, y0, 0.1, 0x6d7075);
   }
   roof('roof_stj', 632, 13.15, 241, 40);
-  roof('roof_casa', -1390, 3.2 + 18 + 0.65, 166, 20);
+  roof('roof_casa', sqx(-1390), 3.2 + 18 + 0.65, 166, 20);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));

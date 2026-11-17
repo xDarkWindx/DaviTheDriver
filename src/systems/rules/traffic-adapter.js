@@ -47,6 +47,8 @@ export class TrafficAdapter {
   inJam() { const v = this._call('inJam'); return v && typeof v === 'object' ? v : null; }
   /** m de pista livre à frente (sem trânsito = 150, a pista ESTÁ livre). */
   freeAhead() { const v = this._call('freeAhead'); return Number.isFinite(v) ? v : 150; }
+  sideFree() { return this._call('sideFree') === true; }
+  hazardAhead() { const v = this._call('hazardAhead'); return v && typeof v === 'object' ? v : null; }
   rearInfo() { const v = this._call('rearInfo'); return v && typeof v === 'object' ? v : null; }
   neighbors(radius) { const v = this._call('neighbors', radius); return Array.isArray(v) ? v : EMPTY; }
   /** { crosswalkId, dist, occupied, pedCount } | null */
