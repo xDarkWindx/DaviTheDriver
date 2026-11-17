@@ -613,7 +613,7 @@ export const TRAFFIC_MODELS = {
   autoescola: { label: 'Autoescola (hatch com placa no teto)', length: 3.95, width: 1.70, height: 1.48, massKg: 1000, wheelR: 0.30, wheelW: 0.19,
     colors: [0xf4f4f2],
     build: (b) => {
-      genericCar(b, { L: 3.95, W: 1.70, H: 1.48, wb: 2.5, R: 0.30, clear: 0.22, hood: 0.80, wsLen: 0.72, yHood: 0.96, yBelt: 0.95, rearSlope: 0.18 });
+      const wz = genericCar(b, { L: 3.95, W: 1.70, H: 1.48, wb: 2.5, R: 0.30, clear: 0.22, hood: 0.80, wsLen: 0.72, yHood: 0.96, yBelt: 0.95, rearSlope: 0.18 });
       // placa "AUTOESCOLA" no teto (amarela com tarja preta) + faixa lateral amarela
       for (const s of [-1, 1]) { // placa em "A" (cavalete) amarela com tarja preta "AUTOESCOLA"
         b.box(0.95, 0.34, 0.03, 0xf6c400, 0, 1.69, -0.1 + s * 0.09, 0, s * 0.42);
@@ -621,6 +621,7 @@ export const TRAFFIC_MODELS = {
       }
       b.box(0.08, 0.12, 0.08, 0x333333, -0.3, 1.52, -0.1); b.box(0.08, 0.12, 0.08, 0x333333, 0.3, 1.52, -0.1);
       for (const s of [-1, 1]) b.box(0.012, 0.12, 2.4, 0xf6c400, s * 0.857, 0.62, 0);
+      return wz; // posições dos eixos: sem isto o modelo saía SEM RODAS
     } },
   onibus: { label: 'Ônibus urbano', length: 12.2, width: 2.5, height: 3.15, massKg: 13000, wheelR: 0.52, wheelW: 0.3,
     colors: [0x2c7a3f, 0x1f5fa8, 0xd7a21a, 0xb52b2b],
