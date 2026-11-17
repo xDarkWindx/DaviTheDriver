@@ -84,7 +84,8 @@ src/systems/rules.js     STUB  multas/colisões (tem 1 regra provisória: batida
 src/systems/mood.js      STUB  ansiedade/estresse
 src/systems/fx.js        STUB  efeitos visuais
 src/systems/audio.js     STUB  áudio
-src/ui/ui.js             UI PROVISÓRIA (descartável)
+src/ui/ui.js             UI: menu, HUD, pausa, fim, recordes, toque (módulos auxiliares em src/ui/*; CSS em index.html)
+assets/                  arquivos do usuário (ex.: davi.png, a foto do menu)
 tools/                   smoke.cjs, test-roads.js, tune-cars.js
 ```
 
@@ -142,6 +143,10 @@ inteiro mantendo `name: 'ui'`: ela só lê `ctx.state`, escuta eventos e emite `
   mood: { driver:    { who, anxiety, stress, floor, active },     // dono dos valores: mood.js
           passenger: { who, anxiety, stress, floor, active } },   // who/active definidos pelo núcleo
   fines: [], fineTotal: 0,                                         // dono: rules.js
+  score: { points, multiplier, inZone, zoneLo, zoneHi },           // dono: rules/mood; barras 0..100; zoneHi<=zoneLo = sem zona
+  settings: { volume 0..1, muted, retro, quality },                // dono: UI (persiste em localStorage); áudio/fx só LEEM
+  result: null | { reason, time, points, grade, title, fines[], crash, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
+  actions?: { horn, breathe, curse }  // opcional, cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
   time: { sim, real, frame },
 }
 ```
@@ -165,6 +170,8 @@ carona → driver=dono, passenger=davi; perigo → driver=davi, passenger=dono. 
 | `NEAR_MISS`, `OVERTAKEN`, `CUT_OFF` ("fechado"), `HONKED_AT`, `PEDESTRIAN_CROSSING` | traffic | `{ otherId, ... }` |
 | `MOOD_CHANGE`, `MOOD_PEAK`, `PASSENGER_SAY` | mood | `{ who, ... }` / `{ text, intensity }` |
 | `CAMERA_SHAKE` | qualquer um | `{ amount, duration }` (o núcleo aplica no `cameraRig`) |
+| `SETTINGS_CHANGE` | **ui** (única que escreve `state.settings`) | `{ volume, muted, retro, quality }` — emitido no boot e a cada mudança |
+| `SAY` | mood/traffic/rules | `{ who:'davi'\|'dono', role:'driver'\|'passenger', text, tone:'anx'\|'stress'\|'calm'\|'panic', ttl (s) }` → balão de fala (`PASSENGER_SAY` também vira balão do passageiro) |
 
 ### Malha viária (`ctx.net`, `src/world/roadNetwork.js`)
 
@@ -243,9 +250,50 @@ Posição/rumo do jogador em `state.player`, destino em `state.trip.destX/Z`, ro
 | `vehicleLOD`, `landmarkLOD` | detalhe (só `low` existe; TODO) | **reconstruir mundo** |
 | `cameraFar`, `viewMul` | distância de visão / abertura do zoom | recriar `CameraRig` / tempo real |
 | `maxTrafficVehicles`, `maxPedestrians`, `maxParticles` | tetos para traffic/fx | tempo real (respeitados pelos módulos) |
+| `fxSkidMax` | pool de marcas de pneu (fx.js) | ao (re)criar o módulo |
+| `fxGrain` | granulação do filtro retrô (fx.js) | ao (re)criar o módulo |
 
 Hoje a troca de perfil é por `?q=` na URL (recarrega tudo). `hd` está declarado com `implemented: false`.
 
 ### Orçamento de performance (perfil leve)
 Sem sombras dinâmicas (sombra "blob" instanciada), sem pós-processamento, Lambert, InstancedMesh por chunk,
 pixelRatio ≤ 1,5, sem alocação por passo no caminho quente. Cena típica: ~35–45 draw calls, ~60–90 mil triângulos.
+
+## Interface (src/ui/)
+
+`ui.js` é um módulo comum (`name: 'ui'`) que só lê `ctx.state`, escuta eventos e emite `EV.REQ_*`. Arquivos:
+`menu.js` (menu), `hud.js` + `minimap.js` (HUD; DOM só muda quando o valor muda, minimapa a ~10 Hz), `end.js` (chegou / boletim de
+ocorrência / desistiu / tomouOCarro), `panels.js` (Como jogar e Opções), `touch.js` (botões de toque, só em dispositivo de toque
+ou com `?touch=1`), `storage.js` (opções e recordes em `localStorage`, tudo com try/catch e cópia em memória), `texts.js` (toda a
+copy pt-BR), `pixel.js` (pixel art desenhada em canvas, sem imagens externas), `demo.js` (veja abaixo). O CSS inteiro fica em `index.html`
+(unidade `em`, escala com a janela: 1em = 16 px a 1280x720). Camadas: `#fx-layer` (efeitos, z 5) abaixo de `#ui-layer` (UI, z 10).
+
+- **Foto do Davi no menu:** coloque uma imagem em `assets/davi.png` (qualquer tamanho; quadrada fica melhor, é exibida com
+  `image-rendering: pixelated`, então pixel art pequena, ex. 64x64 ou 128x128, é o ideal). Sem o arquivo aparece um avatar de capacete
+  desenhado em canvas e a legenda "FOTO DO DAVI DE CAPACETE (em breve)". Obs.: em automação (`navigator.webdriver`) a sondagem do
+  arquivo é pulada para não gerar erro 404 no console; use `index.html?foto=1` para forçá-la.
+- **Recordes:** `localStorage`, chave `davi-the-driver:v1:records`, um registro por `modo|rota` (melhor pontuação e melhor tempo; só
+  contam chegadas). Opções em `...:settings`. Se o storage estiver bloqueado (file:// em alguns navegadores) o jogo funciona igual,
+  só não lembra entre sessões.
+- **Modo de demonstração da UI:** `index.html?uidemo=1` (ou `uidemo=hot` para barras no talo) injeta humor, pontos, ações, multas, falas e toasts falsos
+  enquanto `mood/rules/traffic` são stubs. Expõe `window.__uiDemo` (`freeze(t)`, `hot()`, `say({...})`, `fine()`, `finish(reason, {noResult})`).
+  Nunca roda sem o parâmetro.
+- **Para quem escreve `rules.js`:** preencha `state.result` *antes* de emitir `REQ_FINISH` (a UI lê no `TRIP_FINISH`, síncrono); o
+  `reason` do resultado deve bater com o do fim. Sem `state.result` a UI monta a tela com `state.fines`/`state.score`/`trip.elapsed`
+  e textos de reserva. `data-testid` estáveis: `menu`, `mode-{davi|carona|perigo}`, `route-{casa-stj|stj-casa}`, `start` (também `#ui-start`),
+  `hud`, `pause`, `resume`, `restart`, `pause-menu`, `end-{chegou|bateu|desistiu|tomouOCarro}`, `again` (também `#ui-again`), `to-menu`.
+
+### Áudio e efeitos (`src/systems/audio.js`, `src/systems/fx.js`; auxiliares em `systems/audio/` e `systems/fx/`)
+
+- **Áudio** 100% Web Audio sintetizado. O `AudioContext` nasce no 1º gesto (pointerdown/keydown/touchstart) ou no `TRIP_START`;
+  aba oculta suspende; pausa e mudo zeram o ganho mestre; limitador (DynamicsCompressor) no fim da cadeia.
+  Lê `state.settings {volume, muted}` por polling e em `EV.SETTINGS_CHANGE` (se o nome não existir em `EV`, usa a string `'settings:change'`).
+  API: `ctx.modules.audio.vehiclePass(x, z, kind: 'car'|'bus'|'moto'|'truck', speedMps, id?)` (chamar todo frame por veículo próximo;
+  máx. 4 vozes, descarta o mais distante), `playSpeech(who, text, intensity)`, `unlock()`, `stats()` (diagnóstico).
+  Escuta `PASSENGER_SAY` (e `EV.SAY` se existir), `FINE` (`by: 'agent'` toca apito), `HONKED_AT` (`x, z` opcionais para pan).
+- **Efeitos**: `#fx-layer` (criado no init; fica logo antes de `#ui-layer`, senão logo após o canvas) com túnel/pulso (ansiedade do Davi),
+  borda vermelha + veias (estresse/`MOOD_PEAK`), borda fria (pânico do dono em `perigo`), linhas de velocidade, flashes, filtro retrô
+  (`state.settings.retro`, em tempo real; permanece visível no menu — os demais efeitos somem no MENU). Partículas num único
+  `THREE.Points` (pool = `quality.maxParticles`) e marcas de pneu num único `InstancedMesh` (`quality.fxSkidMax`): +0 draw calls em
+  repouso, +2 com partículas/marcas visíveis. Humor mostrado = o do Davi (peso 1 se dirige, 0,5 se vai de carona).
+  `ctx.modules.fx.stats()` para diagnóstico. Respeita `prefers-reduced-motion`.

@@ -8,8 +8,8 @@ const CSS = `
 #fx-layer .fx-core>*{position:absolute;inset:0;opacity:0}
 #fx-layer .fx-tunnel{inset:-20% !important;will-change:transform,opacity;
   background:radial-gradient(closest-side,rgba(0,0,0,0) 56%,rgba(4,4,12,.5) 78%,rgba(0,0,0,.93) 100%)}
-#fx-layer .fx-red{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 46%,rgba(170,12,12,.32) 74%,rgba(150,0,0,.78) 100%)}
-#fx-layer .fx-cold{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 48%,rgba(95,80,215,.32) 76%,rgba(70,50,185,.72) 100%)}
+#fx-layer .fx-red{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 42%,rgba(175,12,12,.36) 70%,rgba(150,0,0,.82) 100%)}
+#fx-layer .fx-cold{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 38%,rgba(105,90,235,.42) 68%,rgba(70,50,200,.88) 100%)}
 #fx-layer canvas.fx-speed,#fx-layer canvas.fx-veins{width:100%;height:100%;inset:0;will-change:opacity,transform}
 #fx-layer .fx-flash{background:#fff}
 #fx-layer .fx-retro{inset:0;opacity:1}
@@ -59,13 +59,13 @@ function drawVeins(cv) {
   const corners = [[0, 0, 0.78], [W, 0, 2.36], [0, H, -0.78], [W, H, -2.36]];
   for (const [cx, cy, base] of corners) {
     // raios (triângulos finos e chanfrados) saindo do canto
-    for (let i = 0; i < 6; i++) {
-      const a = base + (i - 2.5) * 0.28 + (r() - 0.5) * 0.1, len = H * (0.22 + r() * 0.2);
+    for (let i = 0; i < 5; i++) {
+      const a = base + (i - 2.5) * 0.28 + (r() - 0.5) * 0.1, len = H * (0.15 + r() * 0.14);
       g.beginPath(); g.moveTo(cx + Math.cos(a - 0.05) * 6, cy + Math.sin(a - 0.05) * 6);
       g.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); g.lineTo(cx + Math.cos(a + 0.05) * 6, cy + Math.sin(a + 0.05) * 6);
       g.fillStyle = 'rgba(190,10,10,.55)'; g.fill();
     }
-    for (let i = 0; i < 3; i++) branch(cx, cy, base + (i - 1) * 0.5 + (r() - 0.5) * 0.3, H * (0.18 + r() * 0.1), 4.5, 4);
+    for (let i = 0; i < 3; i++) branch(cx, cy, base + (i - 1) * 0.5 + (r() - 0.5) * 0.3, H * (0.11 + r() * 0.07), 3.6, 4);
   }
 }
 

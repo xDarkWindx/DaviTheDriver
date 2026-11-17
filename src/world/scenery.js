@@ -15,6 +15,7 @@ const TREE_COLORS = {
   ipe_roxo: [0x9c5ac8, 0xa66ad0],
   cerrado: [0x6f7d3a, 0x7c8a40, 0x667433, 0x84914a],
   mangueira: [0x4f7d36, 0x5b8a3c, 0x46742f],
+  jaqueira: [0x2f5f2c, 0x37692f, 0x2a5527],
 };
 
 export class SceneryBuilder {
@@ -199,6 +200,9 @@ export function buildScenery(sb) {
   mb.ring(-800, 420, 36, 38, 0.031, 0xcfc8b0, 28);
   const lake = makeCircle(-800, 420, 36); lake.kind = 'water'; sb.colliders.add(lake);
 
+  // Av. das Jaqueiras: mangueiras e jaqueiras SÓLIDAS rente ao meio-fio (posições em net.avenueTreeSlots)
+  for (const t of net.avenueTreeSlots) sb.tree(t.x, t.z, t.kind, 1.05, 0.8);
+
   // --- Sudoeste: projeções de 6 andares sobre pilotis (QRSW 1/2 etc.) + comércio local (CCSW)
   for (let z = 110; z <= 600; z += 44) {
     for (let x = -1470; x <= -1090; x += 62) {
@@ -291,22 +295,23 @@ export function buildScenery(sb) {
   sb.scrub(-1500, 0, 0, 700, 500);
 
   // --- fileiras de árvores à beira das vias
-  for (const id of ['qrsw2', 'quarta_av', 'terceira_w', 'terceira_e', 'eqrsw', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_far', 'primeira_av',
+  for (const id of ['qrsw2', 'qrsw2_e', 'quarta_av', 'quarta_av_s', 'terceira_w', 'terceira_m', 'terceira_e', 'segunda_w', 'segunda_e', 'eqrsw',
+    'rua_q1', 'rua_q34', 'rua_q56', 'clsw', 'primeira_av',
     'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs',
-    's2_a', 's2_b', 's2_c', 'safs_n', 'l2m_east', 'safs_east'])
+    's2_alca', 's2_a', 's2_b', 's2_c', 'safs_n', 'l2m_east', 'safs_east'])
     sb.rowAlong(id, 6.5, 13);
   sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
   for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
     sb.rowAlong(id, 9, 16, ['cerrado', 'cerrado', 'ipe_amarelo', 'ipe_roxo']);
-  for (const id of ['eixao_n', 'eixao_m', 'eixao_s']) sb.rowAlong(id, 10, 15, ['mangueira', 'ipe_rosa', 'ipe_amarelo', 'cerrado']);
-  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_n1']) sb.rowAlong(id, 9, 22, ['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'cerrado']);
+  for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.rowAlong(id, 10, 15, ['mangueira', 'ipe_rosa', 'ipe_amarelo', 'cerrado']);
+  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_n1', 'eixo_n1_e']) sb.rowAlong(id, 9, 22, ['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'cerrado']);
 
   // --- postes e guard-rails
-  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1']) sb.lampsAlong(id, 42, [1, -1]);
-  for (const id of ['eixao_n', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
-  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 's2_a', 's2_b', 's2_c'])
+  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1', 'eixo_n1_e']) sb.lampsAlong(id, 42, [1, -1]);
+  for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
+  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b', 's2_c'])
     sb.lampsAlong(id, 46, [0]);
-  for (const id of ['qrsw2', 's3_safs', 's3_saus', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
-  for (const id of ['eixao_n', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
-  for (const id of ['tes', 'eixao_ramp']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
+  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
+  for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
+  for (const id of ['tes', 'eixao_ramp', 'alca_eixao', 'alca_rodo']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
 }

@@ -50,7 +50,9 @@ export const QUALITY = {
     landmarkLOD: 'low',          // M  'low' | 'high'(TODO) — detalhe dos marcos
     maxTrafficVehicles: 40,      // -  teto p/ systems/traffic.js
     maxPedestrians: 24,          // -  teto p/ systems/traffic.js
-    maxParticles: 300,           // -  teto p/ systems/fx.js
+    maxParticles: 300,           // -  teto p/ systems/fx.js (pool do THREE.Points)
+    fxSkidMax: 160,              // -  pool de marcas de pneu (quads instanciados) — systems/fx.js
+    fxGrain: true,               // -  granulação do filtro retrô (div com ruído; sem custo de shader) — systems/fx.js
     postprocess: null,           // R  gancho: null | (ctx) => { render(dt) } — vazio no leve
   },
   hd: {
@@ -59,7 +61,7 @@ export const QUALITY = {
     textureSize: 1024, anisotropy: 8, signTextureWidth: 2048, chunkSize: 600, cameraFar: 1500, viewMul: 1.0,
     density: { trees: 2.0, scrub: 2.5, lamps: 1.0, buildings: 1.0, guardrails: 1.0 },
     vehicleLOD: 'high', landmarkLOD: 'high',
-    maxTrafficVehicles: 90, maxPedestrians: 60, maxParticles: 2000,
+    maxTrafficVehicles: 90, maxPedestrians: 60, maxParticles: 2000, fxSkidMax: 400, fxGrain: true,
     postprocess: null, // TODO: bloom/vinheta etc. (fx.js registra aqui)
   },
 };

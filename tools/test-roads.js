@@ -37,44 +37,80 @@ test('largadas caem em faixas no sentido certo', () => {
   assert.ok(Math.abs(stj.heading + Math.PI / 2) < 0.2, 'stj rumo oeste');
 });
 
-test('existe rota Casa → STJ e STJ → Casa', () => {
+const names = (r) => net.routeNames(r).join(' > ');
+const hasUturn = (r) => r.some((id) => net.lanes[id].turn === 'uturn');
+const segSeq = (r) => [...new Set(r.map((id) => net.lanes[id].segId).filter(Boolean))];
+const inOrder = (seq, want) => { let i = 0; for (const x of seq) if (x === want[i]) i++; return i === want.length; };
+
+test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () => {
   const r1 = net.planRoute(casa.lane.id, casa.s, toStj.targets);
   assert.ok(r1, 'sem rota casa->stj');
-  const segs1 = [...new Set(r1.map((id) => net.lanes[id].segId).filter(Boolean))];
-  console.log('        casa→stj:', segs1.join(' > '), `(${net.routeLength(r1, casa.s, toStj.s).toFixed(0)} m)`);
+  console.log('        casa→stj:', names(r1), `(${net.routeLength(r1, casa.s, toStj.s).toFixed(0)} m)`);
+  assert.ok(inOrder(segSeq(r1), ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c', 's2_alca', 's2_a']), segSeq(r1).join(','));
+  assert.ok(!hasUturn(r1), 'retorno na rota casa->stj');
   const r2 = net.planRoute(stj.lane.id, stj.s, toCasa.targets);
   assert.ok(r2, 'sem rota stj->casa');
-  const segs2 = [...new Set(r2.map((id) => net.lanes[id].segId).filter(Boolean))];
-  console.log('        stj→casa:', segs2.join(' > '), `(${net.routeLength(r2, stj.s, toCasa.s).toFixed(0)} m)`);
+  console.log('        stj→casa:', names(r2), `(${net.routeLength(r2, stj.s, toCasa.s).toFixed(0)} m)`);
+  assert.ok(inOrder(segSeq(r2), ['s3_safs', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2']), segSeq(r2).join(','));
+  assert.ok(!hasUturn(r2), 'retorno na rota stj->casa');
+  // a primeira faixa da rota segue no sentido da largada (seta não aponta para trás)
+  for (const [st, r] of [[casa, r1], [stj, r2]]) {
+    const l = net.lanes[r[0]];
+    assert.equal(l.segId, st.lane.segId); assert.equal(l.dir, st.lane.dir);
+  }
 });
 
-test('rotas alternativas (Parque/S3 e W3/tesourinha) existem', () => {
-  // rota lenta: STJ -> anel do Parque (sentido Pátio Brasil -> EPIG) -> casa
-  const pq = net.getSegment('parque').laneIdsF[0];
-  const p1 = net.planRoute(stj.lane.id, stj.s, pq), p2 = net.planRoute(pq, 0, toCasa.targets);
-  assert.ok(p1 && p2, 'rota pelo Parque inexistente');
-  const segsP = [...new Set([...p1, ...p2].map((id) => net.lanes[id].segId).filter(Boolean))];
-  console.log('        via Parque:', segsP.join(' > '), `(${(net.routeLength(p1, stj.s) + net.routeLength(p2, 0, toCasa.s)).toFixed(0)} m)`);
-  // e no sentido casa -> STJ (anel no sentido EPIG -> Pátio Brasil)
-  const pqB = net.getSegment('parque').laneIdsB[0];
-  assert.ok(net.planRoute(casa.lane.id, casa.s, pqB) && net.planRoute(pqB, 0, toStj.targets), 'Parque no sentido casa->STJ');
-  // força passar pela W3: casa -> faixa da W3 sul -> STJ
+test('corredores das 2 rotas × 2 sentidos (planRouteVia)', () => {
+  const want = {
+    'eixo casa-stj': ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 's3_safs'],
+    'eixo stj-casa': ['s3_safs', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2'],
+    'parque casa-stj': ['qrsw2', 'jaq_m', 'jaq_s', 'jaq_s2', 'primeira_av', 'parque', 's3_scs', 's3_mid', 's3_mid_e', 's3_saus', 's3_safs'],
+    'parque stj-casa': ['s3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs', 'parque', 'primeira_av', 'jaq_s2', 'jaq_s', 'jaq_m', 'qrsw2'],
+  };
+  for (const cid of ['eixo', 'parque']) for (const dirId of ['casa-stj', 'stj-casa']) {
+    const [st, to] = dirId === 'casa-stj' ? [casa, toStj] : [stj, toCasa];
+    const r = net.planRouteVia(st.lane.id, st.s, net.routeCorridors[cid][dirId], to.targets);
+    assert.ok(r, `sem rota ${cid} ${dirId}`);
+    const L = net.routeLength(r, st.s, to.s);
+    console.log(`        ${cid.padEnd(6)} ${dirId}: ${names(r)} (${L.toFixed(0)} m)`);
+    assert.ok(!hasUturn(r), `retorno em ${cid} ${dirId}`);
+    const seq = segSeq(r).filter((x) => !net.segments.get(x).roundaboutId);
+    assert.deepEqual(seq, want[`${cid} ${dirId}`], `${cid} ${dirId}: ${seq.join(',')}`);
+    assert.equal(net.lanes[r[0]].dir, st.lane.dir, 'largada no sentido da rota');
+  }
+});
+
+test('rotas alternativas (W3/tesourinha) existem', () => {
   const w3 = net.getSegment('w3_m').laneIdsF[0];
-  const a = net.planRoute(casa.lane.id, casa.s, w3);
-  const b = net.planRoute(w3, 0, toStj.targets);
+  const a = net.planRoute(casa.lane.id, casa.s, w3), b = net.planRoute(w3, 0, toStj.targets);
   assert.ok(a && b, 'rota via W3 inexistente');
-  const segs = [...new Set([...a, ...b].map((id) => net.lanes[id].segId).filter(Boolean))];
-  console.log('        via W3  :', segs.join(' > '), `(${(net.routeLength(a, casa.s) + net.routeLength(b, 0, toStj.s)).toFixed(0)} m)`);
   const tes = net.getSegment('tes').laneIdsF[0];
-  const c = net.planRoute(casa.lane.id, casa.s, tes), d = net.planRoute(tes, 0, toStj.targets);
-  assert.ok(c && d, 'rota via tesourinha inexistente');
+  assert.ok(net.planRoute(casa.lane.id, casa.s, tes) && net.planRoute(tes, 0, toStj.targets), 'rota via tesourinha inexistente');
+  // trevo Eixo × Eixão: alça Eixo → Eixão Sul dirigível
+  const al = net.getSegment('alca_eixao').laneIdsF[0];
+  assert.ok(net.planRoute(casa.lane.id, casa.s, al), 'alça Eixo→Eixão');
+  assert.ok(net.lanes[al].next.length > 0);
+});
+
+test('Av. das Jaqueiras: árvores de avenida e candidatos a fruta', () => {
+  const segs = new Set(net.avenueTreeSlots.map((t) => t.segId));
+  for (const id of ['jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2']) assert.ok(segs.has(id), 'sem árvores em ' + id);
+  assert.ok(net.fruitSpots.length >= 20, 'poucos candidatos: ' + net.fruitSpots.length);
+  const kinds = new Set(net.fruitSpots.map((f) => f.fruit));
+  assert.ok(kinds.has('manga') && kinds.has('jaca'));
+  for (const f of net.fruitSpots) {
+    assert.ok(net.isOnRoad(f.x, f.z), 'fruta fora da pista ' + f.id);
+    assert.ok(Math.hypot(f.treeX - f.x, f.treeZ - f.z) < 6, 'árvore longe da fruta');
+    assert.ok(net.clearance(f.treeX, f.treeZ) > 0.5 && net.clearance(f.treeX, f.treeZ) < 3, 'árvore não está rente à pista');
+  }
+  console.log(`        ${net.avenueTreeSlots.length} árvores de avenida, ${net.fruitSpots.length} candidatos a fruta`);
 });
 
 test('nearestLane respeita o sentido', () => {
   const o = {};
   // Eixo Sul é mão única leste
   const r = net.nearestLane(-300, 40, o, Math.PI / 2);
-  assert.ok(r && r.lane.segId === 'eixo_s1_c', 'esperava eixo_s1_c, veio ' + (r && r.lane.segId));
+  assert.ok(r && r.lane.segId === 'eixo_s1_c0', 'esperava eixo_s1_c0, veio ' + (r && r.lane.segId));
   // W3 Sul: rumo norte (heading PI) deve achar faixa dir -1 (to→from)
   const r2 = net.nearestLane(-426, 600, {}, Math.PI);
   assert.ok(r2 && r2.lane.segId === 'w3_m' && r2.lane.dir === -1, 'w3 norte');
@@ -102,7 +138,7 @@ test('semáforos: todo semáforo tem aproximações e 1–2 grupos', () => {
 });
 
 test('desníveis encontrados', () => {
-  assert.equal(net.gradeSeparations.length, 4);
+  assert.equal(net.gradeSeparations.length, 5);
   assert.ok(net.isGradeSeparated('eixao_n', 'eixo_s1_c'));
 });
 

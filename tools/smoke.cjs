@@ -35,52 +35,76 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   const hold = async (keys, ms) => { for (const k of keys) await page.keyboard.down(k); await page.waitForTimeout(ms); for (const k of keys) await page.keyboard.up(k); };
 
   const results = [];
+  // Simulação DETERMINÍSTICA: as teclas ficam pressionadas (caminho real do teclado) enquanto o jogo avança
+  // um número fixo de passos de 1/60 s (game.advance), independentemente do FPS do headless.
+  const driveSim = async (keys, seconds) => {
+    for (const k of keys) await page.keyboard.down(k);
+    await page.evaluate((s) => window.__davi.game.advance(s), seconds);
+    for (const k of keys) await page.keyboard.up(k);
+  };
   // 1) Modo davi via UI (clique nos botões), Casa -> STJ
   await page.click('button[data-mode="davi"]');
   await page.click('button[data-route="casa-stj"]');
   await page.click('#ui-start');
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => window.__davi.state.mode === 'PLAYING', null, { timeout: 10000 });
   const a = await info();
-  await hold(['KeyW'], 2500);
-  await hold(['KeyW', 'KeyA'], 250);
-  await hold(['KeyW'], 1200);
+  await driveSim(['KeyW'], 2.5);
+  await driveSim(['KeyW', 'KeyA'], 0.25);
+  await driveSim(['KeyW'], 1.2);
+  await page.waitForTimeout(300);
   const b = await info();
   await page.screenshot({ path: path.join(OUT, '02-davi-kwid.png') });
   const moved = Math.hypot(b.x - a.x, b.z - a.z);
-  results.push({ mode: 'davi', moved, kmh: b.kmh, vehicle: b.vehicle, road: b.road, ok: moved > 4 && b.kmh > 10 && b.vehicle === 'kwid' });
-  console.log('davi:', JSON.stringify({ moved: moved.toFixed(1), kmh: b.kmh.toFixed(0), road: b.road, calls: b.calls, tris: b.tris }));
-  // eventos de ação (H/R/X) chegam ao barramento
+  results.push({ mode: 'davi', moved, kmh: b.kmh, vehicle: b.vehicle, road: b.road, ok: moved > 15 && b.kmh > 20 && b.vehicle === 'kwid' });
+  console.log('davi:', JSON.stringify({ moved: moved.toFixed(1), kmh: b.kmh.toFixed(0), road: b.road, mode: b.mode, calls: b.calls, tris: b.tris }));
+  // eventos de ação (H/R/X) chegam ao barramento (viagem nova: só valem em PLAYING)
   await page.evaluate(() => {
+    window.__davi.game.startTrip('casa-stj', 'davi');
     const c = window.__davi, got = [];
     for (const n of ['HORN', 'BREATHE', 'CURSE']) c.events.on(c.EV[n], () => got.push(n));
     window.__gotActs = got;
   });
-  await page.keyboard.press('KeyH'); await page.keyboard.press('KeyR'); await page.keyboard.press('KeyX');
+  for (const k of ['KeyH', 'KeyR', 'KeyX']) await driveSim([k], 0.1);
   const acts2 = await page.evaluate(() => window.__gotActs);
   console.log('ações recebidas:', acts2.join(','));
-  results.push({ mode: 'acoes-HRX', ok: acts2.length === 3 });
+  results.push({ mode: 'acoes-HRX', ok: ['HORN', 'BREATHE', 'CURSE'].every((n) => acts2.includes(n)) });
 
   // 2) Modo carona (Cactus) STJ -> Casa (tarde), via evento (API pública)
   await page.evaluate(() => window.__davi.events.emit(window.__davi.EV.REQ_START, { routeId: 'stj-casa', mode: 'carona' }));
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => window.__davi.state.mode === 'PLAYING' && window.__davi.state.trip.vehicleId === 'cactus', null, { timeout: 10000 });
   const c1 = await info();
-  await hold(['KeyW'], 2500);
+  await driveSim(['KeyW'], 2.5);
+  await page.waitForTimeout(300);
   const c2 = await info();
   await page.screenshot({ path: path.join(OUT, '03-carona-cactus-tarde.png') });
   const movedC = Math.hypot(c2.x - c1.x, c2.z - c1.z);
-  results.push({ mode: 'carona', moved: movedC, kmh: c2.kmh, vehicle: c2.vehicle, ok: movedC > 4 && c2.kmh > 10 && c2.vehicle === 'cactus' && c2.driver === 'dono' && c2.passenger === 'davi' });
+  results.push({ mode: 'carona', moved: movedC, kmh: c2.kmh, vehicle: c2.vehicle, ok: movedC > 15 && c2.kmh > 20 && c2.vehicle === 'cactus' && c2.driver === 'dono' && c2.passenger === 'davi' });
   console.log('carona:', JSON.stringify({ moved: movedC.toFixed(1), kmh: c2.kmh.toFixed(0), driver: c2.driver, passenger: c2.passenger }));
 
   // 3) Modo perigo (Davi no Cactus) Casa -> STJ
   await page.evaluate(() => window.__davi.game.startTrip('casa-stj', 'perigo'));
-  await page.waitForTimeout(300);
   const p1 = await info();
-  await hold(['ArrowUp'], 2500);
+  await driveSim(['ArrowUp'], 2.5);
+  await page.waitForTimeout(300);
   const p2 = await info();
   await page.screenshot({ path: path.join(OUT, '04-perigo-cactus.png') });
   const movedP = Math.hypot(p2.x - p1.x, p2.z - p1.z);
-  results.push({ mode: 'perigo', moved: movedP, kmh: p2.kmh, vehicle: p2.vehicle, ok: movedP > 4 && p2.kmh > 10 && p2.vehicle === 'cactus' && p2.driver === 'davi' && p2.passenger === 'dono' });
+  results.push({ mode: 'perigo', moved: movedP, kmh: p2.kmh, vehicle: p2.vehicle, ok: movedP > 15 && p2.kmh > 20 && p2.vehicle === 'cactus' && p2.driver === 'davi' && p2.passenger === 'dono' });
   console.log('perigo:', JSON.stringify({ moved: movedP.toFixed(1), kmh: p2.kmh.toFixed(0), driver: p2.driver, passenger: p2.passenger }));
+
+  // 3a) Seta do GPS na largada aponta para a frente (nas 2 viagens)
+  const arrow = await page.evaluate(() => {
+    const c = window.__davi, out = {};
+    for (const r of ['casa-stj', 'stj-casa']) {
+      c.game.startTrip(r, 'davi'); c.game.advance(0.1);
+      const t = c.state.trip, p = c.state.player;
+      let d = Math.abs(t.guideBearing - p.heading) % (Math.PI * 2); if (d > Math.PI) d = Math.PI * 2 - d;
+      out[r] = +(d * 180 / Math.PI).toFixed(1);
+    }
+    return out;
+  });
+  console.log('seta GPS na largada (graus entre seta e rumo):', JSON.stringify(arrow));
+  results.push({ mode: 'seta-largada', ok: arrow['casa-stj'] < 60 && arrow['stj-casa'] < 60 });
 
   // 3b) Teste determinístico (independe do FPS do headless): 4 s de simulação com acelerador virtual
   const det = await page.evaluate(() => {

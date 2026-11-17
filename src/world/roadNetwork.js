@@ -199,6 +199,9 @@ export class RoadNetwork {
     this.spawnPoints = [];
     this.gradeSeparations = [];
     this.edgeNodes = [];
+    this.avenueTreeSlots = []; // { segId, s, side (1 dir./-1 esq. do sentido from→to), x, z, kind } — onde o cenário planta
+    this.fruitSpots = [];      // candidatos a fruta no asfalto (ver _buildAvenueTrees)
+    this.routeCorridors = def.routeCorridors || {};
     this.zones = def.zones;
     this.starts = def.starts;
     this.bounds = def.bounds;
@@ -264,6 +267,7 @@ export class RoadNetwork {
     this._buildBusAndHideouts();
     this._buildGradeSeparations();
     this._buildSpawns();
+    this._buildAvenueTrees();
     this._buildGrids();
     // buffers do Dijkstra
     const N = this.lanes.length;
@@ -615,6 +619,48 @@ export class RoadNetwork {
     }
   }
 
+  /**
+   * Árvores de avenida (def.avenueTrees) e candidatos a "fruta no asfalto".
+   * fruitSpots[i] = { id, segId, dir, s, x, z, heading, fruit: 'manga'|'jaca', treeX, treeZ,
+   *                   lanes: [{ laneId, s, x, z }] }  (lanes[0] = faixa da direita, rente à árvore)
+   */
+  _buildAvenueTrees() {
+    const T = { x: 0, z: 0, tx: 0, tz: 0 };
+    for (const av of this.def.avenueTrees || []) {
+      let k = 0;
+      for (const segId of av.segs) {
+        const seg = this.segments.get(segId);
+        if (!seg) throw new Error('avenueTrees: via inexistente ' + segId);
+        const nA = this.nodes.get(seg.from), nB = this.nodes.get(seg.to);
+        const s0 = nA.radius + (av.margin || 10), s1 = seg.length - nB.radius - (av.margin || 10);
+        for (let s = s0; s < s1; s += av.step) {
+          samplePts(seg.pts, seg.cum, s, T);
+          for (const side of [1, -1]) {
+            const off = side > 0 ? seg.edgeR + av.offset : seg.edgeL - av.offset;
+            const kind = av.kinds[(k + (side > 0 ? 0 : 1)) % av.kinds.length];
+            const slot = { segId, s, side, x: T.x - T.tz * off, z: T.z + T.tx * off, kind };
+            this.avenueTreeSlots.push(slot);
+            if (!av.fruit || (k % 2) !== (side > 0 ? 0 : 1)) continue; // ~1 candidato a cada 2 árvores por lado
+            // sentido cuja faixa da direita fica rente a esta árvore: lado direito (side 1) => dir +1
+            const dir = side > 0 ? 1 : -1;
+            const ids = dir > 0 ? seg.laneIdsF : seg.laneIdsB;
+            if (!ids.length) continue;
+            const lanes = ids.map((id) => {
+              const lane = this.lanes[id], ls = this.projectOnLane(lane, T.x, T.z), o = this.sampleLane(lane, ls, {});
+              return { laneId: id, s: ls, x: o.x, z: o.z };
+            });
+            this.fruitSpots.push({
+              id: this.fruitSpots.length, segId, dir, s, x: lanes[0].x, z: lanes[0].z,
+              heading: Math.atan2(T.tx * dir, T.tz * dir), fruit: kind === 'jaqueira' ? 'jaca' : 'manga',
+              treeX: slot.x, treeZ: slot.z, lanes,
+            });
+          }
+          k++;
+        }
+      }
+    }
+  }
+
   _buildGrids() {
     this._laneGrid = new Grid(40);
     for (const lane of this.lanes) {
@@ -864,6 +910,48 @@ export class RoadNetwork {
     outArr.reverse();
     if (N === 0) return null;
     return outArr;
+  }
+
+  /**
+   * Rota forçada por waypoints: `via` = [segId, ...] em ordem (qualquer sentido; Dijkstra escolhe o alcançável).
+   * Ex.: planRouteVia(l, s, net.routeCorridors.parque['stj-casa'], net.laneForZone('casa').targets).
+   * Retorna laneIds (como planRoute) ou null.
+   */
+  planRouteVia(fromLaneId, fromS, via, toLane, outArr = []) {
+    outArr.length = 0;
+    let cur = fromLaneId, s = fromS;
+    const legs = [...via.map((id) => { const g = this.segments.get(id); if (!g) throw new Error('via inexistente ' + id); return [...g.laneIdsF, ...g.laneIdsB]; }), toLane];
+    const tmp = [];
+    for (const target of legs) {
+      // já está no waypoint?
+      const tgt = Array.isArray(target) ? target : [target];
+      const curLane = this.lanes[cur];
+      if (tgt.indexOf(cur) >= 0 || (!curLane.isConnector && tgt.some((t) => this.lanes[t].segId === curLane.segId && this.lanes[t].dir === curLane.dir))) {
+        if (!outArr.length) outArr.push(cur);
+        continue;
+      }
+      const r = this.planRoute(cur, s, target, tmp);
+      if (!r) return null;
+      if (outArr.length) {
+        const last = this.lanes[outArr[outArr.length - 1]], f = this.lanes[r[0]];
+        // a perna nova começa na mesma faixa (ou numa paralela, por troca de faixa): não duplica
+        if (r[0] === last.id || (!f.isConnector && !last.isConnector && f.segId === last.segId && f.dir === last.dir)) outArr.pop();
+      }
+      for (let i = 0; i < r.length; i++) outArr.push(r[i]);
+      cur = r[r.length - 1]; s = 0;
+    }
+    return outArr;
+  }
+
+  /** Nomes das vias de uma rota, sem repetições consecutivas (conectores fora de balão são ignorados). */
+  routeNames(route) {
+    const out = [];
+    for (const id of route) {
+      const l = this.lanes[id];
+      if (l.isConnector && !this.nodes.get(l.nodeId).roundaboutId) continue;
+      if (out[out.length - 1] !== l.name) out.push(l.name);
+    }
+    return out;
   }
 
   /** Comprimento de uma rota (laneIds) a partir de s na primeira faixa. */

@@ -1,0 +1,5 @@
+Coloque aqui arquivos do jogo.
+
+davi.png  ->  foto (de preferência pixel art, quadrada) do Davi de capacete, exibida na moldura do menu principal.
+              Sem esse arquivo o menu mostra um avatar desenhado em canvas.
+              (Em automação a sondagem é pulada; abra index.html?foto=1 para forçar.)

@@ -1,112 +1,149 @@
-// UI PROVISÓRIA E DESCARTÁVEL — só para jogar ponta a ponta agora.
-// Será substituída inteira pelo agente de UI. Regras: NENHUMA lógica de jogo aqui;
-// a UI só LÊ ctx.state / escuta eventos e EMITE pedidos (EV.REQ_*).
+// UI do jogo (menu, HUD, pausa, fim, recordes, toque). Contrato: só LÊ ctx.state, escuta eventos e EMITE EV.REQ_*.
+// Único escritor de state.settings (persistido em localStorage; emite EV.SETTINGS_CHANGE).
+// O CSS fica em index.html (estrutura e estilo). Os módulos desta pasta:
+//   dom.js (helpers) · storage.js (opções/recordes) · texts.js (copy pt-BR) · pixel.js (pixel art em canvas)
+//   menu.js · panels.js (Como jogar/Opções) · hud.js + minimap.js · end.js (telas de fim) · touch.js · demo.js (?uidemo=1)
 import { EV } from '../core/events.js';
 import { MODE } from '../core/state.js';
-import { MODES, ROUTES } from '../config.js';
-
-const CSS = `
-#ui-root{font-family:"Segoe UI",Arial,sans-serif;color:#fff}
-.ui-panel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(10,20,30,.35)}
-.ui-card{background:rgba(20,28,36,.92);border-radius:12px;padding:22px 28px;max-width:560px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
-.ui-card h1{margin:0 0 4px;font-size:30px;letter-spacing:.5px}.ui-card p{margin:4px 0 12px;opacity:.85;font-size:14px}
-.ui-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-.ui-btn{cursor:pointer;border:2px solid #ffd21f;background:transparent;color:#fff;padding:8px 12px;border-radius:8px;font-size:14px}
-.ui-btn.sel,.ui-btn:hover{background:#ffd21f;color:#111}
-.ui-go{background:#ffd21f;color:#111;font-weight:bold;font-size:17px;padding:10px 18px}
-.ui-small{font-size:12px;opacity:.75}
-.ui-hud{position:absolute;pointer-events:none;text-shadow:0 1px 3px #000;font-weight:600}
-`;
+import { el, clamp, rnd } from './dom.js';
+import { loadSettings, saveSettings, loadSelection, submitRecord } from './storage.js';
+import { Menu } from './menu.js';
+import { Hud } from './hud.js';
+import { buildHowTo, buildOptions } from './panels.js';
+import { buildEndModel, renderEnd } from './end.js';
+import { TouchControls, isTouchDevice } from './touch.js';
+import { Demo, demoRequested } from './demo.js';
+import { TOASTS, PEAK_SUB, PAUSE_QUIPS } from './texts.js';
 
 export default {
   name: 'ui',
+
   init(ctx) {
-    const root = document.getElementById('ui-root');
-    const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
-    this.ctx = ctx; this.root = root;
-    this.sel = { mode: 'davi', route: 'casa-stj' };
+    const st = ctx.state, ev = ctx.events;
+    this.ctx = ctx;
+    let layer = document.getElementById('ui-layer') || document.getElementById('ui-root');
+    if (!layer) { layer = el('div', '', document.body); layer.id = 'ui-layer'; }
+    this.layer = layer;
+    layer.classList.add('ui-layer');
 
-    // ---- menu
-    const menu = el('div', 'ui-panel', root);
-    const card = el('div', 'ui-card', menu);
-    el('h1', '', card).textContent = 'Davi, the Driver';
-    el('p', '', card).textContent = 'Kwid branco, 4 batidas no ano — e a culpa é sempre dos outros. Chegue sem bater, sem multa, no menor tempo.';
-    el('div', 'ui-small', card).textContent = 'MODO';
-    const modeRow = el('div', 'ui-row', card);
-    const modeDesc = el('p', 'ui-small', card);
-    const modeBtns = {};
-    for (const m of Object.values(MODES)) {
-      const b = el('button', 'ui-btn', modeRow); b.textContent = m.label; b.dataset.mode = m.id;
-      b.onclick = () => { this.sel.mode = m.id; refresh(); };
-      modeBtns[m.id] = b;
-    }
-    el('div', 'ui-small', card).textContent = 'ROTA';
-    const routeRow = el('div', 'ui-row', card);
-    const routeBtns = {};
-    for (const r of Object.values(ROUTES)) {
-      const b = el('button', 'ui-btn', routeRow); b.textContent = `${r.label} (${r.timeOfDay === 'manha' ? 'manhã' : 'fim de tarde'})`; b.dataset.route = r.id;
-      b.onclick = () => { this.sel.route = r.id; refresh(); };
-      routeBtns[r.id] = b;
-    }
-    const go = el('button', 'ui-btn ui-go', el('div', 'ui-row', card)); go.textContent = 'Iniciar viagem'; go.id = 'ui-start';
-    go.onclick = () => ctx.events.emit(EV.REQ_START, { routeId: this.sel.route, mode: this.sel.mode });
-    el('p', 'ui-small', card).textContent = 'WASD/setas: dirigir · Espaço: freio de mão · H: buzina · R: respirar · X: xingar · P/Esc: pausa';
-    const refresh = () => {
-      for (const k in modeBtns) modeBtns[k].classList.toggle('sel', k === this.sel.mode);
-      for (const k in routeBtns) routeBtns[k].classList.toggle('sel', k === this.sel.route);
-      modeDesc.textContent = MODES[this.sel.mode].description;
+    // ---- opções (carrega do storage, aplica em state.settings e avisa os outros módulos)
+    loadSettings(st.settings);
+    st.settings.quality = 'leve';
+    this.applySetting = (key, val) => {
+      if (key === 'volume') val = clamp(+val || 0, 0, 1);
+      if (key === 'quality' && val !== 'leve') return; // 'hd' ainda não existe
+      st.settings[key] = val;
+      saveSettings(st.settings);
+      ev.emit(EV.SETTINGS_CHANGE, { ...st.settings });
     };
-    refresh();
-    this.menu = menu;
+    ev.emit(EV.SETTINGS_CHANGE, { ...st.settings });
 
-    // ---- HUD (cantos livres: tempo embaixo-esq., velocidade embaixo-dir.)
-    this.hudTL = el('div', 'ui-hud', root); Object.assign(this.hudTL.style, { left: '14px', top: '12px', fontSize: '15px' });
-    this.hudBL = el('div', 'ui-hud', root); Object.assign(this.hudBL.style, { left: '16px', bottom: '14px', fontSize: '26px' });
-    this.hudBR = el('div', 'ui-hud', root); Object.assign(this.hudBR.style, { right: '18px', bottom: '14px', fontSize: '30px', textAlign: 'right' });
+    // ---- telas
+    this.sel = loadSelection({ mode: 'davi', route: 'casa-stj' });
+    if (!['davi', 'carona', 'perigo'].includes(this.sel.mode)) this.sel.mode = 'davi';
+    if (!['casa-stj', 'stj-casa'].includes(this.sel.route)) this.sel.route = 'casa-stj';
 
-    // ---- pausa / fim
-    this.pause = el('div', 'ui-panel', root);
-    const pc = el('div', 'ui-card', this.pause);
-    el('h1', '', pc).textContent = 'Pausado';
-    const pr = el('div', 'ui-row', pc);
-    const b1 = el('button', 'ui-btn', pr); b1.textContent = 'Continuar'; b1.onclick = () => ctx.events.emit(EV.REQ_RESUME, {});
-    const b2 = el('button', 'ui-btn', pr); b2.textContent = 'Desistir (menu)'; b2.onclick = () => ctx.events.emit(EV.REQ_MENU, {});
-    this.fin = el('div', 'ui-panel', root);
-    const fc = el('div', 'ui-card', this.fin);
-    this.finTitle = el('h1', '', fc); this.finText = el('p', '', fc);
-    const fr = el('div', 'ui-row', fc);
-    const b3 = el('button', 'ui-btn ui-go', fr); b3.textContent = 'De novo'; b3.id = 'ui-again';
-    b3.onclick = () => ctx.events.emit(EV.REQ_START, { routeId: ctx.state.trip.routeId, mode: ctx.state.trip.mode });
-    const b4 = el('button', 'ui-btn', fr); b4.textContent = 'Menu'; b4.onclick = () => ctx.events.emit(EV.REQ_MENU, {});
+    this.howto = buildHowTo(layer);
+    this.options = buildOptions(layer, st.settings, this.applySetting);
+    this.modals = [this.howto, this.options];
+    const start = (routeId, mode) => ev.emit(EV.REQ_START, { routeId, mode });
+    this.menu = new Menu(layer, ctx, this.sel, { start, howto: () => this.howto.open(), options: () => { this.options.sync(); this.options.open(); } });
+    this.hud = new Hud(layer, ctx);
+    this._buildPause(layer);
+    this.end = el('div', 'screen end', layer); this.end.dataset.testid = 'end';
+    this.touch = isTouchDevice() ? new TouchControls(layer, ctx, () => ev.emit(EV.REQ_PAUSE, {})) : null;
+    layer.classList.toggle('is-touch', !!this.touch);
+    this.demo = demoRequested() ? new Demo(this, ctx) : null;
 
-    ctx.events.on(EV.STATE_CHANGE, () => this.show());
-    ctx.events.on(EV.TRIP_FINISH, (f) => {
-      const t = fmt(f.time);
-      this.finTitle.textContent = f.reason === 'chegou' ? 'Chegou!' : f.reason === 'bateu' ? 'Bateu! (a culpa foi do outro, claro)' : 'Desistiu';
-      this.finText.textContent = `${ctx.state.trip.label} — tempo ${t}. Multas: R$ ${ctx.state.fineTotal.toFixed(2)}.`;
+    // ---- teclado da UI (captura: roda antes do Input do núcleo)
+    window.addEventListener('keydown', (e) => {
+      const open = this.modals.find((m) => m.isOpen);
+      if (open && e.code === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); open.close(); return; }
+      if (e.code === 'Enter' && st.mode === MODE.MENU && !open && !(e.target && /^(BUTTON|INPUT|A)$/.test(e.target.tagName))) {
+        e.preventDefault(); start(this.sel.route, this.sel.mode);
+      }
+    }, true);
+
+    // ---- eventos
+    this.lastCol = null;
+    ev.on(EV.STATE_CHANGE, (p) => {
+      if (p.to === MODE.MENU) st.result = null;
+      this.show();
     });
+    ev.on(EV.TRIP_START, () => {
+      this.hud.reset(); this.lastCol = null; st.result = null; // resultado antigo nunca vaza para a viagem nova
+      this.howto.close(); this.options.close();
+    });
+    ev.on(EV.COLLISION, (c) => { if (c && c.a === 'player') this.lastCol = c; });
+    ev.on(EV.TRIP_FINISH, (f) => this._onFinish(f));
+    ev.on(EV.FINE, (f) => this.hud.fine(f));
+    ev.on(EV.SAY, (p) => this.hud.say(p));
+    ev.on(EV.PASSENGER_SAY, (p) => {
+      const i = p && p.intensity != null ? +p.intensity : 0.3;
+      this.hud.say({ who: st.trip.passenger || 'davi', role: 'passenger', text: p && p.text, tone: i > 0.66 ? 'panic' : i > 0.33 ? 'stress' : 'anx', ttl: p && p.ttl });
+    });
+    const pickT = rnd;
+    ev.on(EV.OVERTAKEN, () => { const [a, b] = pickT(TOASTS.overtaken); this.hud.toast('info', a, b, 2.6, 'overtaken'); });
+    ev.on(EV.CUT_OFF, () => { const [a, b] = pickT(TOASTS.cutOff); this.hud.toast('warn', a, b, 2.8, 'cutoff'); });
+    ev.on(EV.HONKED_AT, () => { const [a, b] = pickT(TOASTS.honkedAt); this.hud.toast('info', a, b, 2.4, 'honked'); });
+    ev.on(EV.NEAR_MISS, () => { const [a, b] = pickT(TOASTS.nearMiss); this.hud.toast('warn', a, b, 2.2, 'near'); });
+    ev.on(EV.MOOD_PEAK, (p) => {
+      const who = p && p.who === 'dono' ? 'dono' : 'davi';
+      this.hud.toast('peak', p && p.bar === 'stress' ? TOASTS.peakStress : TOASTS.peakAnx, PEAK_SUB[who], 2.6, 'peak' + (p && p.bar));
+    });
+    ev.on(EV.HORN, () => this.hud.flash('horn'));
+    ev.on(EV.BREATHE, () => this.hud.flash('breathe'));
+    ev.on(EV.CURSE, () => this.hud.flash('curse'));
+
     this.show();
   },
+
+  _buildPause(layer) {
+    const ev = this.ctx.events;
+    const root = this.pause = el('div', 'screen pause', layer); root.dataset.testid = 'pause';
+    const card = el('div', 'pause-card', root);
+    el('h2', 'pause-title', card, 'PAUSADO');
+    this.pauseQuip = el('p', 'pause-quip', card, PAUSE_QUIPS[0]);
+    this.pauseLabel = el('div', 'pause-label', card);
+    const col = el('div', 'pause-btns', card);
+    const mk = (txt, tid, fn, cls) => { const b = el('button', 'btn ' + (cls || ''), col, txt); b.dataset.testid = tid; b.onclick = fn; return b; };
+    this.btnResume = mk('CONTINUAR', 'resume', () => ev.emit(EV.REQ_RESUME, {}), 'go');
+    mk('REINICIAR VIAGEM', 'restart', () => ev.emit(EV.REQ_START, { routeId: this.ctx.state.trip.routeId, mode: this.ctx.state.trip.mode }));
+    mk('OPÇÕES', 'pause-options', () => { this.options.sync(); this.options.open(); });
+    mk('COMO JOGAR', 'pause-howto', () => this.howto.open());
+    mk('VOLTAR AO MENU', 'pause-menu', () => ev.emit(EV.REQ_MENU, {}));
+  },
+
+  _onFinish(f) {
+    const ctx = this.ctx, st = ctx.state;
+    const m = buildEndModel(ctx, f, this.lastCol, null);
+    if (f.reason === 'chegou') m.rec = submitRecord(st.trip.mode, st.trip.routeId, m.points, m.time);
+    this.endBtn = renderEnd(this.end, m, {
+      again: () => ctx.events.emit(EV.REQ_START, { routeId: st.trip.routeId, mode: st.trip.mode }),
+      menu: () => ctx.events.emit(EV.REQ_MENU, {}),
+    });
+    this.menu.refresh();
+  },
+
   show() {
     const m = this.ctx.state.mode;
-    this.menu.style.display = m === MODE.MENU ? 'flex' : 'none';
-    this.pause.style.display = m === MODE.PAUSED ? 'flex' : 'none';
-    this.fin.style.display = m === MODE.FINISHED ? 'flex' : 'none';
-    const hud = m === MODE.PLAYING || m === MODE.PAUSED;
-    this.hudTL.style.display = this.hudBL.style.display = this.hudBR.style.display = hud ? 'block' : 'none';
+    const playing = m === MODE.PLAYING, paused = m === MODE.PAUSED;
+    this.layer.dataset.mode = m;
+    this.menu.setVisible(m === MODE.MENU);
+    this.hud.setVisible(playing || paused);
+    this.pause.style.display = paused ? '' : 'none';
+    this.end.style.display = m === MODE.FINISHED ? '' : 'none';
+    if (this.touch) this.touch.setVisible(playing);
+    if (paused) { this.pauseQuip.textContent = rnd(PAUSE_QUIPS); this.pauseLabel.textContent = this.ctx.state.trip.label; this.btnResume.focus({ preventScroll: true }); }
+    if (m === MODE.FINISHED && this.endBtn) this.endBtn.focus({ preventScroll: true });
+    if (m === MODE.MENU) this.menu.go.focus({ preventScroll: true });
   },
+
   frame(dt, alpha, ctx) {
-    const st = ctx.state;
-    if (st.mode !== MODE.PLAYING) return;
-    this._acc = (this._acc || 0) + dt;
-    if (this._acc < 0.1) return; // atualiza texto a 10 Hz
-    this._acc = 0;
-    const p = st.player, tr = st.trip;
-    this.hudTL.textContent = `${tr.label} · ${p.roadName || 'fora da via'} · destino a ${(tr.routeDistLeft || tr.distToDest).toFixed(0)} m`;
-    this.hudBL.textContent = fmt(tr.elapsed);
-    this.hudBR.innerHTML = `${p.speedKmh.toFixed(0)} km/h<br><span style="font-size:15px">limite ${p.speedLimitKmh || '—'} km/h</span>`;
+    const st = ctx.state, m = st.mode;
+    if (m !== MODE.PLAYING && m !== MODE.PAUSED) return;
+    if (this.demo) this.demo.frame(Math.min(dt, 0.1), st);
+    this.hud.update(Math.min(dt, 0.1), st, m === MODE.PLAYING);
+    if (m === MODE.PLAYING) this.hud.frameMinimap(dt, st);
   },
 };
-
-function el(tag, cls, parent) { const e = document.createElement(tag); if (cls) e.className = cls; parent.appendChild(e); return e; }
-function fmt(t) { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; }
