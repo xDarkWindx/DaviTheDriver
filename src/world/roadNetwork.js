@@ -10,7 +10,8 @@
 //               pts: Float64Array [x0,z0,x1,z1...], cum: Float64Array, length, limitKmh, layer,
 //               next: [laneId], prev: [laneId], isConnector, turn ('straight'|'left'|'right'|'uturn'|'merge'|null),
 //               signal: { signalId, group } | null  (só em faixas de via que terminam num semáforo; parar em lane.length),
-//               crosswalks: [{ id, s }]  (s ao longo da faixa), name }
+//               crosswalks: [{ id, s }]  (s ao longo da faixa), name,
+//               kind: 'normal' | 'bus' (faixa exclusiva de ônibus), busStops: [{ id, s }] }
 //  Seguir o trânsito = andar por lane.pts e, no fim, escolher um de lane.next.
 
 import { makeRng } from '../core/math.js';
@@ -191,7 +192,10 @@ export class RoadNetwork {
     this.roundabouts = [];
     this.signals = [];        // ver _buildSignals
     this.crosswalks = [];
-    this.radarSpots = [];
+    this.radarSpots = [];     // só type 'speed' (compat.)
+    this.enforcementSpots = []; // todos os tipos: 'speed' | 'redLight' | 'busLane'
+    this.busStops = [];
+    this.agentHideouts = [];
     this.spawnPoints = [];
     this.gradeSeparations = [];
     this.edgeNodes = [];
@@ -257,6 +261,7 @@ export class RoadNetwork {
     this._buildSignals();
     this._buildCrosswalks();
     this._buildRadars();
+    this._buildBusAndHideouts();
     this._buildGradeSeparations();
     this._buildSpawns();
     this._buildGrids();
@@ -278,6 +283,7 @@ export class RoadNetwork {
       oneWay, edgeR: oneWay ? lanesF * laneW / 2 : median / 2 + lanesF * laneW,
       edgeL: oneWay ? -lanesF * laneW / 2 : -(median / 2 + lanesB * laneW),
       laneIdsF: [], laneIdsB: [], roundaboutId: rd.roundaboutId || null,
+      busLane: rd.busLane === undefined ? null : rd.busLane,
     };
     this.segments.set(seg.id, seg);
     this.nodes.get(seg.from).segs.push(seg.id);
@@ -297,7 +303,7 @@ export class RoadNetwork {
   _newLane(o) {
     const lane = Object.assign({
       id: this.lanes.length, segId: null, nodeId: null, dir: 0, index: 0, next: [], prev: [], isConnector: false,
-      turn: null, signal: null, crosswalks: [], layer: 0, name: '',
+      turn: null, signal: null, crosswalks: [], layer: 0, name: '', kind: 'normal', busStops: [],
     }, o);
     lane.cum = cumLengths(lane.pts);
     lane.length = lane.cum[lane.cum.length - 1];
@@ -321,8 +327,9 @@ export class RoadNetwork {
           if (t0 > maxTrim) t0 = maxTrim;
           if (t1 > maxTrim) t1 = maxTrim;
           pts = subPolyline(pts, cum, t0, L - t1);
+          const bus = i === 0 && seg.busLane !== null && (seg.busLane === 0 || seg.busLane === dir) && n > 1;
           const lane = this._newLane({ segId: seg.id, dir, index: i, pts, limitKmh: seg.limitKmh, layer: seg.layer, name: seg.name,
-            startNode: startNode.id, endNode: endNode.id, trimStart: t0 });
+            startNode: startNode.id, endNode: endNode.id, trimStart: t0, kind: bus ? 'bus' : 'normal' });
           (dir > 0 ? seg.laneIdsF : seg.laneIdsB).push(lane.id);
         }
       }
@@ -514,8 +521,10 @@ export class RoadNetwork {
       for (const dir of dirs) {
         const ids = dir > 0 ? seg.laneIdsF : seg.laneIdsB;
         if (!ids.length) continue;
-        this.radarSpots.push({
-          id: this.radarSpots.length, segId: seg.id, dir, s: pr.s, x: T.x, z: T.z,
+        const type = r.type || 'speed';
+        if (type === 'busLane' && !ids.some((id) => this.lanes[id].kind === 'bus')) continue;
+        this.enforcementSpots.push({
+          id: this.enforcementSpots.length, type, segId: seg.id, dir, s: pr.s, x: T.x, z: T.z,
           heading: Math.atan2(T.tx * dir, T.tz * dir), limitKmh: seg.limitKmh,
           laneIds: ids.slice(), laneS: ids.map((id) => this.projectOnLane(this.lanes[id], T.x, T.z)),
           // poste do lado direito do sentido coberto
@@ -524,6 +533,49 @@ export class RoadNetwork {
         });
       }
     });
+    // candidatos automáticos de avanço de sinal: cada aproximação de semáforo
+    for (const sig of this.signals) for (const ap of sig.approaches) {
+      this.enforcementSpots.push({ id: this.enforcementSpots.length, type: 'redLight', segId: ap.segId, signalId: sig.id, group: ap.group,
+        dir: this.lanes[ap.laneIds[0]].dir, s: null, x: ap.stopX, z: ap.stopZ, heading: ap.heading, limitKmh: this.segments.get(ap.segId).limitKmh,
+        laneIds: ap.laneIds.slice(), laneS: ap.laneIds.map((id) => this.lanes[id].length), poleX: ap.poleX, poleZ: ap.poleZ });
+    }
+    this.radarSpots = this.enforcementSpots.filter((e) => e.type === 'speed');
+  }
+
+  _buildBusAndHideouts() {
+    const T = { x: 0, z: 0, tx: 0, tz: 0 };
+    for (const b of this.def.busStops || []) {
+      const seg = this.segments.get(b.seg);
+      const pr = this.projectOnSegment(seg, b.at[0], b.at[1]);
+      samplePts(seg.pts, seg.cum, pr.s, T);
+      for (const dir of b.dir === 0 ? [1, -1] : [b.dir]) {
+        const ids = dir > 0 ? seg.laneIdsF : seg.laneIdsB;
+        if (!ids.length) continue;
+        const lane = this.lanes[ids[0]];
+        const ls = this.projectOnLane(lane, T.x, T.z);
+        const off = (dir > 0 ? seg.edgeR : -seg.edgeL) + 2.2; // calçada à direita do sentido
+        const stop = { id: this.busStops.length, name: b.name || '', segId: seg.id, dir, laneId: lane.id, s: ls, x: 0, z: 0,
+          heading: Math.atan2(T.tx * dir, T.tz * dir), onBusLane: lane.kind === 'bus',
+          shelterX: T.x + (-T.tz * dir) * off, shelterZ: T.z + (T.tx * dir) * off };
+        const o = this.sampleLane(lane, ls, {}); stop.x = o.x; stop.z = o.z;
+        this.busStops.push(stop);
+        lane.busStops.push({ id: stop.id, s: ls });
+      }
+    }
+    for (const h of this.def.agentHideouts || []) {
+      const seg = this.segments.get(h.seg);
+      const pr = this.projectOnSegment(seg, h.at[0], h.at[1]);
+      samplePts(seg.pts, seg.cum, pr.s, T);
+      const off = h.side > 0 ? seg.edgeR + 9 : seg.edgeL - 9;
+      const x = T.x + (-T.tz) * off, z = T.z + T.tx * off;
+      const range = h.range || 60;
+      this.agentHideouts.push({
+        id: this.agentHideouts.length, x, z, cover: h.cover || 'arvore', segId: seg.id, dir: h.dir || 0,
+        facing: Math.atan2(T.x - x, T.z - z),     // heading do agente olhando para a via
+        roadX: T.x, roadZ: T.z, s: pr.s, s0: Math.max(0, pr.s - range), s1: Math.min(seg.length, pr.s + range),
+        laneIds: (h.dir === 1 ? seg.laneIdsF : h.dir === -1 ? seg.laneIdsB : [...seg.laneIdsF, ...seg.laneIdsB]).slice(),
+      });
+    }
   }
 
   _buildGradeSeparations() {
@@ -636,7 +688,16 @@ export class RoadNetwork {
     out.dist = Math.sqrt(best);
     out.lateral = (x - out.x) * (-dz / L) + (z - out.z) * (dx / L);
     out.heading = Math.atan2(dx, dz);
+    out.kind = lane.kind;
     return out;
+  }
+
+  /** Barato: a posição (com sentido `heading`) está sobre uma faixa exclusiva de ônibus? */
+  isBusLaneAt(x, z, heading = NaN) {
+    const r = this.nearestLane(x, z, this._tmpBus || (this._tmpBus = {}), heading, 1.2, false);
+    if (!r || r.lane.kind !== 'bus') return false;
+    const seg = this.segments.get(r.lane.segId);
+    return Math.abs(r.lateral) <= seg.laneW * 0.5;
   }
 
   /**

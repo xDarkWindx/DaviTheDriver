@@ -47,6 +47,10 @@ export function createState() {
       roadName: '',             // nome da via mais próxima
       speedLimitKmh: 0,         // limite da via/faixa mais próxima
       laneId: -1,               // faixa mais próxima no sentido do carro (-1 = nenhuma)
+      laneKind: null,           // 'normal' | 'bus' | null
+      onBusLane: false,         // true = centro do carro sobre faixa exclusiva de ônibus
+      inJunction: false,        // dentro de cruzamento/rotatória
+      braking: false, reversing: false, turbo: 0, vehicleId: 'kwid',
       collisions: 0,            // contador de colisões estáticas (núcleo)
     },
 

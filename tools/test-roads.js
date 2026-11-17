@@ -118,5 +118,22 @@ test('walker percorre 3 km sem travar', () => {
   assert.ok(d > 200);
 });
 
+test('faixas de ônibus, pontos, fiscalização e esconderijos', () => {
+  const bus = net.lanes.filter((l) => l.kind === 'bus');
+  const segs = new Set(bus.map((l) => l.segId));
+  assert.ok(segs.has('s3_scs') && segs.has('eixo_s1_b'), 'faixas de ônibus esperadas');
+  for (const l of bus) assert.equal(l.index, 0, 'faixa de ônibus deve ser a da direita');
+  // Eixo Sul, faixa da direita (z ~ 43.5) = ônibus; faixa da esquerda (z ~ 36.5) não
+  assert.ok(net.isBusLaneAt(-600, 43.5, Math.PI / 2), 'Eixo faixa da direita');
+  assert.ok(!net.isBusLaneAt(-600, 36.5, Math.PI / 2), 'Eixo faixa da esquerda');
+  assert.equal(net.nearestLane(-600, 43.5, {}, Math.PI / 2).kind, 'bus');
+  assert.ok(net.busStops.length >= 6 && net.busStops.every((b) => Number.isFinite(b.shelterX)));
+  const types = new Set(net.enforcementSpots.map((e) => e.type));
+  assert.ok(types.has('speed') && types.has('redLight') && types.has('busLane'), [...types].join(','));
+  assert.ok(net.agentHideouts.length >= 10);
+  for (const h of net.agentHideouts) assert.ok(net.clearance(h.x, h.z) > 2, `esconderijo ${h.id} em cima da via`);
+  console.log(`        ${bus.length} faixas de ônibus, ${net.busStops.length} pontos, ${net.enforcementSpots.length} pontos de fiscalização, ${net.agentHideouts.length} esconderijos`);
+});
+
 console.log(fails ? `\n${fails} falha(s)` : '\ntudo ok');
 process.exit(fails ? 1 : 0);

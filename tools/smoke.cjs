@@ -82,6 +82,24 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   results.push({ mode: 'perigo', moved: movedP, kmh: p2.kmh, vehicle: p2.vehicle, ok: movedP > 4 && p2.kmh > 10 && p2.vehicle === 'cactus' && p2.driver === 'davi' && p2.passenger === 'dono' });
   console.log('perigo:', JSON.stringify({ moved: movedP.toFixed(1), kmh: p2.kmh.toFixed(0), driver: p2.driver, passenger: p2.passenger }));
 
+  // 3b) Teste determinístico (independe do FPS do headless): 4 s de simulação com acelerador virtual
+  const det = await page.evaluate(() => {
+    const c = window.__davi, out = {};
+    for (const mode of ['davi', 'carona', 'perigo']) {
+      c.game.startTrip('casa-stj', mode);
+      const x0 = c.state.player.x, z0 = c.state.player.z;
+      c.input.setVirtual('up', true); c.game.advance(4); c.input.setVirtual('up', false);
+      out[mode] = { dist: Math.hypot(c.state.player.x - x0, c.state.player.z - z0), kmh: c.state.player.speedKmh, state: c.state.mode };
+    }
+    return out;
+  });
+  console.log('determinístico 4 s:', JSON.stringify(det));
+  results.push({ mode: 'det-davi', ok: det.davi.dist > 25 && det.davi.state === 'PLAYING' });
+  results.push({ mode: 'det-cactus>kwid', ok: det.carona.dist > det.davi.dist && det.perigo.dist > det.davi.dist });
+  // FPS aproximado no headless (renderização por software)
+  const fps = await page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else res(n / ((performance.now() - t0) / 1000)); }; requestAnimationFrame(f); }));
+  console.log(`FPS headless (SwiftShader, só referência): ${fps.toFixed(1)}`);
+
   // 4) Percurso automático pela rota do GPS até a chegada (sim síncrona), checa 'chegou'
   const auto = await page.evaluate(() => {
     const c = window.__davi; c.game.startTrip('casa-stj', 'davi');

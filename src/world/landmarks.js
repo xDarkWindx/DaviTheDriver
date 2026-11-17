@@ -136,6 +136,23 @@ function casa(b) {
   b.box(6, 3, 5, CONCRETE, 10, P + 6 * F + 2, 0);
 }
 
+function memorialJK(b) {
+  // pedestal branco + coluna curva com a estátua de JK no topo
+  b.box(40, 4, 26, WHITE, 0, 2, 0);
+  b.box(36, 0.6, 22, 0xd8d3c6, 0, 4.3, 0);
+  b.cyl(1.4, 2.2, 22, 6, WHITE, 12, 15, 0, 0, 0, -0.12);
+  b.cyl(1.6, 1.6, 4, 6, 0x6f6a5e, 13.3, 27, 0, 0, 0, -0.12);    // estátua (bronze escurecido)
+  const half = new THREE.SphereGeometry(7, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  b.add(half, WHITE, -8, 4.5, 0, 0, 0, 0, 1, 0.6, 1); half.dispose();
+}
+
+function catedralMilitar(b) {
+  // Catedral Militar Rainha da Paz: "tenda" branca triangular
+  b.add(new THREE.CylinderGeometry(0, 16, 20, 3, 1), WHITE, 0, 10, 0, 0, Math.PI / 6, 0);
+  b.box(2, 8, 2, CONCRETE, 18, 4, 8);
+  b.box(0.4, 4, 0.4, 0xc9a85a, 0, 22, 0); b.box(2, 0.4, 0.4, 0xc9a85a, 0, 23, 0);
+}
+
 /**
  * Constrói marcos. Retorna { list: [{ id, name, x, z }], meshes }.
  */
@@ -157,13 +174,15 @@ export function buildLandmarks(scene, colliders, material) {
     }
   };
   place('torre', 'Torre de TV', -330, 0, 0.3, torreTV, [{ x: 0, z: 0, r: 8.5 }]);
-  place('estadio', 'Estádio Mané Garrincha', -650, -235, 0, estadio, [{ x: 0, z: 0, hx: 80, hz: 64 }]);
+  place('estadio', 'Estádio Mané Garrincha', -620, -240, 0, estadio, [{ x: 0, z: 0, hx: 80, hz: 64 }]);
   place('rodoviaria', 'Rodoviária do Plano Piloto', 62, 0, 0, rodoviaria, [{ x: 0, z: 0, hx: 33, hz: 20 }]);
   place('catedral', 'Catedral de Brasília', 300, 108, 0, catedral, [{ x: 0, z: 0, r: 18 }, { x: 26, z: 0, hx: 1.5, hz: 7 }]);
   place('museu', 'Museu Nacional', 205, 112, 0, museu, [{ x: 0, z: 0, r: 18 }]);
   place('teatro', 'Teatro Nacional', 200, -112, 0, teatro, [{ x: 0, z: 0, hx: 28, hz: 28 }]);
   place('congresso', 'Congresso Nacional', 960, 0, Math.PI / 2, congresso, [{ x: 0, z: 0, hx: 75, hz: 30 }]);
   place('stj', 'Superior Tribunal de Justiça', 650, 330, 0, stj, [{ x: 0, z: 0, hx: 85, hz: 23 }, { x: 40, z: 14, hx: 30, hz: 10 }]);
-  place('casa', 'Casa do Davi', -1560, 318, 0, casa, [{ x: 0, z: 0, hx: 24.5, hz: 6.5 }]);
+  place('memorial', 'Memorial JK', -1130, -110, 0, memorialJK, [{ x: 0, z: 0, hx: 20, hz: 13 }]);
+  place('catedralMilitar', 'Catedral Militar Rainha da Paz', -1600, -100, 0, catedralMilitar, [{ x: 0, z: 0, r: 13 }]);
+  place('casa', 'QRSW 2 — Sudoeste', -1390, 166, 0, casa, [{ x: 0, z: 0, hx: 24.5, hz: 6.5 }]);
   return { list, meshes };
 }

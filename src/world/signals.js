@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { EV } from '../core/events.js';
 import { makeRng } from '../core/math.js';
-import { makeMaterial } from '../render/materials.js';
 
 export const SIGNAL_TIMING = { green: 13, yellow: 3, allRed: 1.5, pedWalk: 9 };
 
@@ -106,7 +105,7 @@ export class SignalController {
     scene.add(mesh);
     this.visual = { mesh, lamps };
     this._dirty = true;
-    void quality;
+    void quality; // reservado: LOD de semáforos por perfil
   }
 
   /** Atualiza cores das lâmpadas (só quando alguma fase mudou). */
@@ -124,4 +123,3 @@ export class SignalController {
   }
 }
 
-void makeMaterial;

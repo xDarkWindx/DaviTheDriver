@@ -103,7 +103,7 @@ export function makeSignAtlas(entries, W = 1024, anisotropy = 4) {
   const uv = {}, aspect = {};
   for (const { e, x: px, y: py } of place) {
     g.fillStyle = e.bg; g.fillRect(px, py, e.w, e.h);
-    g.strokeStyle = e.fg; g.lineWidth = 4; g.strokeRect(px + 5, py + 5, e.w - 10, e.h - 10);
+    if (!e.noBorder) { g.strokeStyle = e.fg; g.lineWidth = 4; g.strokeRect(px + 5, py + 5, e.w - 10, e.h - 10); }
     g.fillStyle = e.fg; g.textAlign = 'center'; g.textBaseline = 'middle';
     const fs = Math.floor(e.h * (e.sub ? 0.38 : 0.5));
     g.font = `bold ${fs}px "Segoe UI", Arial, sans-serif`;

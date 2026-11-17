@@ -39,6 +39,7 @@ export class SceneryBuilder {
     const floors = opts.floors || 6, fh = opts.floorH || 3, pil = opts.pilotis ? 3.2 : 0;
     const H = floors * fh;
     const r = Math.hypot(w, d) / 2;
+    if (this.dens.buildings < 1 && this.rng() > this.dens.buildings) return false;
     if (this.net.clearance(x, z, r + 20) < r * 0.75 + (opts.minClear ?? 5)) return false;
     const col = makeOBB(x, z, w / 2, d / 2, rot);
     const n = this.colliders.query(x, z, r + 2, this._tmp);
@@ -185,40 +186,51 @@ export class SceneryBuilder {
 /** Monta todo o cenário. */
 export function buildScenery(sb) {
   const { net, mb, rng } = sb;
-  const LAWN = 0x93a453, LAWN2 = 0x8a9c4c;
+  const LAWN = 0x93a453, LAWN2 = 0x8a9c4c, PARK = 0x9fa85a;
 
-  // --- gramados: canteiro do Eixo e Esplanada; Parque da Cidade
-  mb.rect(-100, 0, Math.PI / 2, 840, 33.5, 0.02, LAWN);
-  mb.rect(820, 0, 0, 3, 3, 0.02, LAWN);
+  // --- gramados: canteiro central do Eixo, Esplanada, Parque da Cidade, Parque Urbano do Sudoeste
+  mb.rect(-350, 0, Math.PI / 2, 1100, 33.5, 0.02, LAWN);
   mb.rect(560, 72, Math.PI / 2, 200, 24, 0.02, LAWN2);
   mb.rect(560, -72, Math.PI / 2, 200, 24, 0.02, LAWN2);
-  mb.rect(-920, 210, Math.PI / 2, 260, 100, 0.015, 0xa3a85a);
+  mb.rect(-720, 440, 0, 300, 230, 0.015, PARK);
+  mb.rect(-1130, 560, 0, 60, 70, 0.015, PARK);
   // lago do Parque da Cidade
-  mb.disc(-880, 235, 32, 0.03, 0x4f86a0, 28);
-  mb.ring(-880, 235, 32, 34, 0.031, 0xcfc8b0, 28);
-  const lake = makeCircle(-880, 235, 32); lake.kind = 'water'; sb.colliders.add(lake);
+  mb.disc(-800, 420, 36, 0.03, 0x4f86a0, 28);
+  mb.ring(-800, 420, 36, 38, 0.031, 0xcfc8b0, 28);
+  const lake = makeCircle(-800, 420, 36); lake.kind = 'water'; sb.colliders.add(lake);
 
-  // --- Sudoeste: projeções de 6 andares sobre pilotis + comércio local
-  for (const zRow of [232, 272, 420, 462, 504]) {
-    for (let x = -1660; x <= -1330; x += 64) {
-      if (zRow < 300 && x > -1600 && x < -1520) continue; // perto da casa
-      sb.building(x + rng.range(-4, 4), zRow, 46 + rng() * 8, 12, 0, { pilotis: true, floors: 6 });
+  // --- Sudoeste: projeções de 6 andares sobre pilotis (QRSW 1/2 etc.) + comércio local (CCSW)
+  for (let z = 110; z <= 600; z += 44) {
+    for (let x = -1470; x <= -1090; x += 62) {
+      if (Math.abs(x + 1390) < 40 && Math.abs(z - 165) < 30) continue; // casa
+      sb.building(x + rng.range(-5, 5), z + rng.range(-4, 4), 44 + rng() * 8, 12, rng() < 0.8 ? 0 : Math.PI / 2, { pilotis: true, floors: 6, minClear: 6 });
     }
   }
-  for (let x = -1480; x <= -1350; x += 30) { // comércio local (2 andares, toldos coloridos)
-    for (const zz of [374, 326]) {
+  for (let x = -1330; x <= -1270; x += 30) { // CCSW (comércio local), toldos coloridos
+    for (const zz of [228, 268]) {
       if (sb.building(x, zz, 24, 10, 0, { floors: 2, floorH: 3.4, color: 0xe9e2d2, bandColor: rng.pick([0xc9443a, 0x2f7fb5, 0xe0a52a, 0x3f9b55]), minClear: 2.6 })) {
-        sb.inst.add('box', x, 3.2, zz + (zz > 350 ? -5.6 : 5.6), 0, 22, 0.25, 2.2, rng.pick([0xd8573e, 0x3b88c4, 0xe9b33b, 0x55a868]));
+        sb.inst.add('box', x, 3.2, zz - 5.6, 0, 22, 0.25, 2.2, rng.pick([0xd8573e, 0x3b88c4, 0xe9b33b, 0x55a868]));
       }
     }
   }
-  sb.forest(-1690, 190, -1300, 540, 160, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1 });
+  sb.forest(-1490, 90, -1080, 620, 260, { ipe_rosa: 2, ipe_amarelo: 2, mangueira: 4, cerrado: 1, ipe_branco: 1 });
+  sb.forest(-1170, 520, -1080, 620, 40, { ipe_amarelo: 2, ipe_roxo: 1, mangueira: 2 });     // Parque Urbano do Sudoeste
+  // Cruzeiro (a oeste da Jaqueiras): casas baixas
+  for (let i = 0; i < 70; i++) {
+    sb.building(-1760 + rng() * 220, 120 + rng() * 950, 12 + rng() * 8, 10 + rng() * 6, rng() < 0.5 ? 0 : Math.PI / 2,
+      { floors: 1, floorH: 3.2, color: rng.pick([0xf2e3c8, 0xe8c9a8, 0xd9e6e8, 0xf0d0c0]), bandColor: 0x6b5b4b, roof: 0xb4553a, minClear: 4 });
+  }
 
-  // --- Parque da Cidade (entre Sudoeste, EPIG, Eixo e W3)
-  sb.forest(-1180, 90, -650, 330, 420, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6 });
-  sb.forest(-1230, 400, -650, 640, 200, { cerrado: 5, ipe_amarelo: 1, ipe_roxo: 0.6 });
+  // --- Setor de Indústrias Gráficas (SIG): galpões baixos entre EPIG e Parque, perto do Eixo
+  for (let i = 0; i < 22; i++) {
+    sb.building(-960 + rng() * 380, 90 + rng() * 90, 26 + rng() * 20, 18 + rng() * 10, 0,
+      { floors: 2, floorH: 4, color: rng.pick([0xd8d5cc, 0xc9c4b8, 0xe2ded4]), bandColor: 0x7a8a96, roof: 0x9a9890, minClear: 5 });
+  }
 
-  // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2)
+  // --- Parque da Cidade (enorme, ao sul do Eixo, entre EPIG e W3)
+  sb.forest(-990, 190, -460, 800, 620, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6 });
+
+  // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2; além da L2)
   const superquadra = (x0, z0, x1, z1) => {
     for (let x = x0 + 30; x < x1 - 20; x += 62) {
       for (let z = z0 + 26; z < z1 - 14; z += 48) {
@@ -228,14 +240,15 @@ export function buildScenery(sb) {
     }
     sb.forest(x0, z0, x1, z1, ((x1 - x0) * (z1 - z0)) / 900, { mangueira: 4, ipe_rosa: 1.5, ipe_amarelo: 1.5, ipe_branco: 0.6, cerrado: 1 });
   };
-  superquadra(-570, 395, -30, 680);
-  superquadra(-570, 720, -30, 1150);
+  superquadra(-400, 300, -30, 680);
+  superquadra(-400, 720, -30, 1150);
   superquadra(30, 300, 470, 680);
   superquadra(120, 805, 470, 1150);
   superquadra(530, 520, 1150, 680);
   superquadra(530, 730, 1150, 1150);
+  superquadra(-1000, 820, -460, 1150);
 
-  // --- Setores comerciais/hoteleiros (prédios altos de vidro) perto da Rodoviária
+  // --- Setores comerciais/autarquias (prédios altos de vidro)
   const setor = (x0, z0, x1, z1, n) => {
     for (let i = 0; i < n * 3 && n > 0; i++) {
       const x = x0 + rng() * (x1 - x0), z = z0 + rng() * (z1 - z0);
@@ -244,23 +257,24 @@ export function buildScenery(sb) {
         color: rng.pick(OFFICE_COLORS), bandColor: rng.pick(OFFICE_GLASS), roof: 0xb9b4a8, minClear: 6 })) n--;
     }
   };
-  setor(-560, 70, -60, 330, 26);
-  setor(-460, -340, -60, -70, 22);
+  setor(-400, 70, -40, 200, 14);    // Setor Comercial Sul (SCS) / Hoteleiro Sul
+  setor(-400, 250, -40, 290, 4);
+  setor(130, 175, 470, 240, 8);     // SAUS
+  setor(530, 175, 770, 240, 5);
+  setor(-460, -340, -60, -70, 22);  // Setor Comercial/Hoteleiro Norte
   setor(60, -340, 330, -170, 10);
   setor(-560, -700, -60, -380, 18);
+  setor(860, 300, 1150, 420, 6);    // SAFS: TST, TSE e vizinhos
+  setor(840, 60, 1000, 130, 3);
 
   // --- Esplanada dos Ministérios: duas fileiras de blocos idênticos (eixo longo N-S)
   for (let i = 0; i < 8; i++) {
     const x = 380 + i * 46;
     for (const zz of [122, -122]) sb.building(x, zz, 15, 64, 0, { floors: 10, floorH: 3.4, color: 0xe4e2da, bandColor: GREEN_GLASS_BAND, roof: 0xcbc6b8, minClear: 3 });
   }
-  // SAFS: outros prédios federais
-  setor(860, 300, 1150, 420, 6);
-  setor(300, 340, 470, 470, 4);
-  setor(840, 60, 1000, 220, 4);
 
-  // --- Esplanada/Eixo: ipês no gramado central
-  for (let x = -900; x < 720; x += 55) {
+  // --- Eixo: ipês no gramado central
+  for (let x = -1380; x < 720; x += 55) {
     if (Math.abs(x + 330) < 30 || Math.abs(x - 60) < 50) continue;
     sb.tree(x + rng.range(-8, 8), rng.range(-22, 22), rng.pick(['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'ipe_roxo']), 0.9);
   }
@@ -268,29 +282,31 @@ export function buildScenery(sb) {
   // --- cerrado aberto nas sobras do mapa
   const B = net.bounds;
   sb.forest(B.minX, B.minZ, B.maxX, -380, 260, { cerrado: 6, ipe_amarelo: 1, ipe_roxo: 0.5 });
-  sb.forest(B.minX, 560, -1300, B.maxZ, 160, { cerrado: 6, ipe_amarelo: 1 });
-  sb.forest(B.minX, -380, -1300, 180, 140, { cerrado: 5, ipe_rosa: 1 });
-  sb.forest(-1250, -360, -760, -60, 120, { cerrado: 5, ipe_amarelo: 1 });
+  sb.forest(-1450, -360, -760, -60, 160, { cerrado: 5, ipe_amarelo: 1 });
   sb.forest(1000, -700, B.maxX, 240, 100, { cerrado: 5, ipe_amarelo: 1 });
+  sb.forest(-1480, 640, -1080, B.maxZ, 160, { cerrado: 5, ipe_amarelo: 1, mangueira: 1 });
 
   // capim do cerrado (tufos baixos) — sensação de velocidade à beira da pista
   sb.scrub(B.minX, B.minZ, B.maxX, B.maxZ, 2600);
-  sb.scrub(-1250, 0, 0, 400, 500);
+  sb.scrub(-1500, 0, 0, 700, 500);
 
   // --- fileiras de árvores à beira das vias
-  for (const id of ['sud_local', 'est_parque', 'w3_n', 'w3_m1', 'w3_m2', 'w3_s', 'l2_n', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 'via_safs', 'safs_n', 'l2m_east', 'safs_east'])
+  for (const id of ['qrsw2', 'quarta_av', 'terceira_w', 'terceira_e', 'eqrsw', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_far', 'primeira_av',
+    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs',
+    's2_a', 's2_b', 's2_c', 'safs_n', 'l2m_east', 'safs_east'])
     sb.rowAlong(id, 6.5, 13);
-  for (const id of ['epig', 'rsw_south', 'rw_north', 'rw_west', 're_north'])
+  sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
+  for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
     sb.rowAlong(id, 9, 16, ['cerrado', 'cerrado', 'ipe_amarelo', 'ipe_roxo']);
   for (const id of ['eixao_n', 'eixao_m', 'eixao_s']) sb.rowAlong(id, 10, 15, ['mangueira', 'ipe_rosa', 'ipe_amarelo', 'cerrado']);
-  for (const id of ['eixo_sul_a', 'eixo_norte']) sb.rowAlong(id, 9, 22, ['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'cerrado']);
+  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_n1']) sb.rowAlong(id, 9, 22, ['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'cerrado']);
 
   // --- postes e guard-rails
-  for (const id of ['eixo_sul_a', 'eixo_sul_b', 'eixo_sul_c', 'eixo_norte']) sb.lampsAlong(id, 42, [1, -1]);
+  for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1']) sb.lampsAlong(id, 42, [1, -1]);
   for (const id of ['eixao_n', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
-  for (const id of ['w3_n', 'w3_m1', 'w3_m2', 'w3_s', 'l2_n', 'l2_m', 'l2_s', 'epig', 'est_parque']) sb.lampsAlong(id, 46, [0]);
-  for (const id of ['sud_local', 'via_safs', 'safs_n', 'ent_w', 'ent_e']) sb.lampsAlong(id, 36, [1, -1]);
-  for (const id of ['eixao_n', 'eixao_m', 'eixao_s', 'epig', 'rw_north', 'rw_west', 'rsw_south']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
-  for (const id of ['tes', 'rodo_ramp']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
+  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 's2_a', 's2_b', 's2_c'])
+    sb.lampsAlong(id, 46, [0]);
+  for (const id of ['qrsw2', 's3_safs', 's3_saus', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
+  for (const id of ['eixao_n', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
+  for (const id of ['tes', 'eixao_ramp']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
 }
-

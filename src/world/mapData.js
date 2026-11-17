@@ -87,6 +87,7 @@ export const MAP = {
     },
   ],
 
+  // busLane: faixa da DIREITA exclusiva de ônibus no sentido 1 (from→to), -1 (to→from) ou 0 (ambos).
   // Vias. from/to = nós; via = pontos intermediários [x,z] (cantos arredondados com `corner` m).
   // lanesF = faixas no sentido from→to; lanesB = no sentido to→from (0 = mão única).
   // median = canteiro central (m). layer: 0 chão, 1 viaduto, 2 viaduto sobre viaduto (só visual).
@@ -118,8 +119,8 @@ export const MAP = {
 
     // --- Eixo Monumental: duas pistas de mão única com canteiro central gigante
     { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
-    { id: 'eixo_s1_b', name: 'Eixo Monumental (Via S1)', from: 'J_EPIG', to: 'J_W3N', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
-    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'J_W3N', to: 'X_S2', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
+    { id: 'eixo_s1_b', name: 'Eixo Monumental (Via S1)', from: 'J_EPIG', to: 'J_W3N', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2, busLane: 1 },
+    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'J_W3N', to: 'X_S2', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2, busLane: 1 },
     { id: 'eixo_s1_d', name: 'Eixo Monumental (Esplanada)', from: 'X_S2', to: 're_es', lanesF: 3, lanesB: 0, limitKmh: 60, kind: 'eixo', layer: 2 },
     { id: 'eixo_n1', name: 'Eixo Monumental (Via N1)', from: 're_en', to: 'rw_en', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
     { id: 'rw_north', name: 'EPIA (acesso norte)', from: 'rw_n', to: 'RW_N_E', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'arterial' },
@@ -137,8 +138,8 @@ export const MAP = {
     { id: 's3_safs', name: 'Via S3 (SAFS — STJ)', from: 'J_SAFS', to: 'J_L2b', lanesF: 2, lanesB: 2, limitKmh: 40, kind: 'urban' },
     { id: 's3_saus', name: 'Via S3 (SAUS)', from: 'J_L2b', to: 'J_S3a', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
     { id: 's3_mid_e', name: 'Via S3', from: 'J_S3a', to: 'M_S3', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
-    { id: 's3_mid', name: 'Via S3', from: 'M_S3', to: 'J_S3b', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban', layer: 0 },
-    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 2, lanesB: 2, limitKmh: 40, kind: 'urban' },
+    { id: 's3_mid', name: 'Via S3', from: 'M_S3', to: 'J_S3b', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban', layer: 0, busLane: 0 },
+    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 2, lanesB: 2, limitKmh: 40, kind: 'urban', busLane: 0 },
 
     // --- W3 Sul
     { id: 'w3_n', name: 'W3 Sul', from: 'J_W3N', to: 'J_PB', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },
@@ -195,7 +196,21 @@ export const MAP = {
     { seg: 'primeira_av', at: [-1200, 662] },
   ],
 
-  // Posições CANDIDATAS a pardal/radar (quem decide quais ativar é rules.js). dir: 1, -1 ou 0 (ambos).
+  // Pontos de ônibus (abrigo na calçada, à direita do sentido `dir`); ônibus da IA param em stop.s da faixa.
+  busStops: [
+    { seg: 'eixo_s1_b', at: [-820, 40], dir: 1, name: 'Eixo — Memorial JK/SIG' },
+    { seg: 'eixo_s1_b', at: [-560, 40], dir: 1, name: 'Eixo — Torre de TV' },
+    { seg: 'eixo_s1_c', at: [-250, 40], dir: 1, name: 'Eixo — Setor Hoteleiro' },
+    { seg: 's3_scs', at: [-260, 222], dir: 1, name: 'SCS — Pátio Brasil' },
+    { seg: 's3_scs', at: [-360, 205], dir: -1, name: 'SCS — Quadra 2' },
+    { seg: 's3_mid', at: [-110, 241], dir: 1, name: 'Via S3 — Eixão' },
+    { seg: 's3_mid', at: [40, 250], dir: -1, name: 'Via S3 — SAUS' },
+    { seg: 'w3_m', at: [-430, 380], dir: 0, name: 'W3 Sul 502/503' },
+    { seg: 'jaq_m', at: [-1500, 300], dir: 0, name: 'Jaqueiras — QRSW' },
+  ],
+
+  // Fiscalização: posições CANDIDATAS (quem decide quais ativar e multa é rules.js). dir: 1, -1 ou 0 (ambos).
+  // type: 'speed' (pardal) | 'redLight' (avanço de sinal; nos semáforos também há candidatos automáticos) | 'busLane'
   radars: [
     { seg: 'eixo_s1_a', at: [-1200, 40], dir: 1 },
     { seg: 'eixo_s1_b', at: [-700, 40], dir: 1 },
@@ -209,6 +224,29 @@ export const MAP = {
     { seg: 's3_saus', at: [350, 260], dir: 0 },
     { seg: 'w3_m', at: [-430, 560], dir: 0 },
     { seg: 'jaq_n', at: [-1500, 120], dir: 0 },
+    { seg: 'eixo_s1_b', at: [-620, 40], dir: 1, type: 'busLane' },
+    { seg: 's3_scs', at: [-300, 214], dir: 0, type: 'busLane' },
+    { seg: 's3_mid', at: [-60, 244], dir: 0, type: 'busLane' },
+  ],
+
+  // ESCONDERIJOS de agente de trânsito (fora da pista, atrás de algo). O agente "enxerga" o trecho
+  // do segmento `seg` em volta de `at` (±range m) no sentido `dir` (0 = ambos). side: 1 = à direita do
+  // sentido from→to do segmento, -1 = à esquerda. cover: o que o esconde. Sorteio/ocupação/multa: rules.js.
+  agentHideouts: [
+    { seg: 'eixo_s1_b', at: [-880, 40], side: 1, dir: 1, range: 70, cover: 'arvore' },
+    { seg: 'eixo_s1_c', at: [-60, 40], side: 1, dir: 1, range: 60, cover: 'viaduto' },
+    { seg: 'eixo_n1', at: [-500, -40], side: 1, dir: 1, range: 70, cover: 'arvore' },
+    { seg: 'eixo_s1_d', at: [600, 40], side: 1, dir: 1, range: 70, cover: 'placa' },
+    { seg: 's3_scs', at: [-280, 218], side: 1, dir: 0, range: 50, cover: 'ponto' },
+    { seg: 's3_mid', at: [-150, 238], side: -1, dir: 0, range: 50, cover: 'viaduto' },
+    { seg: 's3_saus', at: [300, 260], side: 1, dir: 0, range: 60, cover: 'arvore' },
+    { seg: 's2_b', at: [420, 150], side: -1, dir: 0, range: 70, cover: 'arvore' },
+    { seg: 'w3_m', at: [-430, 600], side: 1, dir: 0, range: 70, cover: 'ponto' },
+    { seg: 'jaq_m', at: [-1500, 380], side: -1, dir: 0, range: 60, cover: 'arvore' },
+    { seg: 'epig_m', at: [-1020, 300], side: 1, dir: 0, range: 80, cover: 'placa' },
+    { seg: 'parque', at: [-700, 545], side: 1, dir: 0, range: 50, cover: 'arvore' },
+    { seg: 'eixao_m', at: [0, 600], side: 1, dir: 0, range: 90, cover: 'arvore' },
+    { seg: 'l2_m', at: [500, 560], side: -1, dir: 0, range: 70, cover: 'arvore' },
   ],
 
   // Zonas de chegada (círculos no chão) e poses de largada (snap para a faixa da direita).

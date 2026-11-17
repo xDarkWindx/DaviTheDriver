@@ -119,6 +119,8 @@ export class Player {
     if (info) {
       const lane = this.net.laneAt(p.x, p.z, p.heading, this._lane);
       sp.laneId = lane && lane.dist < 6 ? lane.laneId : -1;
+      sp.laneKind = sp.laneId >= 0 ? lane.lane.kind : null;
+      sp.onBusLane = sp.laneId >= 0 && lane.lane.kind === 'bus' && Math.abs(lane.lateral) <= this.net.getSegment(lane.lane.segId).laneW * 0.5;
       sp.roadName = info.onRoad || info.segDist < 25 ? (lane && lane.dist < 8 ? lane.lane.name : info.name) || info.name : '';
       sp.speedLimitKmh = lane && lane.dist < 8 ? lane.lane.limitKmh : info.onRoad ? info.limitKmh : 0;
       sp.inJunction = info.inJunction;
