@@ -10,6 +10,8 @@ import { samplePts } from './roadNetwork.js';
 import { SceneryBuilder, buildScenery } from './scenery.js';
 import { buildLandmarks } from './landmarks.js';
 import { SignalController } from './signals.js';
+import { VEHICLES } from '../config.js';
+import { buildVehicleModel, buildTrafficModel, buildPersonModel, makeVehicleMaterial, TRAFFIC_MODELS } from '../player/vehicleModels.js';
 
 // Placas verdes de via (texto pt-BR) e letreiros. Atlas único => 1 draw call.
 const SIGN_ENTRIES = [
@@ -121,6 +123,37 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
     materials: { lambertVC, instMat, roadMat, groundMat, blobMat },
     blobTexture: blobTex,
     chunkSize: chunk,
+    /** Vitrine de depuração (tools/shots.cjs): carros do jogador, modelos de tráfego e pessoas lado a lado em (x, z). */
+    debugShowcase(x, z) {
+      const g = new THREE.Group(); g.name = 'showcase';
+      const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1);
+      ['kwid', 'cactus'].forEach((id, i) => {
+        const m = buildVehicleModel(VEHICLES[id], quality, blobTex);
+        m.root.position.set(x + i * 2.6 - 12, 0, z); m.root.rotation.y = 0.6;
+        m.wheelSlots.forEach((w, k) => { _p.set(w.x, m.wheelR, w.z); _e.set(0, w.side < 0 ? Math.PI : 0, 0, 'YXZ'); _q.setFromEuler(_e); _m.compose(_p, _q, _s); m.wheels.setMatrixAt(k, _m); });
+        m.wheels.instanceMatrix.needsUpdate = true;
+        g.add(m.root);
+      });
+      const mat = makeVehicleMaterial();
+      let ox = 0;
+      for (const kind of Object.keys(TRAFFIC_MODELS)) {
+        const t = buildTrafficModel(kind);
+        const im = new THREE.InstancedMesh(t.geometry, mat, 2);
+        for (let k = 0; k < 2; k++) {
+          _p.set(x + ox, 0, z + 8 + k * (t.length + 1.5)); _e.set(0, 0.6, 0, 'YXZ'); _q.setFromEuler(_e); _m.compose(_p, _q, _s);
+          im.setMatrixAt(k, _m); im.setColorAt(k, new THREE.Color(t.colors[k % t.colors.length]));
+        }
+        g.add(im); ox += t.width + 1.6;
+      }
+      ['pedestre', 'pedestre', 'agente'].forEach((kind, i) => {
+        const pm = buildPersonModel(kind, i);
+        const im = new THREE.InstancedMesh(pm.geometry, mat, 1);
+        _p.set(x - 4 + i * 1.2, 0, z - 1); _e.set(0, 0.6, 0, 'YXZ'); _q.setFromEuler(_e); _m.compose(_p, _q, _s);
+        im.setMatrixAt(0, _m); im.setColorAt(0, new THREE.Color(pm.shirts[i % pm.shirts.length])); g.add(im);
+      });
+      scene.add(g);
+      return g;
+    },
     /** Dados para o minimapa (o desenho é da UI). Coordenadas de mundo (x leste, z sul). */
     getMinimapData() {
       const roads = [];

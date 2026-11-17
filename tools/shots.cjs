@@ -34,32 +34,35 @@ const VIEWS = [
   await page.goto(URL);
   await page.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 30000 });
   await page.addStyleTag({ content: 'body > *:not(canvas) { display: none !important; } canvas { display: block !important; }' });
-  await page.evaluate(() => { const c = window.__davi; c.game.startTrip('casa-stj', 'davi'); c.game.pause(); });
+  // laço parado: cada vista é renderizada UMA vez (SwiftShader é lento demais para o laço contínuo)
+  await page.evaluate(() => { const c = window.__davi; c.loop.stop(); c.game.startTrip('casa-stj', 'davi'); c.game.pause(); });
+  // renderiza e captura o canvas na MESMA tarefa (o buffer WebGL não é preservado depois)
+  let lastShot = null;
+  const render = async (n = 2) => {
+    lastShot = await page.evaluate((n) => { const c = window.__davi; for (let i = 0; i < n; i++) c.game.frame(0.016, 1); return c.view.renderer.domElement.toDataURL('image/png'); }, n);
+  };
+  const save = (name) => fs.writeFileSync(path.join(OUT, name + '.png'), Buffer.from(lastShot.split(',')[1], 'base64'));
   const info = () => page.evaluate(() => { const r = window.__davi.view.renderer.info.render; return { calls: r.calls, tris: r.triangles }; });
   for (const [name, x, z, view] of VIEWS) {
     if (FILTER && !name.includes(FILTER)) continue;
-    await page.evaluate(([x, z, v]) => { const c = window.__davi; c.cameraRig.lookAt(x, z, v); c.cameraRig.update(0.016, x, z, 0, 0); }, [x, z, view]);
-    await page.waitForTimeout(700);
+    await page.evaluate(([x, z, v]) => { const c = window.__davi; c.cameraRig.lookAt(x, z, v); }, [x, z, view]);
+    await render(1);
     const i = await info();
-    await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });
+    save(name);
     console.log(name.padEnd(20), JSON.stringify(i));
   }
   // carros do jogador e modelos de tráfego (vitrine num estacionamento improvisado)
   if (!FILTER || 'carros'.includes(FILTER) || FILTER === 'carros') {
-    const ok = await page.evaluate(() => {
-      const c = window.__davi, THREE = c.THREE;
-      const vm = c.vehicleModels || (c.modules && c.modules.__vehicleModels);
-      return !!vm;
-    });
+    const ok = '';
     // vitrine é montada por world.debugShowcase (se existir)
     const has = await page.evaluate(() => !!(window.__davi.world && window.__davi.world.debugShowcase));
     if (has) {
-      await page.evaluate(() => window.__davi.world.debugShowcase(-1395, 260));
-      for (const [name, x, z, v] of [['carros-jogador', -1405, 262, 9], ['trafego', -1385, 266, 26], ['trafego-close', -1388, 268, 14]]) {
-        await page.evaluate(([x, z, v]) => { const c = window.__davi; c.cameraRig.lookAt(x, z, v); c.cameraRig.update(0.016, x, z, 0, 0); }, [x, z, v]);
-        await page.waitForTimeout(700);
+      await page.evaluate(() => window.__davi.world.debugShowcase(-780, -14));
+      for (const [name, x, z, v] of [['carros-jogador', -791, -14, 8], ['trafego', -768, -2, 30], ['trafego-close', -774, -4, 13]]) {
+        await page.evaluate(([x, z, v]) => { const c = window.__davi; c.cameraRig.lookAt(x, z, v); }, [x, z, v]);
+        await render(1);
         const i = await info();
-        await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });
+        save(name);
         console.log(name.padEnd(20), JSON.stringify(i), ok);
       }
     }
@@ -70,11 +73,11 @@ const VIEWS = [
     if (FILTER && !name.includes(FILTER)) continue;
     await page.evaluate(([x, z, h, r]) => {
       const c = window.__davi; c.game.startTrip(r, r === 'casa-stj' ? 'davi' : 'carona'); const p = c.player.phys;
-      p.x = x; p.z = z; p.heading = h; p.vx = 0; p.vz = 0; c.cameraRig.mode = 'follow'; c.cameraRig.snap(x, z); c.game.advance(0.05); c.game.pause();
+      p.x = x; p.z = z; p.heading = h; p.vx = 0; p.vz = 0; c.cameraRig.mode = 'follow'; c.game.advance(0.05); c.cameraRig.snap(c.state.player.x, c.state.player.z); c.game.pause();
     }, [x, z, h, route]);
-    await page.waitForTimeout(900);
+    await render(3);
     const i = await info();
-    await page.screenshot({ path: path.join(OUT, name + '.png'), timeout: 180000 });
+    save(name);
     console.log(name.padEnd(20), JSON.stringify(i));
   }
   if (errors.length) console.log('ERROS:', errors.join('\n'));
