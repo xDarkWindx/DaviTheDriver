@@ -66,6 +66,18 @@ export function createState() {
     fines: [],                  // systems/rules.js  [{ code, label, amount, points, time }]
     fineTotal: 0,               // systems/rules.js  R$
 
+    // Pontuação (dono: systems/rules.js ou mood.js; a UI só lê). zoneLo/zoneHi na MESMA escala das barras (0..100);
+    // zoneHi <= zoneLo = "sem zona" (a UI não desenha).
+    score: { points: 0, multiplier: 1, inZone: false, zoneLo: 0, zoneHi: 0 },
+
+    // Opções do jogador. DONO: ui (escreve e persiste em localStorage, emite EV.SETTINGS_CHANGE). Áudio/fx só LEEM.
+    settings: { volume: 0.7, muted: false, retro: true, quality: 'leve' },
+
+    // Resultado da viagem. DONO: rules.js — preencher ANTES de emitir REQ_FINISH/TRIP_FINISH (a UI lê no TRIP_FINISH).
+    // { reason:'chegou'|'bateu'|'desistiu'|'tomouOCarro', time, points, grade:'A'..'F', title, fines:[{code,label,amount,points}],
+    //   crash:{ withWhat, excuse, repairCost }|null, yearsLost (modo perigo) }. A UI zera ao voltar ao menu.
+    result: null,
+
     time: { sim: 0, real: 0, frame: 0 }, // core/loop
   };
 }

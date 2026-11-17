@@ -37,6 +37,10 @@ export const EV = {
   MOOD_PEAK: 'mood:peak',            // mood.js { who, bar:'anxiety'|'stress', value }
   PASSENGER_SAY: 'mood:passengerSay',// mood.js/carona { text, intensity }  (Davi palpitando)
   CAMERA_SHAKE: 'fx:shake',          // qualquer um { amount, duration } -> cameraRig escuta
+
+  // --- acrescentados pela fase de UI ---
+  SETTINGS_CHANGE: 'ui:settings',    // ui { volume, muted, retro, quality }  (cópia de state.settings; a UI é a ÚNICA que escreve)
+  SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s) }  -> balão de fala
 };
 
 export class EventBus {
