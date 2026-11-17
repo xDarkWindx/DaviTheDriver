@@ -186,7 +186,7 @@ export class Hud {
     el('b', 'toast-title', node, 'MULTA!');
     el('span', 'toast-what', node, f.label || 'Infração de trânsito');
     const row = el('span', 'toast-sub', node);
-    row.textContent = `${fmtMoney(f.amount)} · ${f.points | 0} ponto${(f.points | 0) === 1 ? '' : 's'} na CNH` + (f.by && FINE_BY[f.by] ? ` · ${FINE_BY[f.by]}` : '');
+    row.textContent = `${fmtMoney(f.amount)} · ${f.points | 0} ponto${(f.points | 0) === 1 ? '' : 's'} na CNH` + (f.by && FINE_BY[f.by] ? ` · ${f.by === 'radar' && (f.code === 'offroad' || f.code === 'crosswalk') ? FINE_BY.camera : FINE_BY[f.by]}` : '');
     this._toastList.push({ node, until: this.clock + 4.2 });
     while (this._toastList.length > 4) this._toastList.shift().node.remove();
   }

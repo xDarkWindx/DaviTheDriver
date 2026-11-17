@@ -78,7 +78,7 @@ export function addBar(bars, key, v) {
   bars[key] = clamp(bars[key] + v, bars.floor, 100);
 }
 
-const FINE_BANK = { speed: 'fineRadar', redLight: 'fineRed', crosswalk: 'fineCrosswalk', busLane: 'fineBus' };
+const FINE_BANK = { speed: 'fineRadar', redLight: 'fineRed', crosswalk: 'fineCrosswalk', busLane: 'fineBus', offroad: 'fineOffroad' };
 /** 0 no nível de repouso, 1 a partir de repouso+12: decaimentos "naturais" param no repouso (só ações descem ao piso). */
 const restFactor = (v, rest) => (rest == null ? 1 : clamp((v - rest) / 12, 0, 1));
 const say = (m, bank, prio = 0, gestureOnly = false) => { m.out.says.push({ bank, prio, gestureOnly }); };
@@ -192,9 +192,9 @@ export function stepMood(m, inp, dt) {
 
 // ---------------- FALAS DE SITUAÇÃO: narram o que está na tela (quem está na frente, por que parou, pedestre...)
 const SIT_CARONA = { Verde: 'psVerde', VerdeAuto: 'psVerdeAuto', VerdeCel: 'psVerdeCel', VerdeOnibus: 'psVerde', VerdeMudanca: 'psVerde', VerdeTio: 'psVerde',
-  Ped: 'psPed', TioEsq: 'psTioEsq', Tio: 'psLento', Auto: 'psLento', Mudanca: 'psLento', Cel: 'psLento', Onibus: 'psOnibus', Ponto: 'psOnibus', Pardal: 'psPardal' };
+  Ped: 'psPed', Offroad: 'psOffroad', TioEsq: 'psTioEsq', Tio: 'psLento', Auto: 'psLento', Mudanca: 'psLento', Cel: 'psLento', Onibus: 'psOnibus', Ponto: 'psOnibus', Pardal: 'psPardal' };
 const SIT_DONO = { VerdeAuto: 'osVerdeAuto', Verde: 'osVerde', VerdeCel: 'osVerde', VerdeOnibus: 'osVerde', VerdeMudanca: 'osVerde', VerdeTio: 'osVerde',
-  Ped: 'osPed', TioEsq: 'osLento', Tio: 'osLento', Auto: 'osLento', Mudanca: 'osLento', Onibus: 'osLento' };
+  Ped: 'osPed', Offroad: 'osOffroad', TioEsq: 'osLento', Tio: 'osLento', Auto: 'osLento', Mudanca: 'osLento', Onibus: 'osLento' };
 /** Situação atual (id curto) ou null. Puro: depende só das entradas. */
 export function situationOf(inp, c) {
   const lead = c.lead, sp = c.speed;
@@ -207,6 +207,7 @@ export function situationOf(inp, c) {
     if (lead.persona === 'tio') return 'VerdeTio';
     return 'Verde';
   }
+  if (inp.offroad && sp > 5) return 'Offroad';
   if (inp.crosswalkWait) return 'Ped';
   if (lead && lead.why === 'quebrado' && lead.gap < 40) return 'Quebrado';
   if (c.blocked && lead) {
@@ -317,6 +318,7 @@ function stepPerigo(m, inp, dt, c) {
   const lat = Math.abs(inp.latAccel || 0);
   if (lat > P.corner) { ra += P.cornerRate * (lat - P.corner); scared = true; }
   if (c.speed > P.fastKmh) { ra += P.fast; scared = true; }
+  if (inp.offroad && c.speed > 5) { ra += P.offroad; rs += P.offroad * 0.6; scared = true; } // "o gramado NÃO, Davi!"
   const turbo = (inp.turbo || 0) > 0.85 && (inp.throttle || 0) > 0.6;
   if (turbo) { rs += P.turbo; scared = true; }
   if (dono.anxiety > P.panicFromSusto) rs += P.panicRate;

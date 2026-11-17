@@ -13,11 +13,12 @@ import { makeCtx, fakeTraffic } from './fakes.js';
 const DT = 1 / 60;
 // Dirige em linha reta para o sul (heading 0 => +Z) de z0 a z1 a `kmh`, chamando stepFines a cada passo.
 function drive(det, opts) {
-  const { z0 = -50, z1 = 50, x = 0, kmh = 50, limitKmh = 50, radars = [], agents = [], approaches = [], crosswalks = [], onBusLane = false, t0 = 0 } = opts;
+  const { z0 = -50, z1 = 50, x = 0, kmh = 50, limitKmh = 50, radars = [], agents = [], approaches = [], crosswalks = [], onBusLane = false, t0 = 0, offroad = null } = opts;
   const v = kmh / 3.6, fines = [], runs = [];
   let z = z0, pz = null, t = t0;
   while (z <= z1) {
-    const snap = { t, x, z, px: pz == null ? null : x, pz, heading: 0, speedKmh: kmh, limitKmh, onBusLane, radars, agents, approaches, crosswalks };
+    const snap = { t, x, z, px: pz == null ? null : x, pz, heading: 0, speedKmh: kmh, limitKmh, onBusLane, radars, agents, approaches, crosswalks,
+      offroad: offroad ? offroad(z) : false };
     const o = stepFines(det, snap, DT);
     fines.push(...o.fines.map((f) => ({ ...f }))); runs.push(...o.signalRuns.map((r) => ({ ...r })));
     for (const id of o.reveal) fines[fines.length - 1].revealed = id;
@@ -246,4 +247,34 @@ test('integração: multa de faixa de pedestre segue o critério POR CORREDOR do
   };
   assert.equal(run(false), 0, 'pedestre fora do corredor (já passou / outra pista) não multa, mesmo em cima da faixa pintada');
   assert.equal(run(true), 1, 'pedestre no corredor (ou entrando) multa');
+});
+
+test('fora da pista (art. 193): 2 s fora multa; desvio curto não; reincide a cada 8 s / 120 m; agente vendo multa ele', () => {
+  // (a) 2 s contínuos fora (a 20 km/h = 11 m, abaixo dos 15 m): multa ao completar 2 s
+  const a = drive(createFineDetector(), { kmh: 20, z0: 0, z1: 13, offroad: () => true });
+  assert.equal(a.fines.filter((f) => f.code === 'offroad').length, 1); assert.equal(a.fines[0].amount, 880.41); assert.equal(a.fines[0].points, 7);
+  // (b) desvio curto: 1 s / 11 m fora a 40 km/h e volta para a pista: nada
+  const b = drive(createFineDetector(), { kmh: 40, z0: 0, z1: 60, offroad: (z) => z > 10 && z < 21 });
+  assert.equal(b.fines.length, 0, 'desvio curto não multa');
+  // (c) cortar caminho: 20 s a 30 km/h (167 m) fora => reincide (1ª + a cada 8 s ou 120 m)
+  const c = drive(createFineDetector(), { kmh: 30, z0: 0, z1: 167, offroad: () => true });
+  const n = c.fines.filter((f) => f.code === 'offroad').length;
+  assert.ok(n >= 3 && n <= 4, 'reincidência: ' + n);
+  // (d) agente escondido vendo: multa dele (revela o agente)
+  const d = drive(createFineDetector(), { kmh: 30, z0: 0, z1: 30, offroad: () => true, agents: [{ id: 'g1', x: 20, z: 15, heading: -Math.PI / 2, range: 60 }] });
+  assert.equal(d.fines[0].by, 'agent'); assert.equal(d.fines[0].revealed, 'g1');
+  // pontuação: cortar 150 m pelo gramado nunca compensa (3 multas × (7 pt × 100 + R$ 880) contra segundos ganhos)
+  assert.ok(B.final.finePointsMul * 7 + 880 > B.final.timeBonusMax / 5, 'multa vale mais que o tempo ganho');
+});
+
+test('integração: largada/chegada e estacionamentos não contam como fora da pista', () => {
+  const s = setup('davi');
+  s.ctx.net.parkingAreas = [[-10, -10, 10, 200]];
+  s.ctx.net.zones = { casa: { x: 500, z: 500, r: 10 } }; s.ctx.net.starts = { casa: { x: 0, z: 0 } };
+  s.player.update = () => { const sp = s.state.player; s.phys.z += (20 / 3.6) / 60; sp.x = 0; sp.z = s.phys.z; sp.heading = 0; sp.speedKmh = 20; sp.offroad = true; sp.vehicleId = 'kwid'; };
+  s.game.advance(6);
+  assert.equal(s.got.fines.filter((f) => f.code === 'offroad').length, 0, 'estacionamento não multa');
+  s.ctx.net.parkingAreas = [];
+  s.game.advance(4);
+  assert.ok(s.got.fines.filter((f) => f.code === 'offroad').length >= 1, 'gramado multa');
 });

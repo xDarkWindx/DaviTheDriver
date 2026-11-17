@@ -378,9 +378,13 @@ export const MAP = {
     },
   },
 
+  // Áreas fora do asfalto onde é permitido andar (estacionamentos de bloquete/terra, vagas): não contam como "fora da pista"
+  // para a multa do art. 193. Retângulos [x0, z0, x1, z1].
+  parkingAreas: [[-1404, 179, -1366, 195], [836, 176, 912, 252], [600, 186, 760, 206], [856, 170, 900, 236]],
+
   // Zonas de chegada (círculos no chão) e poses de largada (snap para a faixa da direita).
   zones: {
-    casa: { x: -1385, z: 186, r: 11, label: 'QRSW 2 — Sudoeste' }, // vaga livre em frente ao prédio (chega ao entrar nela)
+    casa: { x: -1385, z: 190, r: 9, label: 'QRSW 2 — Sudoeste' }, // vaga livre em frente ao prédio (chega ao entrar nela)
     // destino STJ = um dos estacionamentos (state.trip.parking): carona → norte; davi/perigo → oeste ou leste (sorteio)
     stj: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },      // = stj_norte (compatibilidade)
     stj_norte: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },

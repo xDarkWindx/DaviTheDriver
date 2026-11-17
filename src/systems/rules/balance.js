@@ -9,6 +9,7 @@ export const RULES_BALANCE = {
     redLight: { code: 'redLight', label: 'Avanço de sinal vermelho', amount: 293.47, points: 7 },
     crosswalk: { code: 'crosswalk', label: 'Não deu preferência ao pedestre na faixa', amount: 293.47, points: 7 },
     busLane: { code: 'busLane', label: 'Trânsito na faixa exclusiva de ônibus', amount: 293.47, points: 7 },
+    offroad: { code: 'offroad', label: 'Transitar sobre canteiro/gramado (art. 193)', amount: 880.41, points: 7 },
   },
   speed: {
     tolKmh: 7, tolPctAbove100: 0.07,  // tolerância do medidor (até 100 km/h: 7 km/h; acima: 7%)
@@ -20,6 +21,8 @@ export const RULES_BALANCE = {
   crosswalk: { minKmh: 8, occupiedMemory: 1.5, pedRadiusExtra: 2 },
   busLane: { minTime: 3.0, offGrace: 1.0, radarRange: 45, turnZone: 90 }, // turnZone: m antes de uma conversão à direita em que a faixa pode ser usada
   agent: { fovHalf: 1.45, rangeMul: 1.1 },
+  // fora da pista (canteiro, gramado, calçada, terreno): gravíssima ×3. Carência: minTime s contínuos OU minDist m fora.
+  offroad: { minTime: 2.0, minDist: 15, repeatTime: 8, repeatDist: 120, minKmh: 3 },
   dedupe: { seconds: 15, meters: 150 },
   heading: { alignCos: 0.5 },
 

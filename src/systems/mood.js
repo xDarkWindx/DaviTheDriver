@@ -134,6 +134,8 @@ export default {
     inp.longAccel = ph ? ph.longAccel || 0 : 0; inp.latAccel = ph ? ph.latAccel || 0 : 0;
     inp.inJunction = !!sp.inJunction; inp.elapsed = st.trip.elapsed || 0; inp.vehicleId = sp.vehicleId;
     inp.atStart = /estacionamento/i.test(sp.roadName || '');
+    const R = ctx.modules.rules;
+    inp.offroad = !!sp.offroad && !(R && R._offroadAllowed && R._offroadAllowed(ctx, sp.x, sp.z));
     inp.inRing = false;
     if (sp.inJunction && net && net.getNode) {
       const info = (ctx.player && ctx.player._info && ctx.player._info.nodeId != null) ? ctx.player._info : net.roadInfoAt(sp.x, sp.z, this._info);

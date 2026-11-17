@@ -47,7 +47,8 @@ export const HOWTO_RULES = [
   ['Zona de equilíbrio', 'A faixa marcada nas barras do motorista. Ficar dentro dela dá bônus e aumenta o multiplicador de pontos.'],
   ['Respirar, xingar, buzinar, piscar', 'R e X ajudam a baixar a pressão, mas têm tempo de recarga. Buzinar (H) também desabafa (e irrita os outros); piscar o farol (F) pede passagem ao lento da frente — às vezes ele dá, às vezes freia de birra.'],
   ['Congestionamento', 'Às vezes a rota tem trânsito parado (marcado em vermelho no minimapa). Dá para desviar por outro caminho; a faixa de ônibus vazia do lado é tentadora — e multa se alguém vir.'],
-  ['Multas', 'Pardal (excesso de velocidade), sinal vermelho, faixa exclusiva de ônibus, faixa de pedestres... O valor e os pontos na CNH aparecem no aviso.'],
+  ['Multas', 'Pardal (excesso de velocidade), sinal vermelho, faixa exclusiva de ônibus, faixa de pedestres (só se o pedestre está no seu caminho ou chegando a ele)... O valor e os pontos na CNH aparecem no aviso.'],
+  ['Gramado não é atalho', 'Andar sobre canteiro, gramado ou calçada (art. 193) é gravíssima: R$ 880,41 e 7 pontos, e multa de novo a cada 8 s ou 120 m fora da pista. Desviar rapidinho, escorregar na manga ou manobrar na vaga não conta.'],
   ['Batida', 'Impacto forte encerra a viagem na hora. Aí vem o boletim de ocorrência.'],
 ];
 
@@ -139,7 +140,7 @@ export const PEAK_SUB = {
   dono: 'Pelo amor do Cactus…',
 };
 
-export const FINE_BY = { radar: 'pego pelo pardal', agent: 'pego pelo agente' };
+export const FINE_BY = { radar: 'pego pelo pardal', agent: 'pego pelo agente', camera: 'por videomonitoramento' };
 export const FINE_FALLBACK_LABEL = { speed: 'Excesso de velocidade', redLight: 'Avanço de sinal vermelho', busLane: 'Faixa exclusiva de ônibus', crosswalk: 'Não parou na faixa de pedestres' };
 
 // ---- botões de ação ------------------------------------------------------

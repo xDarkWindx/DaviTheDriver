@@ -146,6 +146,7 @@ export const MOOD_BALANCE = {
     fastKmh: 100, fast: 3,
     turbo: 4,                // turbo enchendo (spool > 0.85 com pé no fundo)
     nearMiss: 14, scrape: 25, pedScare: 45, redRun: 18, yellowRun: 6, hazard: 14, fine: 8,
+    offroad: 22,             // pontos/s de susto fora da pista (gramado, canteiro)
     panicFromSusto: 80, panicRate: 3,
     calmAfter: 2, anxDecay: 4, stressDecay: 2.5,
     complainFrom: 60, complainEvery: [3.5, 6.5],

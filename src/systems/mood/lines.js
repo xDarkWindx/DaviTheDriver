@@ -241,6 +241,12 @@ export const BANKS = {
   pedScare: { who: D, role: 'driver', tone: 'panic', cd: 4, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
     'Perdão! Perdão!', 'Ai, meu Deus! Tá tudo bem?', 'Foi mal, foi mal!', ['Caralho, não vi!', 'Nossa, não vi!'], 'Opa, opa! Tá bem, moço?',
   ] },
+  sitOffroad: { who: D, role: 'driver', tone: 'anx', cd: 10, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Atalho! Atalho!', 'É rapidinho, é só cortar aqui…', 'Grama é quase asfalto.',
+  ] },
+  fineOffroad: { who: D, role: 'driver', tone: 'stress', cd: 4, prio: 1, lines: [
+    'Era só um atalho!', ['Multa por andar na grama? Porra!', 'Multa por andar na grama? Sério?'], 'Tinha câmera no gramado?!',
+  ] },
   // =============================== DAVI DE PASSAGEIRO (carona) ===============================
   pGo: { who: D, role: 'passenger', tone: 'anx', cd: 2, gestures: ['apontando', 'bracoPraFora'], lines: [
     'Vai! VAI!', 'Agora vai, agora!', 'Entra, entra, entra!', 'Muda de faixa! Agora!', 'Passa ele! Passa!', 'Cabe! Cabe, vai!',
@@ -430,6 +436,12 @@ export const BANKS = {
   ] },
   oPedScare: { who: O, role: 'passenger', tone: 'panic', cd: 4, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
     'DAVI! O PEDESTRE!', 'Para! Para tudo! Tá bem, moço?', 'Meu Deus do céu, Davi…', 'Foi por um triz!',
+  ] },
+  psOffroad: { who: D, role: 'passenger', tone: 'anx', cd: 10, prio: 1, situ: 1, gestures: ['apontando'], lines: [
+    'Leandro, isso é gramado!', 'Volta pro asfalto, multa!', 'Corta por aqui! Não, não corta!',
+  ] },
+  osOffroad: { who: O, role: 'passenger', tone: 'panic', cd: 6, prio: 1, situ: 1, gestures: ['maosNaCabeca'], lines: [
+    'O gramado NÃO, Davi!', 'Isso é canteiro! CANTEIRO!', 'A suspensão, Davi… a suspensão!',
   ] },
 };
 

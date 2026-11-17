@@ -1089,10 +1089,23 @@ export class TrafficSim {
       if (cand.kind === 'bus' && !v.p.bus) continue;
       const sC = v.w.s * cand.length / lane.length;
       const st = this._sit(cand.id, sC, v, this._sitB || (this._sitB = {}));
+      // o jogador fora do centro da faixa (trocando de faixa, entre faixas) não está no balde dela: confere pela geometria
+      if (this.player && cand.id !== this.pLaneId) {
+        const dx = this.px - v.x, dz = this.pz - v.z;
+        if (dx * dx + dz * dz < 60 * 60) {
+          const sp = this.net.projectOnLane(cand, this.px, this.pz), o = this.net.sampleLane(cand, sp, this._tmpS || (this._tmpS = {}));
+          if (Math.hypot(o.x - this.px, o.z - this.pz) < this.laneW[cand.id] * 0.8) {
+            const halfL = v.length * 0.5, pv = Math.max(0, this.pSpeed);
+            if (sp >= sC) { const g = sp - sC - halfL - this.pL * 0.5; if (g < st.lGap) { st.lGap = g; st.lSpeed = pv; st.lPlayer = true; } }
+            else { const g = sC - sp - halfL - this.pL * 0.5; if (g < st.fGap) { st.fGap = g; st.fSpeed = pv; st.fPlayer = true; } }
+          }
+        }
+      }
       const cutting = v.cutIntent && st.fPlayer;
       const relax = forced || onBus || cutting;
       const needBack = relax ? (cutting ? 2.5 : 3.5) : Math.max(v.p.minBack || 5, st.fSpeed * (v.p.lcBackTime || 0.9) + (st.fSpeed - vel) * 0.9);
       if (st.fGap < needBack) continue;
+      if (st.fPlayer && st.fGap < 2.5 + Math.max(0, st.fSpeed - vel) * 1.5) continue; // jogador chegando rápido por trás nessa faixa
       if (st.lGap < Math.max(2.5, vel * (relax ? 0.25 : 0.45))) continue;
       const accC = accFree - (st.lGap < 200 ? this._inter(v, vel, st.lGap, st.lSpeed, v.T, v.s0) : 0);
       let gain = accC - accCur;
@@ -1946,7 +1959,13 @@ export class TrafficSim {
     if (s2 < 0 || this.laneJam[lid] >= 0) return; // congestionamento sorteado tem a própria fila
     const pid = this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
     const v = this.spawn(pid, null, lid, s2, {});
-    if (v) { this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1; }
+    if (!v) return;
+    // a persona pode ter trocado a faixa (ônibus vai para a exclusiva, lento para a direita): confere a folga na faixa final
+    for (let i = 0; i < this.vehicles.length; i++) {
+      const q = this.vehicles[i]; if (q === v || q.w.lane !== v.w.lane) continue;
+      if (Math.abs(q.w.s - v.w.s) < (q.length + v.length) * 0.5 + 6) { this._despawn(v); return; }
+    }
+    this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1;
   }
 
   _pedSpawnTick(initial) {

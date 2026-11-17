@@ -287,10 +287,10 @@ export function buildScenery(sb) {
   mb.rect(-1432, 140, 0.3, 14, 10, 0.027, 0xb4613d);              // terra vermelha
   mb.rect(-1385, 187, 0, 6.5, 18.5, 0.024, 0xb3a28a);               // vagas de bloquete
   for (const dx of [-14, -10.9, -7.8, -4.7, 4.7, 7.8, 10.9, 14]) if (rng() < 0.8 || Math.abs(dx) < 5) sb.parkedCar(-1385 + dx, 187, 0, rng.pick(PARKED_COLORS)); // vizinhos da vaga (a vaga do Davi é a do meio)
-  for (const [x, z] of [[-1406, 181], [-1364, 181], [-1412, 192]]) sb.tree(x, z, 'palmeira', 1);
+  for (const [x, z] of [[-1406, 181], [-1364, 181]]) sb.tree(x, z, 'palmeira', 1);
   for (const x of [-1403.5, -1366.5]) sb.inst.add('lixeira', x, 0, 193, 0, 1, 1, 1, 0x2f62b5);    // lixeiras azuis
   // árvores no gramado entre a marginal e a avenida
-  for (let z = 128; z <= 190; z += 12) sb.tree(-1487 + rng.range(-1, 1), z, rng() < 0.5 ? 'mangueira' : 'ipe_amarelo', 0.8);
+  for (let z = 132; z <= 190; z += 19) sb.tree(-1487 + rng.range(-1, 1), z, 'ipe_amarelo', 0.8);
 
   // Av. das Jaqueiras: mangueiras e jaqueiras SÓLIDAS rente ao meio-fio (posições em net.avenueTreeSlots)
   for (const t of net.avenueTreeSlots) sb.tree(t.x, t.z, t.kind, 1.05, 0.8);

@@ -101,7 +101,9 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
     return out;
   });
   console.log('seta GPS na largada (graus entre seta e rumo):', JSON.stringify(arrow));
-  results.push({ mode: 'seta-largada', ok: arrow['casa-stj'] < 60 && arrow['stj-casa'] < 60 });
+  // casa-stj larga ESTACIONADO de frente para a rua (a rota vira à direita logo na saída da vaga): a seta aponta para a rua,
+  // em diagonal; o que não pode é apontar para trás
+  results.push({ mode: 'seta-largada', ok: arrow['casa-stj'] < 100 && arrow['stj-casa'] < 60 });
 
   // 3b) Teste determinístico (independe do FPS do headless): 4 s de simulação com acelerador virtual
   const det = await page.evaluate(() => {
@@ -128,6 +130,9 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
     st.traffic.seed = 4242;
     for (const routeId of ['casa-stj', 'stj-casa']) for (const corr of ['eixo', 'parque']) {
       c.game.startTrip(routeId, 'davi');
+      // o "carro" teleporta a 15 m/s com velocidade física zero: o trânsito não consegue reagir a isso (batia na IA com o
+      // trânsito mais denso). Aqui só interessam GPS e chegada: pista vazia (o robô testa o trânsito de verdade abaixo).
+      c.modules.traffic.debug.setAutoSpawn(false); c.modules.traffic.debug.clear();
       const near = net.nearestLane(st.player.x, st.player.z, {}, st.player.heading);
       const dest = c.trip._dest.targets;
       const route = corr === 'eixo' ? net.planRoute(near.laneId, near.s, dest, [])
@@ -142,7 +147,7 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
       out[routeId + '/' + corr] = { mode: st.mode, reason: st.finishReason, simTime: +st.trip.elapsed.toFixed(1), parking: st.trip.parking };
       if (st.mode === 'PLAYING') c.game.finish('desistiu');
     }
-    st.traffic.seed = null;
+    st.traffic.seed = null; c.modules.traffic.debug.setAutoSpawn(true);
     return out;
   });
   console.log('rotas automáticas (teleporte, trânsito com semente fixa):', JSON.stringify(auto));

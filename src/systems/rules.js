@@ -115,6 +115,7 @@ export default {
     if (!this.par && st.trip.routeDistLeft > 0) this.par = st.trip.routeDistLeft / RULES_BALANCE.final.parSpeed;
     snap.t = st.trip.elapsed; snap.x = sp.x; snap.z = sp.z; snap.heading = sp.heading;
     snap.speedKmh = sp.speedKmh || 0; snap.limitKmh = sp.speedLimitKmh || 0; snap.onBusLane = !!sp.onBusLane;
+    snap.offroad = !!sp.offroad && !this._offroadAllowed(ctx, sp.x, sp.z);
     // CTB: pode usar a faixa exclusiva para a conversão à direita logo adiante (não conta como trânsito na faixa)
     if (snap.onBusLane && this._busTurnAllowed(ctx, sp)) snap.onBusLane = false;
     snap.radars = T.radars(); snap.agents = T.agents();
@@ -177,6 +178,17 @@ export default {
     for (let i = 0; i < lane.next.length; i++) { const c = net.getLane(lane.next[i]); if (c && c.turn === 'right') { right = true; break; } }
     if (!right) return false;
     return lane.length - net.projectOnLane(lane, sp.x, sp.z) < RULES_BALANCE.busLane.turnZone;
+  },
+
+  /** Fora do asfalto mas em área permitida (estacionamento, vaga, zona de largada/chegada)? */
+  _offroadAllowed(ctx, x, z) {
+    const net = ctx.net; if (!net) return true;
+    for (const a of net.parkingAreas || []) if (x >= a[0] && x <= a[2] && z >= a[1] && z <= a[3]) return true;
+    const zs = net.zones || {};
+    for (const k in zs) { const q = zs[k]; if ((x - q.x) * (x - q.x) + (z - q.z) * (z - q.z) < (q.r + 8) * (q.r + 8)) return true; }
+    const ss = net.starts || {};
+    for (const k in ss) { const q = ss[k]; if (q && q.x != null && (x - q.x) * (x - q.x) + (z - q.z) * (z - q.z) < 144) return true; }
+    return false;
   },
 
   _applyFine(f) {

@@ -202,7 +202,8 @@ export class RoadNetwork {
     this.avenueTreeSlots = []; // { segId, s, side (1 dir./-1 esq. do sentido from→to), x, z, kind } — onde o cenário planta
     this.fruitSpots = [];      // candidatos a fruta no asfalto (ver _buildAvenueTrees)
     this.routeCorridors = def.routeCorridors || {};
-    this.signalMain = def.signalMain || {}; // semáforo (nó) -> segIds da via principal (verde mais longo)
+    this.signalMain = def.signalMain || {};
+    this.parkingAreas = def.parkingAreas || []; // [x0, z0, x1, z1]: andar ali não é "fora da pista" (multa do art. 193) // semáforo (nó) -> segIds da via principal (verde mais longo)
     this.zones = def.zones;
     this.starts = def.starts;
     this.bounds = def.bounds;

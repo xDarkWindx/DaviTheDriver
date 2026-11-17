@@ -195,7 +195,8 @@ inteiro mantendo `name: 'ui'`: ela só lê `ctx.state`, escuta eventos e emite `
   settings: { volume 0..1, muted, retro, quality },                // dono: UI (persiste em localStorage); áudio/fx só LEEM
   result: null | { reason, time, points, grade, title, fines[], crash{...,sinistroNo?}, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
   actions?: { horn, breathe, curse, flash }  // dono: mood.js; cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
-  traffic: { seed: null|n, tripSeed, active, peds },  // dono: traffic.js; seed fixo = viagem reproduzível (radares, agentes, frutas, IA)
+  traffic: { seed: null|n, tripSeed, active, peds },  // seed fixo = viagem reproduzível; null = sorteia por viagem. tripSeed (o núcleo sorteia/fixa
+                                                      // no startTrip) alimenta TODO sorteio de jogo: trânsito, humor, falas, regras, estacionamento
   time: { sim, real, frame },
 }
 ```
@@ -213,11 +214,12 @@ carona → driver=dono, passenger=davi; perigo → driver=davi, passenger=dono. 
 | `REQ_START` / `REQ_PAUSE` / `REQ_RESUME` / `REQ_MENU` / `REQ_FINISH` | qualquer um (UI, regras) | `{ routeId, mode }` / `{}` / `{}` / `{}` / `{ reason, details }` |
 | `HORN`, `HORN_END`, `BREATHE`, `CURSE` | núcleo (input, só em PLAYING) | `{ source: 'player' }` |
 | `OFFROAD` | núcleo | `{ on, x, z }` |
-| `COLLISION` | núcleo (estáticos) / traffic (veículos, pedestres) | `{ a:'player', b:'static'|'vehicle'|'pedestrian', kind, impactKmh, x, z, nx, nz, otherId }`; traffic acrescenta `id, persona, playerAtFault, otherKmh, brakeChecked` (veículo) / `id, playerAtFault, crosswalkId` (pedestre; `kind` = `pedestre`\|`corredor`\|`ciclista`) |
+| `COLLISION` | núcleo (estáticos) / traffic (veículos, pedestres) | `{ a:'player', b:'static'|'vehicle'|'pedestrian', kind, impactKmh, x, z, nx, nz, otherId }`; traffic acrescenta `id, persona, playerAtFault, otherKmh, brakeChecked` (veículo) / `id, playerAtFault, crosswalkId, soft` (pedestre; `kind` = `pedestre`\|`corredor`\|`ciclista`; `soft` = encostou abaixo de 8 km/h, "quase") |
 | `SIGNAL_CHANGE` | núcleo | `{ signalId, group, state }` |
 | `FINE` | rules | `{ code, label, amount, points, x, z }` |
 | `NEAR_MISS` | traffic | `{ id, otherId, kind, b:'vehicle'\|'pedestrian'\|'cyclist', dist (m de folga), relKmh, x, z }` |
 | `OVERTAKEN` / `PLAYER_OVERTOOK` | traffic | `{ id, otherId, kind, persona, side:'left'\|'right', relKmh }` (no `PLAYER_OVERTOOK`, `'right'` = jogador passou pela direita) |
+| (todo evento de veículo do trânsito) | traffic | também `onPhone, noSignal, speeder, revenge, filtering, stjBus` do veículo envolvido (falas de situação) |
 | `CUT_OFF` ("fechado") | traffic | `{ id, otherId, kind, persona, gap, ring }` (`ring` = entrada/dentro de rotatória) |
 | `HONKED_AT` / `FLASHED` / `TAILGATED` | traffic | `{ id, otherId, kind, persona, x, z }` / `{ id, otherId, kind, persona }` / `{ ..., gap }` |
 | `PEDESTRIAN_CROSSING` | traffic | `{ crosswalkId, x, z, dist, on, pedCount, signalized }` — `on:true` 1x por travessia na faixa à frente do jogador, `on:false` quando esvazia |
@@ -284,7 +286,10 @@ dos semáforos). **Entorno do STJ** (mapa real comprimido): a quadra fica entre 
 acesso à Via L4), **Rotatória 3** (`R_STJ3`, perto do TSE), e dois ao sul (`R_STJN1` L2 × L3, `R_STJN2` na Via L4 — dirigíveis,
 fora das rotas do GPS). Estacionamentos: `stj_norte` (zona `stj_norte`/`stj`) e `stj_leste` (laço; zona `stj_leste`), com
 carros parados instanciados. Rotas que o GPS devolve (testadas em `tools/test-roads.js`):
-- Casa → STJ Norte (Eixo): QRSW 2 › Jaqueiras › Praça do Cruzeiro › Eixo (Via S1) › descida da Rodoviária › Via S2 › Balão da SAFS Q. 2 › avenida › Estacionamento Norte (ponta oeste). Variante: SAFS Q. 2 › lateral leste › ponta leste.
+- Saída de casa (fase 4): o carro larga **estacionado na vaga** em frente ao prédio (`vaga_casa`, de frente para a rua), sai para a rua
+  da QRSW 2 para oeste, vira à direita na **Marginal da Av. das Jaqueiras** (`marg_jaq`, mão dupla estreita, gramado e terreno de terra
+  vermelha ao lado) e entra na Jaqueiras (2 + 2 faixas, canteiro arborizado) em `J_JAQ2`, sem semáforo. A volta é o inverso, até a vaga livre.
+- Casa → STJ Norte (Eixo): QRSW 2 › Marginal › Jaqueiras › Praça do Cruzeiro › Eixo (Via S1) › descida da Rodoviária › Via S2 › Balão da SAFS Q. 2 › avenida › Estacionamento Norte (ponta oeste). Variante: SAFS Q. 2 › lateral leste › ponta leste.
 - Casa → STJ Leste: … › Eixo (Esplanada) › Três Poderes › Via S2 › lateral do STJ › Rotatória 2 › Estacionamento Leste (ou pela avenida › Rotatória 1 › transversal › Rotatória 2).
 - Volta: do mesmo estacionamento, pelo caminho inverso (Eixo pela Via N1 / alça da Rodoviária).
 - Parque (corredor `planRouteVia`): QRSW 2 › Jaqueiras › Primeira Avenida › Balão da EPIG › anel do Parque › Via S3 (SCS, SAUS) › Rotatória 3 › Rotatória 1 › STJ, e o inverso.
@@ -377,6 +382,9 @@ draw calls / 290–298 mil tri; SCS 114–122 / 282–313 mil; Eixo 64–65 / 17
 281–297 mil (o segundo número é com o zoom máximo de alta velocidade). Simulação por passo de 1/60 s ≈ 0,8 ms (trânsito ~0,5,
 jogador ~0,13, GPS ~0,12 em média com picos a cada 0,5 s, humor ~0,05, regras ~0,01). Os carros do trânsito usam sombra blob:
 com eles projetando no shadow map o SCS passava de 350 mil triângulos (`SHADOW_TRAFFIC` em `traffic/render.js`).
+Medido na fase 4 (robô dirigindo as rotas, câmera de jogo, pool de trânsito 64, SwiftShader 1280×720): pior caso no Sudoeste/QRSW 2
+111 draw calls / 331 mil tri; Via S3/SCS 101–103 / 250–306 mil; Parque 100 / 333 mil; Eixo 92–94 / 232 mil; STJ 70–87 / 228–242 mil.
+Passo de simulação 0,15 ms em média (trânsito 0,10 ms); ~0,4 % dos passos passam de 4 ms (pausas de GC do headless, não de um sistema).
 Prédios/marcos/caixas entre a câmera e o carro ficam pontilhados ("screen-door", `OCCLUSION` em `render/materials.js`): o jogador nunca
 some atrás de prédio.
 
@@ -393,9 +401,10 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
 (também em `ctx.modules.mood.balance` / `ctx.modules.rules.balance`). Lógica pura e testada: `mood/model.js`, `mood/lines.js`,
 `rules/fines.js`, `rules/score.js`, `rules/result.js`. Toda consulta ao trânsito passa por `rules/traffic-adapter.js` (roda com o stub).
 
-- **Humor:** ansiedade do Davi sobe com pista livre e ele devagar, *atrás de carro lento* (gatilho mais forte; cresce com o tempo e a
-  proximidade), vermelho, pedestre na faixa, abaixo do limite, cronômetro, faixa de ônibus vazia ao lado; desce correndo com pista
-  livre, ultrapassando (`PLAYER_OVERTOOK`) e respirando. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
+- **Humor:** ansiedade do Davi sobe com pista livre e ele devagar (só andando), *atrás de carro lento* (gatilho mais forte; cresce com o
+  tempo e a proximidade; "lento" = o da frente ANDA devagar ou não sai no verde — fila parada no sinal/faixa/balão é `anx.queue`, bem
+  menor), vermelho, pedestre na faixa, abaixo do limite, cronômetro (fraco), faixa de ônibus vazia ao lado; desce correndo com pista
+  livre, andando no ritmo da via (≥ 85 % do limite, mesmo com trânsito), ultrapassando (`PLAYER_OVERTOOK`) e respirando. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
   rotatória —, buzina, farol, cola, fina, multa, fruta, raspão) e desce com calma. Pisos: Davi 15 (12 de carona), dono 0 ao volante.
   Os alívios "naturais" (correr com pista livre, calma) param no **repouso** (`anx.rest` 26, `str.rest` 22): só respirar desce até o
   piso, então as barras não colam no piso sozinhas. **Congestionamento** (`MOOD_BALANCE.jam`): parado na fila sobe ansiedade E
@@ -416,11 +425,27 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
   dono ≥ 97 por 3 s → `'tomouOCarro'`.
 - **Falas:** `EV.SAY` com `gesture` opcional; banco em `mood/lines.js`, cada fala com variante com palavrão e leve
   (`state.settings.profanity === false` usa a leve); sem repetir em sequência e com intervalo mínimo por personagem/banco.
+  **Falas de situação** (`situationOf` em `mood/model.js`, bancos `sit*`/`ev*` do Davi motorista, `ps*` do Davi passageiro, `os*`
+  do Leandro no perigo) narram o que está na tela: quem está na frente e por que não anda (`leadInfo().why`: autoescola que deixou
+  morrer, celular no verde, ônibus no ponto, tio na esquerda...), pedestre na faixa, sinal fechando na pista livre, pardal, faixa de
+  ônibus vazia, gramado, e os eventos citam quem causou (sem seta, motoboy, ônibus, revanche). Têm prioridade (`minGapHigh` 1,4 s);
+  o enchimento (`filler`: resmungo, relógio, cruzeiro...) só preenche silêncio de `speech.fillerGap` (8 s). Ritmo medido: 11–16
+  falas/min no davi/perigo, 17–19 no carona; a UI mostra no máximo 2 balões por lado.
 - **Multas:** pardal (`speed`, 3 faixas, tolerância 7 km/h/7 %), vermelho (radar `redLight` ou agente vendo a linha de retenção),
   faixa de pedestre ocupada (sempre), faixa de ônibus (≥ 3 s e só se radar `busLane` ou agente viu; `traffic.revealAgent`). Agentes
   também multam excesso > 20 % no campo de visão. Sem repetir mesmo código a < 150 m em 15 s. Sem `traffic.radars`, usa os radares
   declarados no mapa (`net.enforcementSpots` com `s`).
-- **Colisão:** pedestre encerra sempre; ≥ `CONFIG.crashImpactKmh` encerra (`'bateu'`); abaixo disso é raspão (−pontos, +estresse/pânico).
+- **Colisão:** atropelar pedestre (≥ `collision.pedSoftKmh`, 8 km/h) encerra; encostar abaixo disso é **"quase"**: susto (estresse do
+  Davi, pânico do Leandro), o pedestre recua e reclama (mão levantada + aviso), −pontos e multa de faixa se foi na faixa. Veículo/estático
+  ≥ `CONFIG.crashImpactKmh` encerra (`'bateu'`); abaixo disso é raspão (−pontos, +estresse/pânico) e nunca encerra.
+- **Faixa de pedestre — critério espacial:** só é infração se, quando o carro cruza a linha, há pedestre atravessando NO corredor da
+  faixa de rolamento do carro (meia largura `cwBand` 1,9 m) ou a até `cwAheadM` (2,4 m) de entrar nele, ou sinalizando na beira da
+  calçada do lado do carro. Quem já passou da trajetória, está na outra pista além do canteiro ou terminou a travessia não conta, mesmo
+  em cima da faixa pintada (`traffic.crosswalkBlockedAt(cid, x, z)`; a IA usa o mesmo critério para voltar a andar).
+- **Fora da pista (art. 193, `code: 'offroad'`):** canteiro, gramado, calçada ou terreno: R$ 880,41 e 7 pontos, por videomonitoramento
+  (ou pelo agente escondido, se ele vir). Carência: 2 s contínuos OU 15 m fora; reincide a cada 8 s ou 120 m (`RULES_BALANCE.offroad`).
+  Vagas, estacionamentos (`MAP.parkingAreas`) e as zonas de largada/chegada são área permitida. No perigo, o Leandro entra em pânico
+  enquanto o carro estiver no gramado.
 - **Pontos:** zona de equilíbrio nas barras do Davi (20–55; carona: dono 0–12 e Davi ≤ 60) → 10 pt/s × multiplicador (sobe 0,12/s até
   4/3/6; base 1/1/1,5); estourar o teto corta o multiplicador pela metade. Fim: bônus de tempo (par = distância/45 km/h), −(pontos CNH×100
   + R$) por multa, batida mantém 35 %. `state.result.crash = { withWhat, excuse (causa impessoal), repairCost (só Cactus), repairItems,
@@ -447,10 +472,26 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
   e entra sem esperar brecha; a traseira varre para fora na curva (`_busSwing`). `CUT_OFF` com `ring: true, stj: true`; `NEAR_MISS`
   se passou raspando; `COLLISION` pela regra normal (boletim: "Um ônibus do STJ, na rotatória."). Teste: 5 sementes, piloto cuidadoso
   nunca bate e ninguém fica preso no balão.
+- **Saída no verde:** reação 0,4–0,9 s (normal) e aceleração viva (IDM `a` 2,2–3,0); os atrasos não se empilham: OU reação, OU
+  celular (`onPhone`, +0,8–1,5 s em 40 % das paradas), OU autoescola que "deixa morrer" (1 em cada 4 paradas, 1,8–2,8 s, com tranco e
+  pisca-alerta). Buzina (H) ou farol (F) no carro parado no verde faz arrancar na hora (birra só de persona agressiva).
+  Medido (1º carro da fila cruzar a linha): normal 3,3 → 2,3 s (pior caso 11,9 → 4,7 s); ônibus 8,1 → 5,2 s.
+- **Semáforos:** via principal (`MAP.signalMain`) com verde de 22 s e transversal 10 s (ciclo 40 s); ninguém entra no cruzamento
+  sem espaço na saída; quem já entrou e ficou travado por outro carro também travado no cruzamento desocupa (ignora veículos por 1,6 s).
+  A saída da QRSW 2 (marginal → Jaqueiras) não tem semáforo.
+- **Presença na via do jogador** (`TUNING.flowPerLane`): repõe gente à frente, logo além da vista (distância cresce com a velocidade),
+  contando pela via e sentido, e já povoa a próxima via mais movimentada do caminho (sair do balão para o Eixo e achar o Eixo cheio).
+  Eixo: 6 por faixa em 160 m (medido com o robô: 6–9 veículos à frente na Via S1/N1, 3–9 % das amostras sem ninguém à frente).
+  A saída de casa (vaga, rua da QRSW 2, marginal) é calma por desenho (`TUNING.quietSegs`).
+- **Preferência no balão:** o jogador no balão perto da entrada é sempre conflito para quem quer entrar (qualquer velocidade; antes um
+  carro quase parado no balão parecia "longe" e a IA entrava em cima); quem já decidiu entrar desiste se o jogador chega. Na fusão de
+  alça com via ("zíper") o jogador também entra na ordem de chegada. O ônibus do STJ continua entrando na marra.
 - **Lento em trecho sem ultrapassagem** (anel do Parque): com fila colada atrás por 12–22 s (ou se pedirem passagem com farol/buzina),
   encosta no acostamento por ~7 s e a fila passa (ninguém fica atrás do mesmo lento a rota toda).
-- **Faixa de pedestre sem semáforo:** depois que esvazia, 7 s de "vez dos carros" (ninguém começa a atravessar; quem já está junto
-  entra nos primeiros 2,5 s) — evita fila eterna no SCS.
+- **Pedestres:** travessias a ~1/3 da taxa antiga, em pequenos grupos (quem chega sozinho espera o grupo ou 6 s); depois que a faixa
+  esvazia, 30 s de "vez dos carros"; logo depois de o jogador parar para um grupo, a faixa seguinte à frente dele não abre travessia
+  (nunca duas paradas seguidas). Com semáforo, só atravessam no vermelho dos carros e se dá tempo de cruzar antes do verde deles.
+  Passantes andam pelas calçadas sem atravessar (a cidade não fica vazia). Encostar devagar = "quase" (ver Regras).
 - **Menu vivo:** no menu o trânsito roda em volta da Esplanada (jogador "fantasma" no gramado).
 - **IA:** cada veículo é um `LaneWalker` com um caminho curto já sorteado (`path`). Longitudinal = IDM (seguimento suave) contra todos
   os obstáculos do caminho: veículo/jogador à frente (baldes por faixa), linha de parada no vermelho/amarelo (antes da faixa de pedestre
@@ -481,7 +522,9 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
   `playerAtFault` heurístico (bateu na traseira = jogador; levou na traseira / o outro trocava de faixa ou furou o balão = outro).
   Viadutos (`net.isGradeSeparated`) não colidem. Velocidade do jogador = `phys.vx/vz` (um piloto que teleporta com v = 0 atravessa
   carros e pode levar batidas de baixa velocidade).
-- **API** (`ctx.modules.traffic`, objetos reutilizados): `vehicles`, `pedestrians`, `hazards`, `radars`, `agents`, `leadInfo()`,
+- **API** (`ctx.modules.traffic`, objetos reutilizados): `vehicles`, `pedestrians`, `hazards`, `radars`, `agents`, `leadInfo()`
+  (`{ id, kind, persona, gap, speed, closing, onPhone, noSignal, stalled, lane, laneCount, why }`, `why` = `'sinal'|'pedestre'|'morreu'|
+  'celular'|'verde'|'fila'|'ponto'|'balao'|'quebrado'|null`), `crosswalkBlockedAt(cid, x, z)`,
   `rearInfo()`, `freeAhead()`, `neighbors(r)`, `crosswalkAhead()`, `provoke(a, r)`, `flashLead()`, `revealAgent(id)`, `stats()`;
   depuração: `debug.spawn(modeloOuPersona, metrosÀFrente, faixa±, opts)`, `debug.clear()`, `debug.spawnPed(cw, atravessarJá)`,
   `debug.setAutoSpawn(bool)` (desliga spawn/despawn automáticos), `debug.repopulate()`, `debug.sim`. Campos completos no topo de `traffic.js`.

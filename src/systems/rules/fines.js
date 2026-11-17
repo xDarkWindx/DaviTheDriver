@@ -4,12 +4,14 @@
 //          radars:  [{ id, type:'speed'|'redLight'|'busLane', x, z, heading?, range?, limitKmh?, signalId? }],
 //          agents:  [{ id, x, z, heading?, range }],
 //          approaches: [{ key, signalId, group, x, z, heading, latMin, latMax, state:'green'|'yellow'|'red' }],  (linhas de retenção)
-//          crosswalks: [{ id, x, z, heading, halfWidth, occupied }] }
+//          crosswalks: [{ id, x, z, heading, halfWidth, occupied }],
+//          offroad (fora de qualquer via/estacionamento/vaga/zona de largada e chegada) }
 // stepFines(det, snap, dt) -> { fines: [...], signalRuns: [...], reveal: [agentId...] }
 import { RULES_BALANCE } from './balance.js';
 
 export function createFineDetector(B = RULES_BALANCE) {
-  return { B, recent: [], busT: 0, busOffT: 0, busFined: false, out: { fines: [], signalRuns: [], reveal: [] } };
+  return { B, recent: [], busT: 0, busOffT: 0, busFined: false, offT: 0, offD: 0, offSinceT: 0, offSinceD: 0, offFined: false,
+    out: { fines: [], signalRuns: [], reveal: [] } };
 }
 
 export function angleDiff(a, b) {
@@ -136,6 +138,22 @@ export function stepFines(det, snap, dt) {
   // ---- 5) faixa exclusiva de ônibus: só multa se radar 'busLane' ou agente VIU, após tempo mínimo
   if (snap.onBusLane) { det.busT += dt; det.busOffT = 0; }
   else { det.busOffT += dt; if (det.busOffT > B.busLane.offGrace) { det.busT = 0; det.busFined = false; } }
+  // ---- 6) transitar sobre canteiro/gramado/calçada (art. 193): carência de tempo e distância (desvio curto, derrapagem,
+  //         escorregão na manga e manobra de estacionar não multam); reincide a cada repeatTime s ou repeatDist m fora da pista
+  const OF = B.offroad, step = moved ? Math.hypot(x - px, z - pz) : 0;
+  if (snap.offroad) {
+    det.offT += dt; det.offD += step;
+    if (det.offFined) { det.offSinceT += dt; det.offSinceD += step; }
+    const due = !det.offFined ? det.offT >= OF.minTime || det.offD >= OF.minDist : det.offSinceT >= OF.repeatTime || det.offSinceD >= OF.repeatDist;
+    if (due && (kmh > OF.minKmh || det.offD >= OF.minDist)) {
+      const a = seenByAgent(B, agents, x, z), def = B.fines.offroad;
+      const f = { code: def.code, label: def.label, amount: def.amount, points: def.points, by: a ? 'agent' : 'radar', x, z };
+      if (a) { f.agentId = a.id; if (out.reveal.indexOf(a.id) < 0) out.reveal.push(a.id); }
+      det.recent.push({ code: def.code, x, z, t: snap.t }); while (det.recent.length > 24) det.recent.shift();
+      out.fines.push(f); det.offFined = true; det.offSinceT = 0; det.offSinceD = 0;
+    }
+  } else { det.offT = 0; det.offD = 0; det.offFined = false; det.offSinceT = 0; det.offSinceD = 0; }
+
   if (snap.onBusLane && det.busT >= B.busLane.minTime && !det.busFined) {
     let by = null, extra = null;
     for (const r of radars) {
