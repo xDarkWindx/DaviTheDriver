@@ -15,27 +15,28 @@ export const MOOD_BALANCE = {
 
   // ---- ANSIEDADE do Davi ("preciso chegar logo"), pontos/s
   anx: {
-    freeRoadMax: 2.5,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar
+    freeRoadMax: 2.0,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar
     freeRoadMinGap: 30,      // m: abaixo disso não conta como "pista livre"
     freeRoadFullGap: 150,
     freeRoadThrottleCut: 0.6,// pisar fundo reduz esse ganho em até 60%
-    cruiseRelief: 6.0,       // correndo (>= 95% do limite) com pista livre: alivia
+    cruiseRelief: 5.0,       // correndo (>= 95% do limite) com pista livre: alivia (até o repouso)
+    rest: 26,                // repouso: alívio natural para aqui (só respirar desce até o piso)
     cruiseMinFree: 40,
     // ATRÁS DE CARRO LENTO: gatilho mais forte do jogo
     slowGap: 30,             // m: lead a menos disso
-    slowLeadRatio: 0.85,     // lead mais lento que 85% do desejado
-    slowBase: 4.0,           // pontos/s ao começar
-    slowGrowth: 0.6,         // +pontos/s por segundo atrás dele
-    slowGrowthCap: 25,       // s
-    slowProximity: 0.8,      // +80% quando colado (gap -> 0)
+    slowLeadRatio: 0.8,      // lead mais lento que 80% do desejado (~92% do limite)
+    slowBase: 1.6,           // pontos/s ao começar
+    slowGrowth: 0.16,        // +pontos/s por segundo atrás dele
+    slowGrowthCap: 20,       // s  (40 -> 100 em ~20-25 s colado num lento sem poder passar)
+    slowProximity: 0.6,      // +60% quando colado (gap -> 0)
     slowDecay: 2.0,          // o "tempo atrás do lento" esvazia 2x mais rápido do que enche
-    redLight: 2.0,           // parado no vermelho
-    crosswalk: 2.5,          // parado na faixa com pedestre
-    belowLimit: 1.5,         // andando abaixo de 80% do limite (sem estar travado)
+    redLight: 1.0,           // parado no vermelho
+    crosswalk: 1.2,          // parado na faixa com pedestre
+    belowLimit: 1.0,         // andando abaixo de 80% do limite (sem estar travado)
     clockBase: 0.15,         // o cronômetro passando...
     clockPer300s: 0.25,      // ...e pesando mais com o tempo
     clockMax: 0.6,
-    busLaneBeside: 2.5,      // faixa de ônibus vazia do lado e ele parado
+    busLaneBeside: 1.5,      // faixa de ônibus vazia do lado e ele parado
     overtook: 8,             // ultrapassou alguém: -8 (mais o tempo que estava atrás do lento * 0.4)
     overtookPerSlowSec: 0.4,
     overtaken: 3,            // ser ultrapassado também dá a sensação de estar devagar
@@ -45,12 +46,13 @@ export const MOOD_BALANCE = {
 
   // ---- ESTRESSE do Davi ("olha esse animal")
   str: {
-    calmDecay: 2.2,          // pista calma e nada acontecendo há calmAfter s
+    calmDecay: 1.8,          // pista calma e nada acontecendo há calmAfter s (até o repouso)
+    rest: 22,                // repouso do estresse
     calmAfter: 4,
     busyDecay: 0.5,
-    overtaken: 5, overtakenPerKmh: 0.08, overtakenMoto: 4,   // motoboy no corredor: extra
+    overtaken: 3.5, overtakenPerKmh: 0.06, overtakenMoto: 3,   // motoboy no corredor: extra
     cutOff: 13, cutOffRingMul: 1.7,                            // fechado; em rotatória/cruzamento x1.7
-    honked: 7, flashed: 6, tailgated: 5,
+    honked: 6, flashed: 5, tailgated: 5,
     fine: 16, nearMiss: 10,
     hazard: { manga: 10, jaca: 20 },
     scrape: 14,              // raspão (colisão leve)

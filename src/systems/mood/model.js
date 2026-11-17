@@ -78,6 +78,8 @@ export function addBar(bars, key, v) {
 }
 
 const FINE_BANK = { speed: 'fineRadar', redLight: 'fineRed', crosswalk: 'fineCrosswalk', busLane: 'fineBus' };
+/** 0 no nível de repouso, 1 a partir de repouso+12: decaimentos "naturais" param no repouso (só ações descem ao piso). */
+const restFactor = (v, rest) => (rest == null ? 1 : clamp((v - rest) / 12, 0, 1));
 const say = (m, bank, prio = 0, gestureOnly = false) => { m.out.says.push({ bank, prio, gestureOnly }); };
 
 function desiredKmh(B, limitKmh) {
@@ -116,7 +118,8 @@ export function stepMood(m, inp, dt) {
     } else {
       ra += AX.freeRoadMax * f * under * (1 - AX.freeRoadThrottleCut * (inp.throttle || 0));
     }
-    if (free > AX.cruiseMinFree && limit > 0 && speed >= 0.95 * limit) ra -= AX.cruiseRelief * Math.min(1, speed / desired);
+    // alívio correndo com pista livre: forte lá em cima, some perto do "repouso" (a barra não cola no piso sozinha)
+    if (free > AX.cruiseMinFree && limit > 0 && speed >= 0.95 * limit) ra -= AX.cruiseRelief * Math.min(1, speed / desired) * restFactor(davi.anxiety, AX.rest);
     if (speed > 5 && limit > 0 && speed < 0.8 * limit) ra += AX.belowLimit * under;
   }
   if (blocked) {
@@ -132,7 +135,7 @@ export function stepMood(m, inp, dt) {
   // ---------------- estresse do Davi
   let rs = 0;
   const calm = !blocked && m.t - m.lastStressEvt > SX.calmAfter && !inp.crosswalkWait;
-  rs -= calm ? SX.calmDecay : SX.busyDecay;
+  rs -= (calm ? SX.calmDecay : SX.busyDecay) * restFactor(davi.stress, SX.rest);
   if (inp.crosswalkWait) rs += SX.pedSlow;
   if (lead && lead.kind === 'bus' && lead.gap < 25) rs += SX.busLead;
   if (davi.anxiety > SX.anxCoupleFrom) rs += SX.anxCouple;

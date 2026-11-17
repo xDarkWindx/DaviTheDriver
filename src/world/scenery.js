@@ -341,8 +341,8 @@ export function buildScenery(sb) {
   // --- fileiras de árvores à beira das vias
   for (const id of ['qrsw2', 'qrsw2_e', 'quarta_av', 'quarta_av_s', 'terceira_w', 'terceira_m', 'terceira_e', 'segunda_w', 'segunda_e', 'eqrsw',
     'rua_q1', 'rua_q34', 'rua_q56', 'clsw', 'primeira_av',
-    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs',
-    's2_alca', 's2_a', 's2_b', 's2_c', 'safs_n', 'l2m_east', 'safs_east'])
+    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
+    's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'safs_east'])
     sb.rowAlong(id, 6.5, 13);
   sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
   for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
@@ -353,14 +353,14 @@ export function buildScenery(sb) {
   // --- postes e guard-rails
   for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1', 'eixo_n1_e']) sb.lampsAlong(id, 42, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
-  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b', 's2_c'])
+  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
     sb.lampsAlong(id, 46, [0]);
-  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
+  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
   for (const id of ['tes', 'eixao_ramp', 'alca_eixao', 'alca_rodo']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
 
   // --- mobiliário urbano nas calçadas (bancos e lixeiras) e arbustos nos canteiros
-  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 'terceira_m', 's3_safs', 's3_saus', 's3_mid_e', 's3_mid', 's3_scs', 'w3_m', 'w3_n', 'ent_e', 'parque', 'jaq_m', 'jaq_s'])
+  for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 'terceira_m', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'w3_m', 'w3_n', 'ent_e', 'parque', 'jaq_m', 'jaq_s'])
     sb.furnitureAlong(id, 55);
   for (const b of net.busStops) {
     const h = b.heading, fx = Math.sin(h), fz = Math.cos(h);
