@@ -6,7 +6,7 @@ import { offsetPolyline, samplePts } from './roadNetwork.js';
 export const ROAD_COLORS = {
   asphalt: 0x505257, asphaltDark: 0x3a3b3f, ringAsphalt: 0x55565b,
   white: 0xf4f4f0, yellow: 0xf0c03a, sidewalk: 0xc9c1b0, median: 0x8e9f55, island: 0x7f9a4c, curb: 0xdedad0,
-  underShadow: 0x2c2d31, busLane: 0x8a4a3e, busLine: 0xf0c03a,
+  underShadow: 0x2c2d31, busLane: 0x77736f, busLine: 0xf2f2ee, // ônibus: padrão de Brasília (linha branca contínua; asfalto só um tom mais claro)
   curbFace: 0xbdb7aa, gutter: 0xb4afa3, verge: 0xa9b46a, shoulder: 0xc3b583, shoulder2: 0xbcb27c, manhole: 0x3b3c3e, manholeRim: 0x77777a,
 };
 
@@ -130,7 +130,7 @@ export function buildRoadMeshes(net, mb, inst, plain = mb, walk = plain) {
     }
   }
 
-  // faixas exclusivas de ônibus: asfalto avermelhado + linha amarela contínua do lado de dentro
+  // faixas exclusivas de ônibus: asfalto um tom mais claro (só para leitura na isométrica) + linha BRANCA contínua do lado de dentro
   for (const lane of net.lanes) {
     if (lane.kind !== 'bus') continue;
     const seg = net.getSegment(lane.segId), w = seg.laneW / 2, y = layerY(seg.layer) + Y.asphalt + 0.012;

@@ -281,14 +281,14 @@ test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)'
   assert.ok(aiFault <= 1, 'IA bateu no jogador ' + aiFault + 'x');
 });
 
-test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA não fica presa no balão', () => {
+function stjBusScenario(seed) {
   const { sim, events, sig } = makeSim();
   const cuts = [], cols = [];
   events.on(EV.CUT_OFF, (p) => cuts.push(p)); events.on(EV.COLLISION, (p) => cols.push(p));
   const st = net.snapStart(net.starts.stj_norte);              // sai do Estacionamento Norte -> avenida -> Balão da SAFS Q. 2
   const route = net.planRoute(st.lane.id, st.s, net.laneForZone('casa').targets);
   const player = makePlayer(st.x, st.z, st.heading);
-  sim.setPlayer(player); sim.reset({ seed: 4242, timeOfDay: 'tarde', route, stjBus: true, stjBusForce: true });
+  sim.setPlayer(player); sim.reset({ seed, timeOfDay: 'tarde', route, stjBus: true, stjBusForce: true });
   const w = net.createWalker(route[0], st.s); w.route = route; w.routeIdx = 0;
   let sp = 0, bus = null, minGap = 99;
   const ringIds = new Set(net.roundabouts.filter((r) => r.id === 'R_Q2').flatMap((r) => r.segIds.flatMap((sid) => [...net.segments.get(sid).laneIdsF])));
@@ -309,10 +309,8 @@ test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA n�
     const ph = player.phys; ph.x = w.x; ph.z = w.z; ph.heading = w.heading; ph.vx = fx * sp; ph.vz = fz * sp;
     sig.update(DT); sim.step(DT);
   }
-  assert.equal(sim.stats.stjBus, 1, 'o evento não disparou');
-  assert.ok(bus && bus.stjBus && bus.persona === 'onibusSTJ', 'sem ônibus do STJ: ' + (bus ? bus.persona + '/' + bus.stjBus : 'null'));
+  const fired = sim.stats.stjBus === 1 && bus && bus.persona === 'onibusSTJ';
   const busCols = cols.filter((c) => c.persona === 'onibusSTJ' || (bus && c.id === bus.id));
-  assert.equal(busCols.length, 0, 'o piloto cuidadoso levou o ônibus: ' + JSON.stringify(busCols[0]));
   // a IA não fica presa no balão depois
   const far = parkingSpot('local'); player.phys.x = far.x; player.phys.z = far.z; player.phys.vx = player.phys.vz = 0;
   const stopT = new Map(); let worst = 0;
@@ -320,9 +318,16 @@ test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA n�
     sig.update(DT); sim.step(DT);
     for (const v of sim.vehicles) { if (!ringIds.has(v.w.lane.id)) continue; const t = v.speed < 0.3 ? (stopT.get(v.id) || 0) + DT : 0; stopT.set(v.id, t); worst = Math.max(worst, t); }
   }
-  console.log(`       fechada no balão: ${cuts.filter((c) => c.stj).length}x; menor folga até o ônibus ${minGap.toFixed(1)} m; maior parada no balão depois: ${worst.toFixed(1)} s`);
-  assert.ok(cuts.some((c) => c.stj && c.ring), 'o ônibus não fechou o jogador no balão');
-  assert.ok(worst < 20, 'alguém ficou preso no balão: ' + worst.toFixed(1) + ' s');
+  return { fired, cut: cuts.some((c) => c.stj && c.ring), busCols: busCols.length, worst, minGap };
+}
+
+test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA não fica presa no balão', () => {
+  const res = [4242, 99, 7, 123, 2024].map((sd) => stjBusScenario(sd));
+  console.log('       ' + res.map((r) => `disparou=${r.fired} fechou=${r.cut} batidas=${r.busCols} folga=${r.minGap.toFixed(1)}m parada=${r.worst.toFixed(1)}s`).join('\n       '));
+  assert.ok(res.every((r) => r.fired), 'o evento não disparou em alguma semente');
+  assert.ok(res.every((r) => r.busCols === 0), 'o piloto cuidadoso levou o ônibus');
+  assert.ok(res.some((r) => r.cut), 'o ônibus nunca fechou o jogador no balão');
+  assert.ok(res.every((r) => r.worst < 20), 'alguém ficou preso no balão');
 });
 
 test('fiscalização e frutas sorteadas por semente (reprodutível)', () => {

@@ -188,13 +188,13 @@ export const MAP = {
       lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 50, kind: 'local' },
 
     // --- Eixo Monumental: duas pistas de mão única com canteiro central gigante
-    { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 3, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 },
-    { id: 'eixo_s1_b', name: 'Eixo Monumental (Via S1)', from: 'J_EPIG', to: 'J_W3N', lanesF: 3, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
-    { id: 'eixo_s1_c0', name: 'Eixo Monumental (Via S1)', from: 'J_W3N', to: 'D_EX', lanesF: 3, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
-    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'D_EX', to: 'X_S2', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2, busLane: 1 },
-    { id: 'eixo_s1_d', name: 'Eixo Monumental (Esplanada)', from: 'X_S2', to: 're_es', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
-    { id: 'eixo_n1_e', name: 'Eixo Monumental (Via N1)', from: 're_en', to: 'X_N1', lanesF: 3, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
-    { id: 'eixo_n1', name: 'Eixo Monumental (Via N1)', from: 'X_N1', to: 'rw_en', lanesF: 3, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 },
+    { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 , busLane: 1 },
+    { id: 'eixo_s1_b', name: 'Eixo Monumental (Via S1)', from: 'J_EPIG', to: 'J_W3N', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
+    { id: 'eixo_s1_c0', name: 'Eixo Monumental (Via S1)', from: 'J_W3N', to: 'D_EX', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2, busLane: 1 },
+    { id: 'eixo_s1_c', name: 'Eixo Monumental (Via S1)', from: 'D_EX', to: 'X_S2', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2, busLane: 1 },
+    { id: 'eixo_s1_d', name: 'Eixo Monumental (Esplanada)', from: 'X_S2', to: 're_es', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
+    { id: 'eixo_n1_e', name: 'Eixo Monumental (Via N1)', from: 're_en', to: 'X_N1', lanesF: 5, lanesB: 0, limitKmh: 70, kind: 'eixo', layer: 2 },
+    { id: 'eixo_n1', name: 'Eixo Monumental (Via N1)', from: 'X_N1', to: 'rw_en', lanesF: 5, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 , busLane: 1 },
     // Trevo Eixo × Eixão (Rodoviária): alças dirigíveis
     { id: 'alca_eixao', name: 'Alça Eixo → Eixão Sul', from: 'D_EX', to: 'M_EX', via: [[-74, 52], [-34, 86], [-10, 132]], corner: 26,
       lanesF: 1, lanesB: 0, laneW: 4.5, limitKmh: 40, kind: 'ramp', layer: 1 },
