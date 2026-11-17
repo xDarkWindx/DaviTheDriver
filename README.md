@@ -11,8 +11,8 @@ possível, equilibrando as barras de **ansiedade** e **estresse** pelo caminho (
 | Modo | Como é |
 |---|---|
 | **Sendo o Davi** | você dirige o Renault Kwid branco do Davi |
-| **Dando carona pro Davi** | você dirige o seu C4 Cactus THP cinza, com o Davi de passageiro |
-| **PERIGO** | o Davi dirige o seu Cactus emprestado. Cuidado com o carro alheio! |
+| **Dando carona pro Davi** | você é o Leandro, no seu C4 Cactus THP cinza, com o Davi de passageiro |
+| **PERIGO** | o Davi dirige o Cactus emprestado do Leandro, que vai do lado. Cuidado com o carro alheio! |
 
 **Rotas:** Casa → STJ (manhã) e STJ → Casa (fim de tarde). Há duas rotas principais no mapa, ambas nos dois
 sentidos: **Eixo Monumental** (rápida, com pardais) e **Via S3 + Parque da Cidade** (lenta, com semáforos e faixa
@@ -493,7 +493,7 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
 ## Interface (src/ui/)
 
 `ui.js` é um módulo comum (`name: 'ui'`) que só lê `ctx.state`, escuta eventos e emite `EV.REQ_*`. Arquivos:
-`menu.js` (menu), `hud.js` + `minimap.js` (HUD; DOM só muda quando o valor muda, minimapa a ~10 Hz), `end.js` (chegou / boletim de
+`faces.js` (rostos em pixel art COMO DADOS: paleta + matriz de strings por expressão — `calm`, `anx`, `stress`, `panic` — para o Davi e o Leandro, 24×24; avatar do menu 32×32; camada opcional `horns` do Davi, que aparece no HUD por alguns segundos quando o estresse dele bate 100), `menu.js` (menu), `hud.js` + `minimap.js` (HUD; DOM só muda quando o valor muda, minimapa a ~10 Hz), `end.js` (chegou / boletim de
 ocorrência / desistiu / tomouOCarro), `panels.js` (Como jogar e Opções), `touch.js` (botões de toque, só em dispositivo de toque
 ou com `?touch=1`), `storage.js` (opções e recordes em `localStorage`, tudo com try/catch e cópia em memória), `texts.js` (toda a
 copy pt-BR), `pixel.js` (pixel art desenhada em canvas, sem imagens externas), `demo.js` (veja abaixo). O CSS inteiro fica em `index.html`
