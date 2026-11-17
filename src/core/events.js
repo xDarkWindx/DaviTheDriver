@@ -41,7 +41,17 @@ export const EV = {
   // --- acrescentados pela fase de UI ---
   SETTINGS_CHANGE: 'ui:settings',    // ui { volume, muted, retro, quality }  (cópia de state.settings; a UI é a ÚNICA que escreve)
   SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s) }  -> balão de fala
+
+  // --- acrescentados pela fase de regras/humor (rules.js / mood.js) ---
+  FLASH: 'player:flash',             // núcleo (input, tecla F) { source: 'player' }  piscar o farol
+  SIGNAL_RUN: 'rules:signalRun',     // rules { signalId, group, state:'red'|'yellow', x, z, seen }  jogador passou do semáforo no amarelo/vermelho
+  TAKEOVER: 'mood:takeover',         // mood { who:'dono' }  o dono (perigo) tomou o carro -> rules encerra com 'tomouOCarro'
 };
+// Eventos do contrato de traffic.js: se o agente de trânsito ainda não os declarou, declara aqui (mesmos nomes).
+if (!EV.FLASHED) EV.FLASHED = 'traffic:flashed';               // { id, kind }  alguém piscou o farol para o jogador
+if (!EV.TAILGATED) EV.TAILGATED = 'traffic:tailgated';         // { id, kind, gap }  alguém colou na traseira
+if (!EV.HAZARD_HIT) EV.HAZARD_HIT = 'traffic:hazardHit';       // { kind:'manga'|'jaca', x, z, speedKmh }
+if (!EV.PLAYER_OVERTOOK) EV.PLAYER_OVERTOOK = 'traffic:playerOvertook'; // { id, kind, relKmh, side }
 
 export class EventBus {
   constructor() { this._h = new Map(); }

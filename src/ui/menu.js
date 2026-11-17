@@ -20,7 +20,7 @@ export class Menu {
     const title = el('canvas', 'title', head); title.setAttribute('aria-label', 'Davi, the Driver'); title.setAttribute('role', 'img');
     drawTitle(title);
     const hr = el('div', 'head-right', head);
-    el('p', 'slogan', hr, 'Kwid branco. 4 batidas no ano. E a culpa, claro, é sempre dos outros.');
+    el('p', 'slogan', hr, 'De casa ao trabalho (ou vice-versa) pelo trânsito de Brasília. Sem bater, sem multa, no menor tempo.');
     const hb = el('div', 'head-btns', hr);
     const b1 = el('button', 'btn', hb, 'COMO JOGAR'); b1.dataset.testid = 'btn-howto'; b1.onclick = () => h.howto();
     const b2 = el('button', 'btn', hb, 'OPÇÕES'); b2.dataset.testid = 'btn-options'; b2.onclick = () => h.options();

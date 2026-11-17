@@ -75,7 +75,7 @@ export function createState() {
 
     // Resultado da viagem. DONO: rules.js — preencher ANTES de emitir REQ_FINISH/TRIP_FINISH (a UI lê no TRIP_FINISH).
     // { reason:'chegou'|'bateu'|'desistiu'|'tomouOCarro', time, points, grade:'A'..'F', title, fines:[{code,label,amount,points}],
-    //   crash:{ withWhat, excuse, repairCost }|null, yearsLost (modo perigo) }. A UI zera ao voltar ao menu.
+    //   crash:{ withWhat, excuse (causa impessoal), repairCost, sinistroNo? (opcional; senão a UI sorteia 2..99 por viagem) }|null, yearsLost (modo perigo) }. A UI zera ao voltar ao menu.
     result: null,
 
     time: { sim: 0, real: 0, frame: 0 }, // core/loop

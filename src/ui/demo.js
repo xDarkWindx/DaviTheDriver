@@ -9,7 +9,7 @@ export function demoRequested() {
 
 const LINES = {
   davi: [
-    ['davi', 'driver', 'anx', 'Eu vou chegar atrasado. Eu SEI que vou chegar atrasado.'],
+    ['davi', 'driver', 'anx', 'Acho que a gente vai chegar atrasado.'],
     ['davi', 'driver', 'stress', 'Esse cara dirige com os pés?!'],
     ['davi', 'driver', 'stress', 'SETA! Existe SETA!'],
     ['davi', 'driver', 'panic', 'O pardal! O pardal! Eu vi o pardal!'],
@@ -104,7 +104,7 @@ export class Demo {
       st.result = {
         reason, time: st.trip.elapsed || 187.4, points: 14250, grade: 'C', title: 'Cidadão Médio do DF',
         fines: st.fines.map((x) => ({ ...x })),
-        crash: reason === 'bateu' ? { withWhat: 'um poste de concreto armado', excuse: 'O poste estava na minha frente e eu estava na minha faixa. Ele que desviou mal.', repairCost: perigo ? 18740 : null } : null,
+        crash: reason === 'bateu' ? { withWhat: 'um poste de concreto armado', excuse: 'O poste apareceu.', repairCost: perigo ? 18740 : null } : null,
         yearsLost: perigo ? 3.4 : undefined,
       };
     }

@@ -145,7 +145,7 @@ inteiro mantendo `name: 'ui'`: ela só lê `ctx.state`, escuta eventos e emite `
   fines: [], fineTotal: 0,                                         // dono: rules.js
   score: { points, multiplier, inZone, zoneLo, zoneHi },           // dono: rules/mood; barras 0..100; zoneHi<=zoneLo = sem zona
   settings: { volume 0..1, muted, retro, quality },                // dono: UI (persiste em localStorage); áudio/fx só LEEM
-  result: null | { reason, time, points, grade, title, fines[], crash, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
+  result: null | { reason, time, points, grade, title, fines[], crash{...,sinistroNo?}, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
   actions?: { horn, breathe, curse }  // opcional, cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
   time: { sim, real, frame },
 }

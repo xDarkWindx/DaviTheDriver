@@ -44,43 +44,146 @@ export function makeGroundTexture(S = 256, anisotropy = 4) {
       wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * e, rot, 0, Math.PI * 2); g.fill(); });
     }
   };
-  blot(60, ['#a59659', '#c4b276', '#9b9757', '#b3a465'], 6, 30, 0.4);
-  blot(28, ['#a8603a', '#b5683d', '#9c5532'], 2, 9, 0.45);   // terra vermelha
-  blot(40, ['#8f9450', '#7f8a48', '#76803f'], 2, 7, 0.55);   // tufos esverdeados
-  g.globalAlpha = 0.35;
-  for (let i = 0; i < 2200; i++) { g.fillStyle = rng() < 0.5 ? '#86784a' : '#d6c88c'; g.fillRect(rng() * 256, rng() * 256, 0.8, 2.2); }
+  blot(70, ['#a59659', '#c4b276', '#9b9757', '#b3a465', '#a8a060'], 6, 34, 0.4);
+  blot(34, ['#a8603a', '#b5683d', '#9c5532', '#b77a4a'], 2, 11, 0.45);   // terra vermelha
+  blot(60, ['#8f9450', '#7f8a48', '#76803f', '#93a052'], 2, 8, 0.55);   // tufos esverdeados
+  g.globalAlpha = 0.4;
+  for (let i = 0; i < 6000; i++) { const v = rng(); g.fillStyle = v < 0.4 ? '#86784a' : v < 0.8 ? '#d6c88c' : '#7d8a45'; g.fillRect(rng() * 256, rng() * 256, 0.6, 1.4 + rng() * 2); }
+  g.globalAlpha = 0.5;
+  for (let i = 0; i < 260; i++) { g.fillStyle = rng() < 0.5 ? '#8a5a3a' : '#e3d9b4'; g.fillRect(rng() * 256, rng() * 256, 1, 1); } // pedrinhas
   g.globalAlpha = 1;
   grain(g, S, rng, 22);
   return finish(c, anisotropy);
 }
 
 /**
- * Textura de detalhe do asfalto (tons de cinza ~0.6..1; multiplica a cor por vértice):
- * granulado, remendos, manchas de óleo e trincas. Repetível; aplicada em UV de mundo.
+ * Textura de detalhe do asfalto (tons de cinza ~0.55..1; multiplica a cor por vértice, inclusive a pintura,
+ * que assim fica naturalmente desgastada): agregado granulado, remendos retangulares, juntas de dilatação,
+ * manchas de óleo, trincas e marcas de pneu. Repetível; aplicada em UV de mundo (1 repetição = uvScale m).
  */
 export function makeAsphaltTexture(S = 256, anisotropy = 4) {
   const { c, g } = logical(S);
   const rng = makeRng(7);
-  g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 14; i++) {
-    const x = rng() * 256, y = rng() * 256, w = 20 + rng() * 60, h = 10 + rng() * 40, v = 185 + rng() * 55 | 0;
-    g.globalAlpha = 0.5; g.fillStyle = `rgb(${v},${v},${v})`;
-    wrap9((ox, oy) => g.fillRect(x + ox, y + oy, w, h));
+  g.fillStyle = '#e4e4e4'; g.fillRect(0, 0, 256, 256);
+  // variação de base (manchas grandes e suaves)
+  for (let i = 0; i < 26; i++) {
+    const x = rng() * 256, y = rng() * 256, r = 20 + rng() * 60, v = 200 + rng() * 50 | 0;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${v},${v},${v},0.45)`); gr.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    g.fillStyle = gr; wrap9((ox, oy) => { g.save(); g.translate(ox, oy); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); });
   }
-  for (let i = 0; i < 18; i++) {
-    const x = rng() * 256, y = rng() * 256, r = 4 + rng() * 18, v = 160 + rng() * 60 | 0, rot = rng() * 3;
-    g.globalAlpha = 0.22; g.fillStyle = `rgb(${v},${v},${v})`;
-    wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.6, rot, 0, 7); g.fill(); });
+  // remendos (bordas retas, tom diferente) com contorno de selante escuro
+  for (let i = 0; i < 7; i++) {
+    const x = rng() * 256, y = rng() * 256, w = 18 + rng() * 50, h = 10 + rng() * 26, v = (rng() < 0.5 ? 170 : 222) + rng() * 20 | 0;
+    wrap9((ox, oy) => {
+      g.globalAlpha = 0.75; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x + ox, y + oy, w, h);
+      g.globalAlpha = 0.55; g.strokeStyle = '#6a6a6a'; g.lineWidth = 0.9; g.strokeRect(x + ox, y + oy, w, h);
+    });
   }
   g.globalAlpha = 1;
-  g.strokeStyle = 'rgba(110,110,110,0.35)'; g.lineWidth = 0.7;
-  for (let i = 0; i < 5; i++) {
+  // juntas transversais (concreto/recapeamento) e longitudinais
+  g.strokeStyle = 'rgba(95,95,95,0.45)'; g.lineWidth = 0.8;
+  for (const yy of [64, 192]) { g.beginPath(); g.moveTo(0, yy + (rng() - 0.5) * 2); g.lineTo(256, yy + (rng() - 0.5) * 2); g.stroke(); }
+  // manchas de óleo
+  for (let i = 0; i < 16; i++) {
+    const x = rng() * 256, y = rng() * 256, r = 2 + rng() * 9, rot = rng() * 3;
+    g.globalAlpha = 0.18 + rng() * 0.2; g.fillStyle = '#4a4a4a';
+    wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * (0.4 + rng() * 0.5), rot, 0, 7); g.fill(); });
+  }
+  // marcas de pneu (faixas suaves longitudinais)
+  g.globalAlpha = 0.07; g.fillStyle = '#333';
+  for (const xx of [70, 110, 150, 190]) g.fillRect(xx + (rng() - 0.5) * 6, 0, 10 + rng() * 6, 256);
+  g.globalAlpha = 1;
+  // trincas ramificadas
+  g.strokeStyle = 'rgba(85,85,85,0.5)'; g.lineWidth = 0.6;
+  for (let i = 0; i < 9; i++) {
     let x = rng() * 256, y = rng() * 256;
     g.beginPath(); g.moveTo(x, y);
-    for (let k = 0; k < 6; k++) { x += (rng() - 0.5) * 30; y += (rng() - 0.5) * 30; g.lineTo(x, y); }
+    for (let k = 0; k < 8; k++) { x += (rng() - 0.5) * 22; y += (rng() - 0.5) * 22; g.lineTo(x, y); }
     g.stroke();
   }
-  grain(g, S, rng, 50);
+  // agregado: pontinhos claros e escuros
+  for (let i = 0; i < 5000; i++) {
+    const v = rng() < 0.5 ? 140 + rng() * 40 | 0 : 240 + rng() * 15 | 0;
+    g.fillStyle = `rgba(${v},${v},${v},0.55)`; g.fillRect(rng() * 256, rng() * 256, 0.6, 0.6);
+  }
+  grain(g, S, rng, 34);
+  return finish(c, anisotropy);
+}
+
+/** Calçada de placas de concreto (1 repetição ≈ 4 m): juntas, placas com tons diferentes, manchas. */
+export function makeSidewalkTexture(S = 256, anisotropy = 4) {
+  const { c, g } = logical(S);
+  const rng = makeRng(11);
+  g.fillStyle = '#e8e5de'; g.fillRect(0, 0, 256, 256);
+  const n = 4, cell = 256 / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const v = 214 + rng() * 34 | 0;
+    g.fillStyle = `rgb(${v},${v - 2},${v - 6})`; g.fillRect(i * cell + 1, j * cell + 1, cell - 2, cell - 2);
+    if (rng() < 0.3) { g.globalAlpha = 0.15; g.fillStyle = '#7a705e'; g.beginPath(); g.ellipse(i * cell + rng() * cell, j * cell + rng() * cell, 6 + rng() * 10, 4 + rng() * 6, rng() * 3, 0, 7); g.fill(); g.globalAlpha = 1; }
+    if (rng() < 0.2) { g.strokeStyle = 'rgba(90,90,90,0.4)'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(i * cell + rng() * cell, j * cell); g.lineTo(i * cell + rng() * cell, (j + 1) * cell); g.stroke(); }
+  }
+  g.strokeStyle = 'rgba(120,115,105,0.9)'; g.lineWidth = 1.6;
+  for (let k = 0; k <= n; k++) { g.beginPath(); g.moveTo(k * cell, 0); g.lineTo(k * cell, 256); g.stroke(); g.beginPath(); g.moveTo(0, k * cell); g.lineTo(256, k * cell); g.stroke(); }
+  grain(g, S, rng, 26);
+  return finish(c, anisotropy);
+}
+
+/** Grama (detalhe que multiplica a cor por vértice dos gramados/canteiros): folhas, falhas de terra. */
+export function makeGrassTexture(S = 256, anisotropy = 4) {
+  const { c, g } = logical(S);
+  const rng = makeRng(23);
+  g.fillStyle = '#e9efe0'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 40; i++) {
+    const x = rng() * 256, y = rng() * 256, r = 8 + rng() * 30, v = rng();
+    g.globalAlpha = 0.25; g.fillStyle = v < 0.4 ? '#cdd8b0' : v < 0.8 ? '#ffffff' : '#d9c7a0';
+    wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.7, rng() * 3, 0, 7); g.fill(); });
+  }
+  g.globalAlpha = 0.5;
+  for (let i = 0; i < 4500; i++) {
+    const x = rng() * 256, y = rng() * 256, v = rng();
+    g.fillStyle = v < 0.5 ? '#b9c79a' : v < 0.85 ? '#fbfff0' : '#a99e78';
+    g.fillRect(x, y, 0.7, 1.6 + rng() * 1.6);
+  }
+  g.globalAlpha = 1;
+  grain(g, S, rng, 18);
+  return finish(c, anisotropy);
+}
+
+/**
+ * Fachadas (uma célula = 1 pavimento × 1 módulo; repetida pelo shader em metros de mundo).
+ * kind: 'res' (bloco residencial: janelas, brises verticais, peitoril de varanda) |
+ *       'office' (pele de vidro com faixa de peitoril) | 'office2' (vidro esverdeado + montantes).
+ * A cor da instância multiplica o branco das paredes. Canto inferior esquerdo (≈0.0–0.06) = parede lisa (topo/teto).
+ */
+export function makeFacadeTexture(kind = 'res', S = 256, anisotropy = 4) {
+  const { c, g } = logical(S);
+  const rng = makeRng(kind === 'res' ? 31 : kind === 'office' ? 37 : 41);
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+  if (kind === 'res') {
+    // 2 módulos de largura (célula = 2 × 3,2 m), 1 andar (3 m). Janela recuada, brises, peitoril
+    for (const ox of [0, 128]) {
+      g.fillStyle = '#d7d2c6'; g.fillRect(ox + 10, 38, 108, 176);                       // recuo da varanda
+      g.fillStyle = '#3c5262'; g.fillRect(ox + 22, 52, 84, 120);                        // vidro
+      g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(ox + 22, 52, 30, 120);          // reflexo
+      g.fillStyle = '#e9e4d8'; for (let k = 0; k < 6; k++) g.fillRect(ox + 16 + k * 18, 40, 5, 132); // brises verticais
+      g.fillStyle = '#f3efe6'; g.fillRect(ox + 6, 176, 116, 40);                         // peitoril
+      g.fillStyle = '#a9a294'; g.fillRect(ox + 6, 214, 116, 4);
+      if (rng() < 0.6) { g.fillStyle = ['#c9443a', '#2f7fb5', '#e0a52a', '#3f9b55'][Math.floor(rng() * 4)]; g.globalAlpha = 0.65; g.fillRect(ox + 26, 120, 30, 50); g.globalAlpha = 1; } // cortina/toalha
+    }
+    g.fillStyle = '#bdb6a6'; g.fillRect(0, 248, 256, 8);                                   // laje
+  } else {
+    const glass = kind === 'office' ? '#3d6170' : '#3f6f5e';
+    g.fillStyle = glass; g.fillRect(0, 56, 256, 200);
+    const gr = g.createLinearGradient(0, 56, 256, 256);
+    gr.addColorStop(0, 'rgba(255,255,255,0.22)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.02)'); gr.addColorStop(1, 'rgba(255,255,255,0.12)');
+    g.fillStyle = gr; g.fillRect(0, 56, 256, 200);
+    g.fillStyle = kind === 'office' ? '#d9d6cf' : '#cfd3cc'; g.fillRect(0, 0, 256, 56);   // peitoril/viga
+    g.fillStyle = '#8c9296'; for (let k = 0; k <= 4; k++) g.fillRect(k * 64 - 2, 56, 4, 200); // montantes
+    g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(0, 56, 256, 6);
+  }
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 14, 14);                                       // área lisa (teto)
+  grain(g, S, rng, 10);
   return finish(c, anisotropy);
 }
 
@@ -102,6 +205,9 @@ export function makeSignAtlas(entries, W = 1024, anisotropy = 4) {
   g.scale(k, k);
   const uv = {}, aspect = {};
   for (const { e, x: px, y: py } of place) {
+    uv[e.key] = [px / LW, 1 - (py + e.h) / LH, (px + e.w) / LW, 1 - py / LH];
+    aspect[e.key] = e.w / e.h;
+    if (e.draw) { g.save(); e.draw(g, px, py, e.w, e.h); g.restore(); continue; } // ícone desenhado à mão
     g.fillStyle = e.bg; g.fillRect(px, py, e.w, e.h);
     if (!e.noBorder) { g.strokeStyle = e.fg; g.lineWidth = 4; g.strokeRect(px + 5, py + 5, e.w - 10, e.h - 10); }
     g.fillStyle = e.fg; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -118,6 +224,47 @@ export function makeSignAtlas(entries, W = 1024, anisotropy = 4) {
     aspect[e.key] = e.w / e.h;
   }
   return { texture: finish(c, anisotropy, false), uv, aspect };
+}
+
+// ---------------------------------------------------------------- placas de trânsito (desenhos p/ o atlas)
+/** Regulamentação de velocidade (R-19): círculo branco, borda vermelha, número preto. */
+export function drawSpeedSign(kmh) {
+  return (g, x, y, w, h) => {
+    g.clearRect(x, y, w, h);
+    const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2 - 2;
+    g.fillStyle = '#d0202a'; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(cx, cy, r * 0.74, 0, 7); g.fill();
+    g.fillStyle = '#111'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `bold ${Math.floor(r * 0.85)}px Arial, sans-serif`; g.fillText(String(kmh), cx, cy + r * 0.04);
+    g.font = `bold ${Math.floor(r * 0.22)}px Arial, sans-serif`; g.fillText('km/h', cx, cy + r * 0.5);
+  };
+}
+/** PARE (R-1): octógono vermelho. */
+export function drawStopSign(g, x, y, w, h) {
+  g.clearRect(x, y, w, h);
+  const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2 - 2;
+  const oct = (rr) => { g.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); };
+  g.fillStyle = '#ffffff'; oct(r); g.fill();
+  g.fillStyle = '#c8161e'; oct(r * 0.9); g.fill();
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold ${Math.floor(r * 0.62)}px Arial, sans-serif`; g.fillText('PARE', cx, cy + 2);
+}
+/** Dê a preferência (R-2): triângulo invertido. */
+export function drawYieldSign(g, x, y, w, h) {
+  g.clearRect(x, y, w, h);
+  const tri = (m) => { g.beginPath(); g.moveTo(x + m, y + m * 0.8); g.lineTo(x + w - m, y + m * 0.8); g.lineTo(x + w / 2, y + h - m); g.closePath(); };
+  g.fillStyle = '#c8161e'; tri(3); g.fill();
+  g.fillStyle = '#ffffff'; tri(18); g.fill();
+}
+/** Faixa de pedestre (A-32b): quadrado azul com pedestre. */
+export function drawPedSign(g, x, y, w, h) {
+  g.clearRect(x, y, w, h);
+  g.fillStyle = '#ffffff'; g.fillRect(x + 2, y + 2, w - 4, h - 4);
+  g.fillStyle = '#1f56b0'; g.fillRect(x + 7, y + 7, w - 14, h - 14);
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x + w / 2, y + 14); g.lineTo(x + w - 16, y + h - 16); g.lineTo(x + 16, y + h - 16); g.closePath(); g.fill();
+  g.fillStyle = '#111'; const cx = x + w / 2, cy = y + h * 0.5;
+  g.beginPath(); g.arc(cx, cy - 12, 5, 0, 7); g.fill();
+  g.lineWidth = 4; g.strokeStyle = '#111'; g.beginPath(); g.moveTo(cx, cy - 6); g.lineTo(cx - 2, cy + 8); g.lineTo(cx - 9, cy + 20); g.moveTo(cx - 2, cy + 8); g.lineTo(cx + 7, cy + 19); g.moveTo(cx - 9, cy + 1); g.lineTo(cx + 9, cy - 2); g.stroke();
+  for (let k = 0; k < 4; k++) g.fillRect(x + 20 + k * 14, y + h - 22, 8, 4);
 }
 
 /** Textura radial suave (sombra "blob"): branco = sombra (usar como alphaMap) */

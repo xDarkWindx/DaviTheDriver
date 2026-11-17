@@ -4,22 +4,22 @@ export const MODE_UI = {
   davi: {
     name: 'Sendo o Davi',
     car: 'Renault Kwid branco',
-    tag: 'Você dirige. A culpa é dos outros.',
-    desc: 'Você É o Davi, ao volante do Kwid branco. Ansioso, estressado, agressivo, 4 batidas no ano — e a culpa, claro, é sempre dos outros. Vamos pra 5?',
+    tag: 'Você é o motorista.',
+    desc: 'Você é o Davi, ao volante do Kwid branco. Trânsito de Brasília, pardal no caminho e duas barras para equilibrar: ansiedade e estresse.',
     level: 2, levelName: 'tenso',
   },
   carona: {
     name: 'Dando carona pro Davi',
     car: 'C4 Cactus THP cinza',
-    tag: 'Você é a paz. Ele é o caos.',
-    desc: 'Você, dono calmo do Cactus THP, dirige. O Davi vai de passageiro palpitando: "cuidado!", "passa!", "tá vermelho!". Duas duplas de barras: as suas ficam tranquilas. As dele, não.',
+    tag: 'Você dirige. Ele comenta.',
+    desc: 'Você dirige o seu Cactus THP cinza e o Davi vai de passageiro, dando palpite em cada cruzamento. Duas duplas de barras: a sua e a dele.',
     level: 1, levelName: 'tranquilo',
   },
   perigo: {
     name: 'PERIGO',
     car: 'C4 Cactus THP cinza',
-    tag: 'Você emprestou o carro. Por quê?',
-    desc: 'Você emprestou o Cactus pro Davi. Ele dirige; você vai do lado, com a mão no teto, gritando "ai, meu carrinho". Turbo + ansiedade = a sua vida passando diante dos olhos.',
+    tag: 'Você emprestou o carro.',
+    desc: 'Você emprestou o Cactus pro Davi. Ele dirige e você vai do lado, de olho no painel e na pintura. Turbo 1.6, trânsito cheio e as barras do passageiro subindo.',
     level: 3, levelName: 'perigo',
   },
 };
@@ -41,12 +41,12 @@ export const HOWTO_CONTROLS = [
 ];
 
 export const HOWTO_RULES = [
-  ['Objetivo', 'Chegar ao destino sem bater, sem multa e no menor tempo. O Davi tem 4 batidas no ano. Não vamos para a 5ª.'],
+  ['Objetivo', 'Chegar ao destino sem bater, sem multa e no menor tempo.'],
   ['Barras de humor', 'Ansiedade e estresse nunca zeram: existe um piso (a parte listrada). Pior: perto do máximo a barra treme e o volante começa a ficar traiçoeiro.'],
   ['Zona de equilíbrio', 'A faixa marcada nas barras do motorista. Ficar dentro dela dá bônus e aumenta o multiplicador de pontos.'],
   ['Respirar e xingar', 'R e X ajudam a baixar a pressão, mas têm tempo de recarga. Buzinar também desabafa (e irrita os outros).'],
   ['Multas', 'Pardal (excesso de velocidade), sinal vermelho, faixa exclusiva de ônibus, faixa de pedestres... O valor e os pontos na CNH aparecem no aviso.'],
-  ['Batida', 'Impacto forte encerra a viagem na hora. Aí vem o boletim de ocorrência — com a versão do Davi.'],
+  ['Batida', 'Impacto forte encerra a viagem na hora. Aí vem o boletim de ocorrência.'],
 ];
 
 export const GRADE_TITLES = {
@@ -55,12 +55,12 @@ export const GRADE_TITLES = {
   C: 'Cidadão Médio do DF',
   D: 'Candidato à Reciclagem',
   E: 'Cliente VIP do Detran',
-  F: 'A Culpa Foi Sua, Dessa Vez',
+  F: 'Chegou. Milagre do DF',
 };
 export const GRADE_QUIPS = {
-  A: 'Sem multa, sem susto. O Davi estranhou e pediu pra checar o retrovisor.',
-  B: 'Chegou inteiro. A ansiedade, nem tanto.',
-  C: 'Nada de mais. Só um pouco de buzina e uma ou outra palavra feia.',
+  A: 'Sem multa, sem susto, sem pressa. Quase suspeito.',
+  B: 'Chegou inteiro e com a CNH intacta.',
+  C: 'Nada de mais. Uma buzinada aqui, uma multa ali.',
   D: 'Chegou, mas o pardal já tem o seu rosto no mural.',
   E: 'A CNH está tossindo. O despachante mandou lembranças.',
   F: 'Chegou por milagre. O carro agradece por ter sobrevivido.',
@@ -88,18 +88,19 @@ export const CRASH_WITH = {
 };
 export const CRASH_WITH_DEFAULT = 'um obstáculo não identificado';
 
+// Causas apuradas: absurdas e impessoais (ninguém culpa ninguém).
 export const CRASH_EXCUSE = {
-  building: ['O prédio entrou na minha frente. Eu estava na minha faixa.', 'Esse prédio não estava aqui ontem. Absurdo.'],
-  tree: ['Árvore sem seta, sem pisca, sem nada. Quem planta uma coisa dessas?', 'Ela mudou de lugar. Eu vi.'],
-  pole: ['Poste mal posicionado. Já mandei mensagem pra Administração.', 'Ele se jogou.'],
-  guardrail: ['O guard-rail estava muito perto da pista. Pista estreita, falha do governo.'],
-  landmark: ['Quem põe um monumento ali? Era obrigação do Oscar Niemeyer avisar.'],
-  busStop: ['O ponto de ônibus estava despreparado pra minha chegada.'],
-  wall: ['Muro sem luz de freio. Criminoso.'],
-  water: ['O lago estava na altura errada.'],
-  vehicle: ['O cara freou do nada. Eu estava a quatro metros, no máximo. Segui o manual.', 'Ele me fechou! Eu só estava de olho no GPS, no celular e na vida.'],
-  pedestrian: ['Ele atravessou olhando pro celular! Eu só buzinei com carinho.'],
-  _: ['A culpa foi do outro. Não sei quem, mas foi.', 'Eu estava calmo. CALMO! Quem bateu foi o asfalto.'],
+  building: ['O prédio estava exatamente onde a planta mandava.', 'Lei da física: dois corpos não ocupam o mesmo lugar.'],
+  tree: ['Uma árvore de ipê, em plena floração. Houve distração estética.', 'Cerrado: a árvore já estava lá antes da rua.'],
+  pole: ['O poste apareceu.', 'Poste em posição estratégica. Sem comentários.'],
+  guardrail: ['O guard-rail cumpriu a função dele. Com louvor.'],
+  landmark: ['Patrimônio tombado, carro destombado.'],
+  busStop: ['O ponto de ônibus estava no ponto.'],
+  wall: ['Muro. Um clássico.'],
+  water: ['O lago estava no nível de sempre.'],
+  vehicle: ['Dois carros, um espaço. A matemática não fechou.', 'Uma manga caiu e mudou tudo.'],
+  pedestrian: ['Travessia inesperada. A faixa era logo ali.'],
+  _: ['Uma manga caiu do céu. Ninguém viu de onde.', 'A física, como sempre, venceu.'],
 };
 
 export const REPAIR_ITEMS = [
@@ -114,7 +115,7 @@ export const TOASTS = {
   overtaken: [['Ultrapassado!', 'Ah, claro. Vai, passa. Passa, vai.'], ['Ultrapassado!', 'De Gol 1.0. Vai ser calmo assim…']],
   cutOff: [['Fechado!', 'Isso foi proposital. Eu vi a cara.'], ['Fechado!', 'Setinha, hein? Existe, é de graça.']],
   honkedAt: [['Buzinaram pra você', 'Que falta de educação!'], ['Buzinaram pra você', 'Eu estava ESQUENTANDO o motor.']],
-  nearMiss: [['Raspou!', 'Passou a um dedo. Mas a culpa é dele.']],
+  nearMiss: [['Raspou!', 'Passou a um dedo.']],
   peakAnx: 'ANSIEDADE NO TALO!',
   peakStress: 'ESTRESSE NO TALO!',
 };
@@ -133,4 +134,4 @@ export const ACTIONS = [
   { key: 'curse', keycap: 'X', label: 'Xingar' },
 ];
 
-export const PAUSE_QUIPS = ['Respira. O trânsito espera.', 'Pausa pra um café (e um calmante).', 'O Davi aproveita pra conferir o retrovisor. Pela terceira vez.'];
+export const PAUSE_QUIPS = ['Respira. O trânsito espera.', 'Pausa pra um café.', 'Tá tudo parado mesmo. Igual a Via S3 às 18h.'];

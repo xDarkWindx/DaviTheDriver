@@ -27,7 +27,8 @@ export function buildEndModel(ctx, f, lastCol, rec) {
     const excuse = c.excuse || pick(excuseList, seed);
     let repair = typeof c.repairCost === 'number' ? c.repairCost : null;
     if (repair == null && tr.mode === 'perigo') repair = Math.round((3200 + impact * 610) / 10) * 10;
-    crash = { withWhat, excuse, repairCost: repair, impact, witness: pick(BO_WITNESSES, seed + 1), kind };
+    const sn = c.sinistroNo != null ? c.sinistroNo : drawSinistro();
+    crash = { sinistroNo: sn, withWhat, excuse, repairCost: repair, impact, witness: pick(BO_WITNESSES, seed + 1), kind };
   }
   const grade = res && res.grade ? String(res.grade).toUpperCase().slice(0, 1) : fallbackGrade(fines.length);
   return {
@@ -37,10 +38,15 @@ export function buildEndModel(ctx, f, lastCol, rec) {
     grade, title: (res && res.title) || GRADE_TITLES[grade] || '',
     fines, fineTotal, cnh,
     crash, yearsLost: res && typeof res.yearsLost === 'number' ? res.yearsLost : null,
-    rec, roadName: st.player.roadName || 'via não identificada',
+    sinistroNo: crash ? crash.sinistroNo : null, rec, roadName: st.player.roadName || 'via não identificada',
     seed: Math.round((tr.elapsed || 0) * 10),
   };
 }
+
+let sinNo = 2 + Math.floor(Math.random() * 98);
+/** Sorteia o número do sinistro (2..99); chamado a cada início de viagem. */
+export function rollSinistro() { sinNo = 2 + Math.floor(Math.random() * 98); }
+function drawSinistro() { return sinNo; }
 
 function fallbackGrade(n) { return n === 0 ? 'A' : n === 1 ? 'B' : n === 2 ? 'C' : n === 3 ? 'D' : n === 4 ? 'E' : 'F'; }
 
@@ -122,18 +128,16 @@ function renderCrash(card, m) {
   const top = el('div', 'bo-top', paper);
   el('span', '', top, 'BOLETIM DE OCORRÊNCIA');
   el('span', 'bo-sub', top, 'documento humorístico, sem validade jurídica');
-  el('h2', 'bo-title', paper, carona ? 'SINISTRO Nº 1 DO CACTUS' : 'SINISTRO Nº 5 DO ANO');
-  el('div', 'bo-lead', paper, carona
-    ? 'Primeira batida do dono. O Davi, de passageiro, já está redigindo a versão dele.'
-    : '4 anteriores arquivados por "culpa do outro". Este também será.');
+  el('h2', 'bo-title', paper, `SINISTRO Nº ${m.sinistroNo}`);
+  el('div', 'bo-lead', paper, 'Ninguém se feriu gravemente. O carro, sim.');
   const cols = el('div', 'bo-cols', paper);
   const a = el('div', 'bo-col', cols);
   const field = (k, v) => { const r = el('div', 'bo-field', a); el('span', 'bo-k', r, k); el('span', 'bo-v', r, v); };
-  field('Condutor', carona ? 'Dono do Cactus (calmo, até agora)' : 'Davi (ansioso, estressado, agressivo)');
+  field('Condutor', carona ? 'Dono do Cactus' : 'Davi');
   field('Veículo', carona || perigo ? 'Citroën C4 Cactus THP cinza' : 'Renault Kwid branco');
   field('Local', m.roadName);
   field('Colidiu com', c.withWhat);
-  field('Impacto', `${Math.round(c.impact)} km/h` + (carona ? '' : ` (segundo o Davi: ${Math.max(5, Math.round(c.impact * 0.35))})`));
+  field('Impacto', `${Math.round(c.impact)} km/h`);
   field('Testemunhas', c.witness);
   field('Tempo de viagem', fmtTime(m.time));
   if (m.fines.length) field('Multas até aqui', `${m.fines.length} · ${fmtMoney(m.fineTotal)}`);
@@ -141,15 +145,15 @@ function renderCrash(card, m) {
 
   const b = el('div', 'bo-col', cols);
   const v = el('div', 'bo-version', b);
-  el('div', 'bo-version-h', v, carona ? 'VERSÃO DO DAVI (do banco do carona)' : 'VERSÃO DO DAVI');
-  el('p', 'bo-quote', v, `"${carona ? 'Eu AVISEI. Eu falei: "cuidado!". ' + c.excuse : c.excuse}"`);
-  el('div', 'bo-fault', v, 'CULPA: DO OUTRO');
+  el('div', 'bo-version-h', v, 'CAUSA APURADA');
+  el('p', 'bo-quote', v, c.excuse);
+  el('div', 'bo-fault', v, 'ACONTECE');
   if (!(perigo || c.repairCost != null)) {
     const d = el('div', 'bo-quote-box', b);
     el('div', 'bo-version-h', d, 'DANOS');
     el('p', 'bo-damage', d, carona
-      ? 'Cactus: para-choque e a paciência do dono. Davi: "eu avisei". Seguro: o dono vai ligar segunda.'
-      : 'Kwid: para-choque, farol e o orgulho do Davi. Seguro: "tava pra renovar".');
+      ? 'Cactus: para-choque e a paciência do dono. Seguro: o dono liga na segunda.'
+      : 'Kwid: para-choque e farol. Seguro: a renovar.');
   }
   if (perigo || c.repairCost != null) {
     const q = el('div', 'bo-quote-box', b);
@@ -162,6 +166,6 @@ function renderCrash(card, m) {
       const r = el('div', 'fine-line', q); el('span', 'fine-name', r, name); el('span', 'fine-val', r, fmtMoney(val));
     });
     const t = el('div', 'bo-total', q); el('b', '', t, 'TOTAL'); el('b', '', t, fmtMoney(total));
-    el('div', 'bo-note', q, perigo ? 'Pago por: o dono do carro. (Davi enviou um áudio de 4 minutos explicando que não foi culpa dele.)' : '');
+    el('div', 'bo-note', q, perigo ? 'Pagamento: à vista, pelo dono do carro.' : '');
   }
 }

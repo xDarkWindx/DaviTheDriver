@@ -10,7 +10,7 @@ import { loadSettings, saveSettings, loadSelection, submitRecord } from './stora
 import { Menu } from './menu.js';
 import { Hud } from './hud.js';
 import { buildHowTo, buildOptions } from './panels.js';
-import { buildEndModel, renderEnd } from './end.js';
+import { buildEndModel, renderEnd, rollSinistro } from './end.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 import { Demo, demoRequested } from './demo.js';
 import { TOASTS, PEAK_SUB, PAUSE_QUIPS } from './texts.js';
@@ -71,7 +71,7 @@ export default {
       this.show();
     });
     ev.on(EV.TRIP_START, () => {
-      this.hud.reset(); this.lastCol = null; st.result = null; // resultado antigo nunca vaza para a viagem nova
+      this.hud.reset(); this.lastCol = null; rollSinistro(); st.result = null; // resultado antigo nunca vaza para a viagem nova
       this.howto.close(); this.options.close();
     });
     ev.on(EV.COLLISION, (c) => { if (c && c.a === 'player') this.lastCol = c; });
