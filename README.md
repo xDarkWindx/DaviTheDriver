@@ -493,7 +493,7 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
 ## Interface (src/ui/)
 
 `ui.js` é um módulo comum (`name: 'ui'`) que só lê `ctx.state`, escuta eventos e emite `EV.REQ_*`. Arquivos:
-`faces.js` (rostos em pixel art COMO DADOS: paleta + matriz de strings por expressão — `calm`, `anx`, `stress`, `panic` — para o Davi e o Leandro, 24×24; avatar do menu 32×32; camada opcional `horns` do Davi, que aparece no HUD por alguns segundos quando o estresse dele bate 100), `menu.js` (menu), `hud.js` + `minimap.js` (HUD; DOM só muda quando o valor muda, minimapa a ~10 Hz), `end.js` (chegou / boletim de
+`faces.js` (rostos em pixel art COMO DADOS: paleta + matriz de strings por expressão — `calm`, `anx`, `stress`, `panic` — para o Davi e o Leandro, 24×24; avatar do menu 32×32), `menu.js` (menu), `hud.js` + `minimap.js` (HUD; DOM só muda quando o valor muda, minimapa a ~10 Hz), `end.js` (chegou / boletim de
 ocorrência / desistiu / tomouOCarro), `panels.js` (Como jogar e Opções), `touch.js` (botões de toque, só em dispositivo de toque
 ou com `?touch=1`), `storage.js` (opções e recordes em `localStorage`, tudo com try/catch e cópia em memória), `texts.js` (toda a
 copy pt-BR), `pixel.js` (pixel art desenhada em canvas, sem imagens externas), `demo.js` (veja abaixo). O CSS inteiro fica em `index.html`

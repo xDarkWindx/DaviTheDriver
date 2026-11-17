@@ -71,11 +71,8 @@ class MoodPanel {
     }
     const a = m.anxiety, s = m.stress, lvl = Math.max(a, s);
     const tone = lvl < 30 ? 'calm' : lvl >= 82 ? 'panic' : a >= s ? 'anx' : 'stress';
-    // segredo: estresse do Davi no máximo => chifrinhos de fantasia por alguns segundos
-    if (who === 'davi' && s >= 99.5) this._hornsT = 4; else if (this._hornsT > 0) this._hornsT -= 1 / 60;
-    const horns = who === 'davi' && this._hornsT > 0;
-    const fk = who + tone + (horns ? 'h' : '');
-    if (fk !== this._faceKey) { this._faceKey = fk; drawFace(this.face, who, tone, horns ? { horns: true } : null); }
+    const fk = who + tone;
+    if (fk !== this._faceKey) { this._faceKey = fk; drawFace(this.face, who, tone); }
     const useZone = this.role === 'driver' && score;
     const zlo = useZone ? score.zoneLo : 0, zhi = useZone ? score.zoneHi : 0;
     const tranq = who === 'dono' && this.role === 'driver';

@@ -59,12 +59,11 @@ export function paintRows(c, rows, palette, ox = 0, oy = 0) {
   }
 }
 
-/** Rosto 24×24. who: 'davi' | 'dono'; tone: 'calm' | 'anx' | 'stress' | 'panic'; extra.horns: camada dos chifrinhos (Davi). */
+/** Rosto 24×24. who: 'davi' | 'dono'; tone: 'calm' | 'anx' | 'stress' | 'panic'. */
 export function drawFace(cv, who, tone, extra = null) {
   const set = who === 'davi' ? DAVI_FACE : DONO_FACE;
   const c = ctx2(cv, FACE_SIZE, FACE_SIZE);
   paintRows(c, set.faces[tone] || set.faces.calm, set.palette);
-  if (extra && extra.horns && set.horns) paintRows(c, set.horns, set.palette);
 }
 
 /** Avatar provisório do menu (Davi de capacete), 32×32. */
