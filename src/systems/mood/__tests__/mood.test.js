@@ -29,29 +29,42 @@ test('pisos nunca furados (todos os modos, alívio máximo por 3 min)', () => {
   }
 });
 
-test('atrás de carro lento por 20 s: a ansiedade sobe mais que em qualquer outro cenário', () => {
-  const slowLead = { gap: 12, speed: 30 / 3.6, kind: 'car' };
+test('atrás de lento sem por onde passar por 20 s: o ESTRESSE sobe mais que em qualquer outro cenário (e não a ansiedade)', () => {
+  const slowLead = { gap: 12, speed: 30 / 3.6, kind: 'car', persona: 'tio' };
   const scenarios = {
     atrasDeLento: base({ speedKmh: 30, limitKmh: 60, throttle: 0.3, lead: slowLead, freeAhead: 12 }),
-    pistaLivreParado: base({ speedKmh: 0, limitKmh: 60 }),
     sinalVermelho: base({ speedKmh: 0, stoppedAtRed: true }),
     faixaPedestre: base({ speedKmh: 0, crosswalkWait: true }),
     abaixoDoLimite: base({ speedKmh: 35, limitKmh: 60, throttle: 0.4 }),
     onibusAoLado: base({ speedKmh: 5, busLaneBeside: true, freeAhead: 20 }),
-    cronometroAlto: base({ speedKmh: 60, limitKmh: 60, elapsed: 900 }),
   };
   const res = {};
-  for (const [k, inp] of Object.entries(scenarios)) {
-    const m = model('davi'); let area = 0;
-    run(m, inp, 20, (mm) => { area += mm.davi.anxiety * DT; });
-    res[k] = { end: m.davi.anxiety, area, at10: null };
-  }
-  for (const [k, r] of Object.entries(res)) {
-    if (k === 'atrasDeLento') continue;
-    assert.ok(res.atrasDeLento.area > r.area + 200, `lento (${res.atrasDeLento.area.toFixed(0)}) > ${k} (${r.area.toFixed(0)})`);
-    assert.ok(res.atrasDeLento.end >= r.end, `lento termina >= ${k}`);
-  }
-  assert.ok(res.atrasDeLento.end > 95, 'atrás do lento por 20 s a ansiedade chega ao talo');
+  for (const [k, inp] of Object.entries(scenarios)) { const m = model('davi'); run(m, inp, 20); res[k] = { a: m.davi.anxiety, s: m.davi.stress }; }
+  for (const [k, r] of Object.entries(res)) if (k !== 'atrasDeLento') assert.ok(res.atrasDeLento.s > r.s + 15, `estresse: lento ${res.atrasDeLento.s.toFixed(0)} > ${k} ${r.s.toFixed(0)}`);
+  assert.ok(res.atrasDeLento.s > 58, 'preso atrás do lento o estresse sobe muito: ' + res.atrasDeLento.s.toFixed(0));
+  assert.ok(res.atrasDeLento.a < 45, 'e a ansiedade quase não: ' + res.atrasDeLento.a.toFixed(0));
+});
+
+test('barras distintas: regra -> ansiedade; gente dirigindo mal -> estresse; cada ação alivia a sua', () => {
+  // vermelho com a pista vazia: ansiedade sobe, estresse não
+  let m = model('davi'); const s0 = m.davi.stress, a0 = m.davi.anxiety;
+  run(m, base({ speedKmh: 0, stoppedAtRed: true, freeAhead: 150 }), 10);
+  assert.ok(m.davi.anxiety > a0 + 8, 'vermelho sobe ansiedade'); assert.ok(m.davi.stress <= s0 + 0.5, 'vermelho não sobe estresse');
+  // ser fechado: estresse sobe, ansiedade não
+  m = model('davi'); const aF = m.davi.anxiety; moodEvent(m, 'cutOff', {}, base({ speedKmh: 40 }));
+  assert.ok(m.davi.stress > 35, 'fechado sobe estresse'); assert.equal(m.davi.anxiety, aF, 'fechado não mexe na ansiedade');
+  // lento na frente com faixa livre ao lado: quase nada
+  m = model('davi'); const st0 = m.davi.stress, an0 = m.davi.anxiety;
+  run(m, base({ speedKmh: 30, limitKmh: 60, lead: { gap: 12, speed: 30 / 3.6, kind: 'car', persona: 'normal' }, freeAhead: 12, sideFree: true }), 10);
+  assert.ok(m.davi.stress < st0 + 4 && m.davi.anxiety < an0 + 6, `com faixa livre ao lado quase não sobe: ${m.davi.stress.toFixed(1)} / ${m.davi.anxiety.toFixed(1)}`);
+  // xingar baixa estresse e não ansiedade; respirar o inverso
+  m = model('davi'); m.davi.stress = 80; m.davi.anxiety = 80; moodEvent(m, 'curse', {}, base());
+  assert.ok(m.davi.stress < 70 && m.davi.anxiety === 80, 'xingar: só estresse');
+  m = model('davi'); m.davi.stress = 80; m.davi.anxiety = 80; moodEvent(m, 'breathe', {}, base()); run(m, base({ speedKmh: 0, freeAhead: 10 }), 3);
+  assert.ok(m.davi.anxiety < 62 && m.davi.stress > 74, `respirar: só ansiedade (${m.davi.anxiety.toFixed(0)}/${m.davi.stress.toFixed(0)})`);
+  // correr livre baixa as duas
+  m = model('davi'); m.davi.stress = 80; m.davi.anxiety = 80; run(m, base({ speedKmh: 95, limitKmh: 80, freeAhead: 150 }), 6);
+  assert.ok(m.davi.stress < 60 && m.davi.anxiety < 50, 'correr livre baixa as duas');
 });
 
 test('ser fechado sobe o estresse (mais em rotatória)', () => {

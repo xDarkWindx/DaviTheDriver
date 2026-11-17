@@ -28,10 +28,10 @@ export const MOOD_BALANCE = {
     slowGap: 30,             // m: lead a menos disso
     slowLeadRatio: 0.8,      // lead mais lento que 80% do desejado (~92% do limite)
     slowMinKmh: 6,           // o da frente acima disso = "andando devagar"; abaixo (parado na fila) = fila
-    slowBase: 1.5,           // pontos/s ao começar
+    slowBase: 1.5,           // (legado: o "atrás de lento" agora está em str.slow*)
     slowGrowth: 0.13,        // +pontos/s por segundo atrás dele
     slowGrowthCap: 22,       // s  (40 -> 90 em ~20-25 s colado num lento sem poder passar)
-    queueGap: 25, queue: 0.35, // fila parada (sinal, faixa, balão): sobe devagar
+    queueGap: 25,            // fila parada a menos disso do da frente: "fila" (estresse; se é fila de sinal, ansiedade fraca)
     slowProximity: 0.6,      // +60% quando colado (gap -> 0)
     slowDecay: 2.0,          // o "tempo atrás do lento" esvazia 2x mais rápido do que enche
     redLight: 0.6,           // parado no vermelho
@@ -41,12 +41,14 @@ export const MOOD_BALANCE = {
     clockPer300s: 0.12,      // ...e pesando mais com o tempo
     clockMax: 0.3,
     busLaneBeside: 1.5,      // faixa de ônibus vazia do lado e ele parado
-    overtook: 8,             // ultrapassou alguém: -8 (mais o tempo que estava atrás do lento * 0.4)
-    overtookPerSlowSec: 0.4,
     pedScare: 10,            // susto com pedestre
-    overtaken: 3,            // ser ultrapassado também dá a sensação de estar devagar
-    stressCoupleFrom: 75,    // estresse alto puxa a ansiedade
-    stressCouple: 0.5,
+    // (fase 5: "atrás de lento", fila, congestionamento e ser ultrapassado viraram ESTRESSE; sem acoplamento entre as barras)
+    radarMul: 1.7,           // segurar o pé perto do pardal pesa mais
+    lowLimitKmh: 40, lowLimit: 0.7, lowLimitFree: 80, // via de limite baixo e vazia
+    redEmptyMul: 1.6,        // vermelho com a pista vazia à frente (ninguém no cruzamento) pesa mais
+    agent: 0.8,              // agente de trânsito à vista
+    slowNoPassRule: 0.6,     // preso atrás de lento E a regra proíbe passar (faixa contínua, faixa de ônibus)
+    whyMin: 0.25,            // taxa mínima para virar rótulo no HUD
   },
 
   // ---- EMBALO: correr com pista razoavelmente livre alivia as DUAS barras do Davi (até o piso), pontos/s.
@@ -60,11 +62,16 @@ export const MOOD_BALANCE = {
 
   // ---- CONGESTIONAMENTO (traffic.inJam): sobe ANSIEDADE e ESTRESSE juntos, crescendo com o tempo parado na fila
   // (substitui o "atrás de lento" enquanto durar). Perigo: para o dono é quase um alívio.
-  jam: { minKmh: 15, anx: 0.6, anxGrow: 0.06, str: 0.5, strGrow: 0.05, cap: 25, decay: 2, lineEvery: 4.5, palpiteMul: 0.6,
+  jam: { minKmh: 15, str: 0.8, strGrow: 0.08, causeStr: 0.3, cap: 25, decay: 2, lineEvery: 4.5, palpiteMul: 0.6,
     donoRelief: 3.0 },
 
   // ---- ESTRESSE do Davi ("olha esse animal")
   str: {
+    // ATRÁS DE LENTO SEM POR ONDE PASSAR: o gatilho mais forte do estresse (com faixa livre ao lado: quase nada)
+    slowBase: 1.0, slowGrowth: 0.08, slowGrowthCap: 20, slowProximity: 0.5, slowCanPass: 0.15,
+    queue: 0.45,             // fila parada (não de semáforo)
+    overtookRelief: 6, overtookPerSlowSec: 0.35, // passou quem travava: alívio pontual
+    whyMin: 0.25,
     calmDecay: 1.8,          // pista calma e nada acontecendo há calmAfter s (até o repouso)
     rest: 22,                // repouso do estresse
     calmAfter: 4,
@@ -78,21 +85,20 @@ export const MOOD_BALANCE = {
     pedScare: 22,            // encostou num pedestre ("quase")
     pedSlow: 2.0,            // pontos/s parado esperando pedestre
     busLead: 1.5,            // pontos/s com ônibus na frente
-    anxCoupleFrom: 75,       // ansiedade alta puxa o estresse
-    anxCouple: 0.6,
+    // (sem acoplamento ansiedade -> estresse: as barras se movem de forma independente)
     signalRun: 0,            // (Davi não se estressa com o próprio sinal furado)
   },
 
   // ---- AÇÕES (cooldown em s)
   actions: {
     horn: { max: 3, stress: -6, provoke: 0.35, radius: 35 },
-    breathe: { max: 12, anxiety: -22, stress: -6, spread: 2.5, footOff: 2.5, accelMul: 0.35, throttleBias: -0.4, maxSpeedMul: 0.9 },
+    breathe: { max: 12, anxiety: -24, stress: 0, spread: 2.5, footOff: 2.5, accelMul: 0.35, throttleBias: -0.4, maxSpeedMul: 0.9 },
     curse: { max: 8, stress: -20, provoke: 0.7, radius: 45, reboundDelay: 4, reboundDur: 6, rebound: 26 },
-    flash: { max: 4, stress: -3, anxietyIfBlocked: -4 },
+    flash: { max: 4, stress: -3, stressIfBlocked: -6 },
     // carona: o jogador é o dono; as ações agem no Davi passageiro
     carona: {
       horn: { daviStress: -5 },
-      breathe: { daviAnxiety: -18, daviStress: -5, footOff: 1.2, accelMul: 0.6 },
+      breathe: { daviAnxiety: -20, daviStress: 0, footOff: 1.2, accelMul: 0.6 },
       curse: { daviStress: -15, rebound: 18, donoStress: 6 },
     },
     perigoCurseDonoStress: 4,

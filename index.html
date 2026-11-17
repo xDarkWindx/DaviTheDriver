@@ -158,6 +158,8 @@
     .bar { margin-top: .22em; }
     .bar-head { display: flex; justify-content: space-between; font-size: .62em; font-weight: 800; letter-spacing: .12em; line-height: 1.5; }
     .bar-val { font-family: ui-monospace, monospace; opacity: .9; }
+    .bar-why { flex: 1; text-align: right; margin-right: .5em; font-size: .9em; letter-spacing: .04em; font-weight: 700; color: #ffd27a; text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-why:not(:empty)::before { content: "▲ "; font-size: .8em; }
     .bar-track { position: relative; height: .95em; background: #0d0820; border: .12em solid #000; overflow: hidden; }
     .bar-fill { position: absolute; inset: 0; background: var(--bc, #43d17f); transform-origin: left center; transform: scaleX(0); }
     .bar.lv0 { --bc: #43d17f; } .bar.lv1 { --bc: #ffd23a; } .bar.lv2 { --bc: #ff8f2a; } .bar.lv3 { --bc: #ff3b3b; }

@@ -43,7 +43,9 @@ export const HOWTO_CONTROLS = [
 
 export const HOWTO_RULES = [
   ['Objetivo', 'Chegar ao destino sem bater, sem multa e no menor tempo.'],
-  ['Barras de humor', 'Ansiedade e estresse nunca zeram: existe um piso (a parte listrada). Pior: perto do máximo a barra treme e o volante começa a ficar traiçoeiro.'],
+  ['Ansiedade', 'Sobe quando dava para correr e a REGRA não deixa: limite com a pista livre, pardal, sinal vermelho, pedestre na faixa, faixa de ônibus vazia, agente. Alivia respirando (R) e correndo com a pista livre.'],
+  ['Estresse', 'Sobe com gente dirigindo mal e trânsito ruim: preso atrás de lento, fechada, buzina, farol, motoboy, fila, congestionamento, multa, manga. Alivia xingando (X), buzinando (H), passando quem travava e correndo com a pista livre.'],
+  ['Barras de humor', 'Nenhuma zera (a parte listrada é o piso); ao lado do nome aparece o porquê de estar subindo. Perto do máximo a barra treme e o volante fica traiçoeiro: ansiedade pesa o pé, estresse deixa a direção nervosa.'],
   ['Zona de equilíbrio', 'A faixa marcada nas barras do motorista. Ficar dentro dela dá bônus e aumenta o multiplicador de pontos.'],
   ['Respirar, xingar, buzinar, piscar', 'R e X ajudam a baixar a pressão, mas têm tempo de recarga. Buzinar (H) também desabafa (e irrita os outros); piscar o farol (F) pede passagem ao lento da frente — às vezes ele dá, às vezes freia de birra.'],
   ['Congestionamento', 'Às vezes a rota tem trânsito parado (marcado em vermelho no minimapa). Dá para desviar por outro caminho; a faixa de ônibus vazia do lado é tentadora — e multa se alguém vir.'],

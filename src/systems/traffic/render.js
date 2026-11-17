@@ -318,7 +318,7 @@ export class TrafficRenderer {
         const sr = Math.sin(hz.rot), cr = Math.cos(hz.rot), tbl = this.fruitColors.manga;
         for (let k = 0; k < 3 && nf < this.fruitMesh.instanceMatrix.count; k++) {
           const ox = MANGO[k * 2], oz = MANGO[k * 2 + 1];
-          this._set(this.fruitMesh, nf, hz.x + cr * ox + sr * oz, y + 0.17, hz.z - sr * ox + cr * oz, hz.rot + k * 1.9, 0.2, 0.16, 0.29);
+          this._set(this.fruitMesh, nf, hz.x + cr * ox + sr * oz, y + 0.2, hz.z - sr * ox + cr * oz, hz.rot + k * 1.9, 0.26, 0.2, 0.36);
           this.fruitMesh.setColorAt(nf, tbl[(hz.id + k) % tbl.length]);
           if (k < 2) nf++;
         }

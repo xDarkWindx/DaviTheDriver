@@ -266,6 +266,10 @@ Consultas (nenhuma aloca se você passar `out`):
 
 Funções puras exportadas: `samplePts`, `offsetPolyline`, `smoothPolyline`. Teste: `npm test`.
 
+**Manga garantida (fase 5):** em toda viagem, cada rota (GPS e Parque) que passa pela Jaqueiras recebe um cacho de manga sob uma
+mangueira na faixa que o caminho usa (e outro 7 m adiante na faixa ao lado do mesmo sentido), além das sorteadas; `traffic.hazardAhead()`
+faz o Davi gritar "manga!" ao avistar. Teste: 20 sementes × 2 rotas × 2 sentidos × 2 estacionamentos.
+
 **Dados para trânsito/perigos (fase 2):**
 - `net.fruitSpots[]` — candidatos a **fruta no asfalto** ao longo da Av. das Jaqueiras:
   `{ id, segId, dir, s, x, z, heading, fruit: 'manga'|'jaca', treeX, treeZ, lanes: [{ laneId, s, x, z }] }` (`lanes[0]` = faixa da
@@ -401,10 +405,20 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
 (também em `ctx.modules.mood.balance` / `ctx.modules.rules.balance`). Lógica pura e testada: `mood/model.js`, `mood/lines.js`,
 `rules/fines.js`, `rules/score.js`, `rules/result.js`. Toda consulta ao trânsito passa por `rules/traffic-adapter.js` (roda com o stub).
 
-- **Humor:** ansiedade do Davi sobe com pista livre e ele devagar (só andando), *atrás de carro lento* (gatilho mais forte; cresce com o
-  tempo e a proximidade; "lento" = o da frente ANDA devagar ou não sai no verde — fila parada no sinal/faixa/balão é `anx.queue`, bem
-  menor), vermelho, pedestre na faixa, abaixo do limite, cronômetro (fraco), faixa de ônibus vazia ao lado; desce correndo com pista
-  livre, andando no ritmo da via (≥ 85 % do limite, mesmo com trânsito), ultrapassando (`PLAYER_OVERTOOK`) e respirando. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
+- **Humor — duas barras DISTINTAS (fase 5):**
+  - **Ansiedade** = poder correr e NÃO PODER por causa das **regras**: pista livre com ele abaixo do que quer por causa do limite (×1,7
+    perto do pardal), via de limite baixo e vazia, sinal vermelho (pior com a pista vazia), pedestre na faixa, faixa de ônibus vazia ao
+    lado, agente à vista, o relógio (fraco). Alivia **respirando (R)** e correndo.
+  - **Estresse** = **gente dirigindo mal e trânsito ruim**: preso atrás de lento sem por onde passar (gatilho mais forte, cresce com o
+    tempo e a proximidade; com faixa livre ao lado quase não sobe — vira a fala "muda de faixa!"; soma ansiedade só se uma regra proíbe
+    passar), fila, congestionamento, fechada, ultrapassagem, sem seta, buzina, farol, cola, motoboy, multa, fina, raspão, manga. Alivia
+    **xingando (X)**, **buzinando (H)**, piscando o farol para o lento sair, **passando quem travava** e correndo.
+  - Sem acoplamento entre as barras. O HUD mostra, ao lado do nome da barra, o porquê de ela estar subindo (`state.mood.*.whyA/whyS`:
+    "sinal", "pardal", "limite 40", "lento na frente", "fechado"...). Correlação medida entre as barras ao longo das viagens: ver relatório.
+  - **Embalo** (`MOOD_BALANCE.speedRelief`): correr com pista razoavelmente livre (ou costurando com faixa livre ao lado) alivia as DUAS,
+    até o piso: perto do limite um pouco; acima, proporcional ao excesso (100 numa via de 80: estresse −5/s, ansiedade −7,5/s). Cortar o
+    embalo de repente ("tava tão bom") dá pico de ansiedade. Carona: o Leandro acelerando acalma o Davi (as barras dele não mudam);
+    perigo: alivia o Davi ainda mais (×1,25) — e é o que apavora o Leandro. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
   rotatória —, buzina, farol, cola, fina, multa, fruta, raspão) e desce com calma. Pisos: Davi 15 (12 de carona), dono 0 ao volante.
   Os alívios "naturais" (correr com pista livre, calma) param no **repouso** (`anx.rest` 26, `str.rest` 22): só respirar desce até o
   piso, então as barras não colam no piso sozinhas. **Congestionamento** (`MOOD_BALANCE.jam`): parado na fila sobe ansiedade E
@@ -414,8 +428,8 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
 - **Faixa de ônibus para converter:** usar a exclusiva nos últimos `busLane.turnZone` (90) m antes de uma conversão à direita não
   conta (CTB); só multa o trânsito NA faixa (≥ 3 s, visto por radar `busLane` ou agente).
 - **Faixa de pedestre ocupada** = alguém atravessando NA faixa (`crossing`/`down`); quem espera na calçada ou já saiu dela não conta.
-- **Volante (`player.mods`, só quando o Davi dirige):** ansiedade → `throttleBias` (só andando e sem freio), `steerNoise`, puxão para
-  a esquerda colado num lento (aplicado em `player.phys.steer`, pois `mods` não tem viés de direção); estresse → `steerGain`,
+- **Volante (`player.mods`, só quando o Davi dirige):** ansiedade → `throttleBias` (pé pesado: tendência a passar do limite/avançar o
+  amarelo; só andando e sem freio), `steerNoise`; estresse → puxão para a esquerda colado num lento (aplicado em `player.phys.steer`, pois `mods` não tem viés de direção); estresse → `steerGain`,
   `steerDelay`, `brakeMul`, buzina/xingamento automáticos. Fruta (`HAZARD_HIT`): `gripMul`/ruído por ~1 s e um empurrão de rumo.
 - **Ações:** H buzina (−estresse, provoca), R respira (−ansiedade em 2,5 s, tira o pé), X xinga (−20 na hora, +26 de rebote depois,
   provoca), F pisca o farol (`traffic.flashLead`). No modo carona as ações agem no Davi passageiro.
@@ -476,12 +490,18 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
   celular (`onPhone`, +0,8–1,5 s em 40 % das paradas), OU autoescola que "deixa morrer" (1 em cada 4 paradas, 1,8–2,8 s, com tranco e
   pisca-alerta). Buzina (H) ou farol (F) no carro parado no verde faz arrancar na hora (birra só de persona agressiva).
   Medido (1º carro da fila cruzar a linha): normal 3,3 → 2,3 s (pior caso 11,9 → 4,7 s); ônibus 8,1 → 5,2 s.
+- **Eixo encurtado (fase 5):** `mapData.js` comprime a faixa entre a EPIG e a W3 (`SQUEEZE`: x −1000…−460 → −1000+300…−460) e anda
+  300 m para leste com tudo a oeste dela; quem tem coordenada fixa (cenário, marcos, placas) usa `sqx()`. Via S1 1425 → 1125 m, anel do
+  Parque 800 → 590 m. O Eixo não tem mais semáforo na W3 (quem vem da W3 dá a preferência).
 - **Semáforos:** via principal (`MAP.signalMain`) com verde de 22 s e transversal 10 s (ciclo 40 s); ninguém entra no cruzamento
   sem espaço na saída; quem já entrou e ficou travado por outro carro também travado no cruzamento desocupa (ignora veículos por 1,6 s).
   A saída da QRSW 2 (marginal → Jaqueiras) não tem semáforo.
 - **Presença na via do jogador** (`TUNING.flowPerLane`): repõe gente à frente, logo além da vista (distância cresce com a velocidade),
   contando pela via e sentido, e já povoa a próxima via mais movimentada do caminho (sair do balão para o Eixo e achar o Eixo cheio).
-  Eixo: 6 por faixa em 160 m (medido com o robô: 6–9 veículos à frente na Via S1/N1, 3–9 % das amostras sem ninguém à frente).
+  Eixo: 4,5 por faixa em ~150 m à frente (janela que se estende além da borda de spawn) mais gente mais rápida nascendo logo ATRÁS da
+  vista (`flowBehind`), nunca a menos de `flowNoSpawnR` (70 m) do jogador; em via de 3+ faixas quem é mais lento nasce à direita e quem
+  corre à esquerda. Filas paradas FORA da vista (> 110 m do jogador há > 5 s) evaporam (`queueEvap*`), para o fluxo denso não virar
+  engarrafamento fantasma no balão adiante. Pool do perfil leve: 88 veículos (fundo fora da vista: `todDensity` 0,6/0,7).
   A saída de casa (vaga, rua da QRSW 2, marginal) é calma por desenho (`TUNING.quietSegs`).
 - **Preferência no balão:** o jogador no balão perto da entrada é sempre conflito para quem quer entrar (qualquer velocidade; antes um
   carro quase parado no balão parecia "longe" e a IA entrava em cima); quem já decidiu entrar desiste se o jogador chega. Na fusão de

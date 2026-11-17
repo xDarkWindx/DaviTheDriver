@@ -123,6 +123,8 @@ export default {
       const src = m[role], dst = st.mood[role];
       if (!src) { dst.anxiety = 0; dst.stress = 0; dst.floor = 0; continue; }
       dst.anxiety = src.anxiety; dst.stress = src.stress; dst.floor = src.floor;
+      // porquê da barra subir (rótulo curto no HUD): só nas barras do Davi
+      dst.whyA = src.who === 'davi' ? m.whyA || '' : ''; dst.whyS = src.who === 'davi' ? m.whyS || '' : '';
     }
   },
 
@@ -146,7 +148,10 @@ export default {
     inp.sideFree = T.sideFree();
     const hz = T.hazardAhead(); inp.hazardAhead = hz ? hz.kind : null;
     inp.lead = T.leadInfo();
-    inp.jam = !!T.inJam();
+    const J = T.inJam(); inp.jam = !!J; inp.jamCause = J && J.cause ? J.cause : null;
+    inp.noPassRule = !!(inp.lead && inp.lead.laneCount === 1); // 1 faixa por sentido (faixa contínua): a regra proíbe passar
+    inp.agentNear = false;
+    { const ags = T.agents ? T.agents() : []; for (let i = 0; i < ags.length; i++) { const g = ags[i]; if (g.revealed && (g.x - sp.x) * (g.x - sp.x) + (g.z - sp.z) * (g.z - sp.z) < 3600) { inp.agentNear = true; break; } } }
     // parado no vermelho
     inp.stoppedAtRed = false; inp.busLaneBeside = false;
     const lane = sp.laneId >= 0 && net && net.getLane ? net.getLane(sp.laneId) : null;

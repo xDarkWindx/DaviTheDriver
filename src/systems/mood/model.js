@@ -56,7 +56,7 @@ export function createMoodModel(mode = 'davi', opts = {}) {
     takeoverT: 0, takenOver: false, complainT: 3, hardBrakeT: 0,
     // falas do Davi motorista
     slowLineT: 0.8, idleT: 5, autoHornCd: 0, autoCurseCd: 0,
-    sitId: null, sitT: 0, sitSaid: false, saidStart: false, queued: false, embaloT: 0, embaloV: 0, embaloCut: 0, reliefOn: false,
+    sitId: null, sitT: 0, sitSaid: false, saidStart: false, queued: false, whyA: '', whyS: '', evWhy: '', evWhyT: 0, embaloT: 0, embaloV: 0, embaloCut: 0, reliefOn: false,
     stats: { panicSecs: 0, donoCalmSecs: 0, outbursts: 0, avoided: 0, maxBehindSlow: 0, hazards: 0, scrapes: 0, curses: 0, breaths: 0,
       maxDonoAnx: 0, maxDonoStress: 0, peaks: 0 },
     out: { says: [], provokes: [], autoHorn: false, flashLead: false, takeover: false, peaks: [], yawKick: 0 },
@@ -119,41 +119,51 @@ export function stepMood(m, inp, dt) {
   const waiting = !!(inp.stoppedAtRed || inp.crosswalkWait || queued);
   const davi = m.davi, asPass = davi.role === 'passenger';
 
-  // ---------------- ansiedade do Davi
-  let ra = 0;
-  if (!blocked && !waiting) {
-    if (asPass) {
-      ra += B.carona.freeSlow * f * under;
-      if (inp.throttle > 0.6 && f > 0.3 && speed < desired) ra -= B.carona.accelRelief;
-    } else if (speed > AX.freeRoadMinKmh) {
-      ra += AX.freeRoadMax * f * under * (1 - AX.freeRoadThrottleCut * (inp.throttle || 0));
-    }
-    // alívio correndo com pista livre: forte lá em cima, some perto do "repouso" (a barra não cola no piso sozinha)
-    if (free > AX.cruiseMinFree && limit > 0 && speed >= 0.95 * limit) ra -= AX.cruiseRelief * Math.min(1, speed / desired) * restFactor(davi.anxiety, AX.rest);
-    // andando no ritmo da via mesmo com trânsito: alívio menor (o carro anda, a cabeça esfria)
-    else if (limit > 0 && speed >= AX.flowFrac * limit) ra -= AX.flowRelief * restFactor(davi.anxiety, AX.rest);
-    if (speed > 5 && limit > 0 && speed < 0.8 * limit) ra += AX.belowLimit * under;
-  }
-  if (blocked) {
-    const prox = clamp((AX.slowGap - lead.gap) / AX.slowGap, 0, 1);
-    ra += (AX.slowBase + AX.slowGrowth * Math.min(m.behindSlow, AX.slowGrowthCap)) * (1 + AX.slowProximity * prox) * (asPass ? B.carona.slowMul : 1);
-  }
-  if (jam) ra += (JM.anx + JM.anxGrow * Math.min(m.jamT, JM.cap)) * (asPass ? B.carona.slowMul : 1);
-  if (inp.stoppedAtRed) ra += AX.redLight;
-  else if (queued) ra += AX.queue;
-  if (inp.crosswalkWait) ra += AX.crosswalk;
-  ra += Math.min(AX.clockMax, AX.clockBase + AX.clockPer300s * (inp.elapsed || 0) / 300);
-  if (inp.busLaneBeside) ra += AX.busLaneBeside;
-  if (davi.stress > AX.stressCoupleFrom) ra += AX.stressCouple;
+  // As duas barras são DISTINTAS (design):
+  //  ANSIEDADE = poder correr e NÃO PODER por causa das REGRAS (limite com pista livre, pardal, vermelho com pista vazia,
+  //              pedestre na faixa, faixa de ônibus vazia que não pode usar, limite baixo em via vazia, agente à vista, relógio).
+  //  ESTRESSE  = GENTE DIRIGINDO MAL e TRÂNSITO RUIM (lento na frente sem saída, fila, congestionamento + os eventos).
+  // Sem acoplamento entre elas. why: rótulo curto do gatilho dominante (indicador junto da barra no HUD).
+  let ra = 0, rs = 0, wa = '', wsS = '', maxA = AX.whyMin, maxS = SX.whyMin;
+  const addA = (v, why) => { ra += v; if (v > maxA) { maxA = v; wa = why; } };
+  const addS = (v, why) => { rs += v; if (v > maxS) { maxS = v; wsS = why; } };
+  const pm = asPass ? B.carona.slowMul : 1;
 
-  // ---------------- estresse do Davi
-  let rs = 0;
-  const calm = !blocked && m.t - m.lastStressEvt > SX.calmAfter && !inp.crosswalkWait;
+  // ---------------- ANSIEDADE (regras segurando o Davi)
+  if (!blocked && !waiting && !jam && speed > AX.freeRoadMinKmh && limit > 0) {
+    if (asPass) {
+      addA(B.carona.freeSlow * f * under, 'devagar');
+      if (inp.throttle > 0.6 && f > 0.3 && speed < desired) ra -= B.carona.accelRelief;
+    } else {
+      // pista livre e ele abaixo do que quer: a REGRA (limite) segurando; pior perto do pardal
+      const hold = AX.freeRoadMax * f * under * (1 - AX.freeRoadThrottleCut * (inp.throttle || 0)) * (inp.radarAhead ? AX.radarMul : 1);
+      addA(hold, inp.radarAhead ? 'pardal' : limit <= AX.lowLimitKmh ? 'limite ' + limit : 'limite');
+      if (limit <= AX.lowLimitKmh && free > AX.lowLimitFree) addA(AX.lowLimit, 'limite ' + limit);
+    }
+  }
+  if (inp.stoppedAtRed) addA(AX.redLight * (lead && lead.gap < 20 ? 1 : AX.redEmptyMul), 'sinal');
+  else if (queued && lead && lead.why === 'sinal') addA(AX.redLight * 0.6, 'sinal');
+  if (inp.crosswalkWait) addA(AX.crosswalk, 'pedestre');
+  if (inp.busLaneBeside) addA(AX.busLaneBeside, 'faixa de ônibus');
+  if (inp.agentNear) addA(AX.agent, 'agente');
+  if (blocked && inp.noPassRule) addA(AX.slowNoPassRule, 'sem ultrapassagem'); // lento E a regra proíbe passar
+  ra += Math.min(AX.clockMax, AX.clockBase + AX.clockPer300s * (inp.elapsed || 0) / 300);
+
+  // ---------------- ESTRESSE (gente dirigindo mal, trânsito ruim)
+  const calm = !blocked && !jam && !queued && m.t - m.lastStressEvt > SX.calmAfter;
   rs -= (calm ? SX.calmDecay : SX.busyDecay) * restFactor(davi.stress, SX.rest);
-  if (inp.crosswalkWait) rs += SX.pedSlow;
-  if (lead && lead.kind === 'bus' && lead.gap < 25) rs += SX.busLead;
-  if (davi.anxiety > SX.anxCoupleFrom) rs += SX.anxCouple;
-  if (jam) rs += JM.str + JM.strGrow * Math.min(m.jamT, JM.cap);
+  if (blocked) { // preso atrás de lento sem ter por onde passar: o gatilho mais forte do estresse
+    const prox = clamp((AX.slowGap - lead.gap) / AX.slowGap, 0, 1);
+    const who = lead.why === 'morreu' || lead.persona === 'autoescola' ? 'autoescola' : lead.why === 'celular' ? 'celular' : lead.persona === 'onibus' ? 'ônibus'
+      : lead.persona === 'mudanca' ? 'caminhão' : lead.persona === 'tio' ? 'tio' : 'lento na frente';
+    addS((SX.slowBase + SX.slowGrowth * Math.min(m.behindSlow, SX.slowGrowthCap)) * (1 + SX.slowProximity * prox) * pm, who);
+  } else if (m.canPass) addS(SX.slowCanPass * pm, 'lento na frente'); // dá para passar: quase nada
+  if (queued && !(lead && lead.why === 'sinal')) addS(SX.queue * pm, 'fila');
+  if (lead && lead.kind === 'onibus' && lead.gap < 25) addS(SX.busLead, 'ônibus');
+  if (jam) addS((JM.str + JM.strGrow * Math.min(m.jamT, JM.cap)) * pm, 'congestionamento');
+  if (inp.jamCause && jam) addS(JM.causeStr, inp.jamCause === 'quebrado' ? 'carro quebrado' : 'obra');
+  if (m.evWhyT > 0) { m.evWhyT -= dt; if (!wsS) wsS = m.evWhy; }
+  m.whyA = wa; m.whyS = wsS || (m.evWhyT > 0 ? m.evWhy : '');
 
   // ---------------- EMBALO: correr com pista razoavelmente livre é o grande alívio do Davi (as duas barras, até o piso).
   // Perto do limite alivia um pouco; acima dele, proporcional ao excesso. Costurar (faixa ao lado livre) também vale:
@@ -435,7 +445,7 @@ function computeMods(m, inp, dt, blocked) {
   base.brakeMul = 1 - S * FX.brakeMul;
   base.throttleBias = (inp.speedKmh || 0) > FX.throttleBiasMinKmh && !(inp.brake > 0) ? A * FX.throttleBias : 0;
   base.accelMul = 1; base.maxSpeedMul = 1; base.gripMul = 1;
-  const pullT = m.daviDrives && blocked && A > FX.pullFrom ? FX.pullBase + FX.pullAnx * A : 0;
+  const pullT = m.daviDrives && blocked && S > FX.pullFrom ? FX.pullBase + FX.pullAnx * S : 0; // colado no lento: o ESTRESSE puxa o volante
   m.pull += (pullT - m.pull) * k;
   Object.assign(mods, base);
   // tirar o pé (respirar)
@@ -461,19 +471,18 @@ function computeMods(m, inp, dt, blocked) {
 export function moodEvent(m, type, p = {}, inp = {}) {
   const B = m.B, SX = B.str, davi = m.davi, dono = m.dono, AC = B.actions;
   const drv = m.daviDrives, carona = m.mode === 'carona', perigo = m.mode === 'perigo';
-  const stressEvt = (v) => { addBar(davi, 'stress', v); m.lastStressEvt = m.t; };
+  const stressEvt = (v, why) => { addBar(davi, 'stress', v); m.lastStressEvt = m.t; if (why) { m.evWhy = why; m.evWhyT = 2.5; } };
   switch (type) {
     case 'overtaken': {
       const moto = p.kind === 'moto';
-      stressEvt(SX.overtaken + SX.overtakenPerKmh * Math.max(0, p.relKmh || 0) + (moto ? SX.overtakenMoto : 0));
-      addBar(davi, 'anxiety', B.anx.overtaken);
+      stressEvt(SX.overtaken + SX.overtakenPerKmh * Math.max(0, p.relKmh || 0) + (moto ? SX.overtakenMoto : 0), moto ? 'motoboy' : 'ultrapassado');
       say(m, evBank(m, 'overtaken', p, drv ? (moto ? 'overtakenMoto' : 'overtaken') : 'pOvertaken'), 1, m.rng() < 0.2);
       if (m.mode === 'perigo' && moto && m.rng() < 0.5) say(m, 'osMoto', 1);
       return true;
     }
     case 'cutOff': {
       const ring = !!(inp.inRing || inp.inJunction || p.ring);
-      stressEvt(SX.cutOff * (ring ? SX.cutOffRingMul : 1));
+      stressEvt(SX.cutOff * (ring ? SX.cutOffRingMul : 1), p.noSignal ? 'sem seta' : ring ? 'furou o balão' : 'fechado');
       if (p.stj) { // ônibus do STJ fechando no balão: fala própria (no carona o surto vem junto)
         if (perigo) { addBar(dono, 'stress', B.perigo.nearMiss); say(m, 'oStjBus', 1); }
         if (carona) { davi.stress = 100; m.outburstCd = 0; outburst(m, true); say(m, 'pStjBus', 1); }
@@ -484,23 +493,23 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       else say(m, evBank(m, 'cutOff', Object.assign({ ring }, p), drv ? (ring ? 'cutOffRing' : 'cutOff') : 'pCutOff'), 1, m.rng() < 0.2);
       return true;
     }
-    case 'honked': stressEvt(SX.honked); say(m, evBank(m, 'honked', p, drv ? 'honked' : 'pHonked'), 1); return true;
-    case 'flashed': stressEvt(SX.flashed); if (drv) say(m, 'flashed', 1); return true;
-    case 'tailgated': stressEvt(SX.tailgated); if (drv) say(m, 'tailgated', 1); return true;
+    case 'honked': stressEvt(SX.honked, 'buzinada'); say(m, evBank(m, 'honked', p, drv ? 'honked' : 'pHonked'), 1); return true;
+    case 'flashed': stressEvt(SX.flashed, 'farol'); if (drv) say(m, 'flashed', 1); return true;
+    case 'tailgated': stressEvt(SX.tailgated, 'colado'); if (drv) say(m, 'tailgated', 1); return true;
     case 'nearMiss':
-      stressEvt(SX.nearMiss);
+      stressEvt(SX.nearMiss, 'fina');
       if (perigo) { addBar(dono, 'stress', B.perigo.nearMiss); say(m, 'oNearMiss', 1); }
       say(m, drv ? 'nearMiss' : 'pNearMiss', 1);
       return true;
     case 'fine':
-      stressEvt(SX.fine);
+      stressEvt(SX.fine, 'multa');
       if (perigo) { addBar(dono, 'stress', B.perigo.fine); say(m, 'oFine', 1); }
       say(m, drv ? (p.by === 'agent' ? 'fineAgent' : FINE_BANK[p.code] || 'fineRadar') : 'pFine', 1);
       if (carona) addBar(dono, 'anxiety', B.carona.palpiteDonoAnx);
       return true;
     case 'hazard': {
       const SL = B.slip, kind = p.kind === 'jaca' ? 'jaca' : 'manga';
-      stressEvt(SX.hazard[kind]);
+      stressEvt(SX.hazard[kind], kind);
       m.stats.hazards++;
       const spd = p.speedKmh != null ? p.speedKmh : inp.speedKmh || 0;
       const sev = clamp(Math.max(SL.minSpeedSev, spd / SL.speedRef) * (SL.kind[kind] || 1) * (SL.vehicle[inp.vehicleId] || 1), 0, SL.maxSev);
@@ -511,17 +520,17 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       return true;
     }
     case 'pedScare': // encostou num pedestre devagar: susto grande (pânico do Leandro no perigo)
-      stressEvt(SX.pedScare); addBar(davi, 'anxiety', B.anx.pedScare); m.stats.scrapes++;
+      stressEvt(SX.pedScare, 'pedestre'); addBar(davi, 'anxiety', B.anx.pedScare); m.stats.scrapes++;
       if (perigo) { addBar(dono, 'stress', B.perigo.pedScare); addBar(dono, 'anxiety', B.perigo.pedScare * 0.7); say(m, 'oPedScare', 1); }
       say(m, drv ? 'pedScare' : 'pPedScare', 1);
       return true;
     case 'scrape':
-      stressEvt(SX.scrape); m.stats.scrapes++;
+      stressEvt(SX.scrape, 'raspão'); m.stats.scrapes++;
       if (perigo) { addBar(dono, 'stress', B.perigo.scrape); say(m, 'oScrape', 1); }
       say(m, drv ? 'scrape' : 'pScrape', 1);
       return true;
-    case 'playerOvertook':
-      addBar(davi, 'anxiety', -(B.anx.overtook + B.anx.overtookPerSlowSec * m.behindSlow));
+    case 'playerOvertook': // passou quem estava travando: alívio pontual de ESTRESSE
+      addBar(davi, 'stress', -(B.str.overtookRelief + B.str.overtookPerSlowSec * m.behindSlow));
       m.behindSlow = 0;
       say(m, drv ? 'overtook' : 'pFast', 1, m.rng() < 0.2);
       return true;
@@ -573,7 +582,7 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       const a = m.actions.flash; if (a.cooldown > 0) return false;
       a.cooldown = a.max; m.out.flashLead = true;
       addBar(davi, 'stress', AC.flash.stress);
-      if (m.behindSlow > 0) addBar(davi, 'anxiety', AC.flash.anxietyIfBlocked);
+      if (m.behindSlow > 0) addBar(davi, 'stress', AC.flash.stressIfBlocked); // farol no lento que trava: alívio de estresse
       return true;
     }
     default: return false;

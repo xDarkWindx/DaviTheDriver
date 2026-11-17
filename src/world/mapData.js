@@ -277,9 +277,10 @@ export const MAP = {
 
   // Semáforos (nós). Fases agrupadas por eixo de aproximação automaticamente.
   // (J_JAQ2, a saída da marginal da QRSW 2 para a Jaqueiras, é sem semáforo: a marginal é calma e dá a preferência)
-  signals: ['J_W3N', 'J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_L2a', 'J_PRIM'],
+  // (o Eixo não tem semáforo: na W3 o Eixo segue livre e quem vem da W3 dá a preferência — com o Eixo cheio, o sinal virava fila)
+  signals: ['J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_L2a', 'J_PRIM'],
   // Via principal de cada semáforo (o grupo dela ganha verde mais longo; a transversal, mais curto).
-  signalMain: { J_W3N: ['eixo_s1_b', 'eixo_s1_c0'], J_PB: ['s3_scs', 'parque'], J_S3b: ['s3_scs', 's3_mid'], J_S3a: ['s3_mid_e', 's3_saus_w'],
+  signalMain: { J_PB: ['s3_scs', 'parque'], J_S3b: ['s3_scs', 's3_mid'], J_S3a: ['s3_mid_e', 's3_saus_w'],
     J_W3b: ['w3_m', 'w3_s'], J_L2a: ['l2_m', 'l2_s'] }, // J_PRIM: verde igual (a rota do Parque vira ali, nos dois sentidos)
 
   // Faixas de pedestre no meio de quadra (as dos semáforos são automáticas).

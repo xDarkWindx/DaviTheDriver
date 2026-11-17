@@ -28,10 +28,11 @@ export const TUNING = {
   todDensity: { manha: 0.6, tarde: 0.7 }, // fundo (fora da vista); a via do jogador é povoada pelo _flowKeeper
   // PRESENÇA na via do jogador: veículos no mesmo sentido em 0..flowRange m à frente, por faixa (sem a de ônibus) e tipo de
   // via. Abaixo disso nasce gente à frente, fora da vista, a uma distância que cresce com a velocidade do jogador.
-  flowRange: 150, flowPerLane: { eixo: 7, eixao: 6, urban: 3.2, arterial: 3, ramp: 1.2, local: 0.8 }, flowLocalMinLen: 400,
+  flowRange: 150, flowPerLane: { eixo: 5.5, eixao: 5, urban: 3.2, arterial: 3, ramp: 1.2, local: 0.8 }, flowLocalMinLen: 400,
   // trecho calmo da saída de casa: quase ninguém (um ou outro carro saindo de vaga)
   quietSegs: ['vaga_casa', 'qrsw2', 'qrsw2_v', 'marg_jaq'], quietMul: 0.15,
   flowAheadBase: 62, flowAheadPerMps: 2.2, flowAheadMin: 82, flowAheadRand: 40, behindRecycle: 120,
+  queueEvapR: 78, queueEvapSec: 4, // parado > 5 s a mais de 110 m do jogador (fora da vista): some
   flowNoSpawnR: 70,   // m: nunca nasce mais perto do jogador que isso (a vista tem ~78 × 44 m; com zoom de velocidade, um pouco mais)
   flowBehind: [72, 105], flowBehindFrac: 0.35, // também repõe ATRÁS (logo fora da vista), gente mais rápida que vai passar o jogador
   ringPlayerArc: 18,   // m: jogador no balão a menos disso da entrada = sem brecha (qualquer velocidade)
@@ -136,7 +137,7 @@ class Vehicle {
     this.v0min = 0; this.rbT = 0; this.lastStop = -1;
     this.pullT = 0; this.pullCd = 0; this.queueT = 0; // lento que encosta para a fila passar (trecho sem ultrapassagem)
     this.stjBus = false; this.cutDone = false; this.swing = 0; // ônibus do STJ (evento da rotatória)
-    this.pWaitT = 0; this.pIgnT = 0; this.boxT = 0;
+    this.pWaitT = 0; this.pIgnT = 0; this.boxT = 0; this.slowT = 0;
     this.stalled = false; this.jam = -1;
     this.speeder = false; this.onPhone = false; this.noYield = false; this.noSignal = false; // traços (TUNING.traits)     // causa visível do congestionamento (parado no acostamento) / índice do congestionamento // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
   }
@@ -1096,7 +1097,10 @@ export class TrafficSim {
         const dx = this.px - v.x, dz = this.pz - v.z;
         if (dx * dx + dz * dz < 60 * 60) {
           const sp = this.net.projectOnLane(cand, this.px, this.pz), o = this.net.sampleLane(cand, sp, this._tmpS || (this._tmpS = {}));
-          if (Math.hypot(o.x - this.px, o.z - this.pz) < this.laneW[cand.id] * 0.8) {
+          // jogador na faixa do outro lado da candidata, lado a lado: pode estar entrando nela ao mesmo tempo -> não troca
+          const latP = Math.hypot(o.x - this.px, o.z - this.pz);
+          if (this.pLaneId !== lane.id && latP > this.laneW[cand.id] * 0.8 && latP < this.laneW[cand.id] * 1.7 && Math.abs(sp - sC) < (v.length + this.pL) * 0.5 + 6) continue;
+          if (latP < this.laneW[cand.id] * 0.8) {
             const halfL = v.length * 0.5, pv = Math.max(0, this.pSpeed);
             if (sp >= sC) { const g = sp - sC - halfL - this.pL * 0.5; if (g < st.lGap) { st.lGap = g; st.lSpeed = pv; st.lPlayer = true; } }
             else { const g = sC - sp - halfL - this.pL * 0.5; if (g < st.fGap) { st.fGap = g; st.fSpeed = pv; st.fPlayer = true; } }
@@ -1827,7 +1831,13 @@ export class TrafficSim {
         const vm = slowP ? 0.6 : v.v0mul, f = Math.max(0, Math.min(1, (vm - 0.84) / (1.22 - 0.84)));
         let idx = nb + Math.round(f * (nn - 1) + (rng() - 0.5) * 1.2);
         idx = Math.max(nb, Math.min(sib.length - 1, idx));
-        if (idx !== lane.index) { const nl = this.lanes[sib[idx]]; if (nl.kind !== 'bus') { s = s * nl.length / lane.length; lane = nl; } }
+        if (idx !== lane.index) {
+          const nl = this.lanes[sib[idx]], s2 = s * nl.length / lane.length;
+          let clear = nl.kind !== 'bus';
+          for (let e = this.laneHead[nl.id]; e >= 0 && clear; e = this.entNext[e]) if (Math.abs(this.entS[e] - s2) < 18) clear = false;
+          for (let i = 0; i < this.vehicles.length && clear; i++) { const q = this.vehicles[i]; if (q.active && q !== v && q.w.lane === nl && Math.abs(q.w.s - s2) < 18) clear = false; }
+          if (clear) { s = s2; lane = nl; }
+        }
       }
     }
     const w = v.w; w.lane = lane; w.s = Math.min(Math.max(0, s), lane.length - 0.1); w.ended = false; w._sample();
@@ -2075,9 +2085,16 @@ export class TrafficSim {
 
   _despawnLogic() {
     if (!this.player) return;
-    const D2 = TUNING.despawn * TUNING.despawn;
+    const D2 = TUNING.despawn * TUNING.despawn, Q2 = TUNING.queueEvapR * TUNING.queueEvapR;
     for (const v of this.vehicles) {
       if (!v.active || v.stalled) continue;
+      // fila fora da vista (balão, fusão, saída) evapora: o trânsito denso que repomos na via do jogador não pode virar
+      // engarrafamento fantasma lá na frente. Perto do jogador (na vista) a fila continua de verdade.
+      if (v.speed < 2) v.slowT = (v.slowT || 0) + 1 / 60; else v.slowT = 0;
+      if (v.slowT > TUNING.queueEvapSec && !v.stjBus && this.laneJam[v.w.lane.id] < 0) {
+        const qx = v.x - this.px, qz = v.z - this.pz;
+        if (qx * qx + qz * qz > Q2) { this._despawn(v); continue; }
+      }
       const dx = v.x - this.px, dz = v.z - this.pz;
       const d2 = dx * dx + dz * dz;
       // longe, ou já ficou para trás de quem está andando (recicla para a frente)

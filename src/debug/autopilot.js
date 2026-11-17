@@ -9,9 +9,9 @@ import { engineAccel } from '../player/physics.js';
 
 export const BOT_PROFILES = {
   cuidadoso: { speedMul: 0.95, speedAdd: 0, T: 1.8, s0: 3.5, a: 2.2, b: 2.8, latA: 3.4, yellowDecel: 6, busLane: false,
-    overtake: 0.7, overtakeFree: 55, breatheAt: 58, hornBlocked: 0, flashBlocked: 0, waitPed: true },
+    overtake: 0.7, overtakeFree: 55, breatheAt: 58, hornBlocked: 0, flashBlocked: 0, waitPed: true, curseAt: 90 },
   normal: { speedMul: 1.0, speedAdd: 6, T: 1.2, s0: 2.5, a: 3.0, b: 3.4, latA: 4.6, yellowDecel: 4.5, busLane: false,
-    overtake: 0.95, overtakeFree: 55, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
+    overtake: 0.95, overtakeFree: 55, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true, curseAt: 82 },
   apressado: { speedMul: 1.35, speedAdd: 6, T: 0.7, s0: 1.5, a: 4.5, b: 5.0, latA: 6.2, yellowDecel: 2.2, busLane: true,
     overtake: 0.95, overtakeFree: 26, breatheAt: 95, hornBlocked: 2.5, flashBlocked: 1.5, waitPed: false },
 };
@@ -344,7 +344,7 @@ export function createAutopilot(ctx) {
         if (davi && davi.anxiety > prof.breatheAt && A.breathe.cooldown <= 0) this._tap('breathe');
         if (prof.flashBlocked && this.blockedT > prof.flashBlocked && A.flash.cooldown <= 0) this._tap('flash');
         if (prof.hornBlocked && this.blockedT > prof.hornBlocked && A.horn.cooldown <= 0) this._tap('horn');
-        if (this.profile === 'apressado' && davi && davi.stress > 85 && A.curse.cooldown <= 0) this._tap('curse');
+        if (davi && davi.stress > (prof.curseAt || 85) && A.curse.cooldown <= 0) this._tap('curse'); // xingar alivia o estresse
       }
       this._tapRelease();
     },
@@ -354,6 +354,19 @@ export function createAutopilot(ctx) {
       const vs = ctx.modules.traffic.vehicles; let best = 1e9, sp = -1;
       for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (v.laneId !== laneId || !v.w) continue; const d = v.w.s - s; if (d > 0 && d < fwd && d < best) { best = d; sp = v.speed; } }
       return sp;
+    },
+    /** Faixa `laneId` tem brecha para entrar em s (atrás e à frente) e anda mais que `leadSpeed`? */
+    _gapOk(laneId, s, leadSpeed) {
+      const vs = ctx.modules.traffic.vehicles, me = Math.max(0, st.player.speed), Lp = ctx.player.vehicle.length;
+      let aG = 1e9, aV = 99, bG = 1e9, bV = 0;
+      for (let i = 0; i < vs.length; i++) {
+        const o = vs[i]; if (o.laneId !== laneId || !o.w) continue;
+        const d = o.w.s - s, half = (Lp + o.length) * 0.5;
+        if (d >= 0) { if (d - half < aG) { aG = d - half; aV = o.speed; } } else if (-d - half < bG) { bG = -d - half; bV = o.speed; }
+      }
+      if (bG < 5 + Math.max(0, bV - me) * 2.2) return false;      // quem vem atrás
+      if (aG < 8 + me * 0.6) return false;                          // espaço à frente
+      return aG > 60 || aV > leadSpeed + 2;                         // e ela anda mais que o lento
     },
     _chooseLane(T, cur) {
       const prof = this.prof, R = this.route;
@@ -379,10 +392,8 @@ export function createAutopilot(ctx) {
           const L = net.lanes[id];
           if (id === T.id || Math.abs(L.index - T.index) !== 1) continue;
           if (L.kind === 'bus' && !prof.busLane) continue;
-          // só vale a pena se a faixa do lado anda mais rápido que o lento da frente
-          const lsp = this._laneLeadSpeed(id, this.s, 70);
-          if (lsp >= 0 && lsp < ld.speed + 2.5) continue;
-          if (this._laneFree(id, this.s, 10, prof.overtakeFree + 20)) { this.track = id; this.lastLC = this.t; return; }
+          // brecha de verdade (trânsito denso: não exige faixa vazia, só espaço e que ela ande mais que o lento da frente)
+          if (this._gapOk(id, this.s, ld.speed)) { this.track = id; this.lastLC = this.t; return; }
         }
       }
       if (T.id !== D.id) {

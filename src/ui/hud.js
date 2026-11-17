@@ -12,6 +12,7 @@ class Bar {
     this.root = el('div', 'bar', parent);
     const head = el('div', 'bar-head', this.root);
     this.label = el('span', 'bar-label', head);
+    this.why = el('span', 'bar-why', head); // porquê de a barra estar subindo ("sinal", "pardal", "lento na frente", "fechado"...)
     this.val = el('span', 'bar-val', head);
     this.track = el('div', 'bar-track', this.root);
     this.floor = el('i', 'bar-floor', this.track);
@@ -21,7 +22,8 @@ class Bar {
     this._q = -1;
   }
   /** v, floor, zoneLo/zoneHi em 0..100 (zoneHi<=zoneLo = sem zona). */
-  set(v, floor, zlo, zhi, tranquilo) {
+  set(v, floor, zlo, zhi, tranquilo, why) {
+    setText(this.why, why || '');
     v = clamp(+v || 0, 0, 100); floor = clamp(+floor || 0, 0, 100);
     const q = Math.round(v * 2);
     const lv = v >= 85 ? 3 : v >= 65 ? 2 : v >= 40 ? 1 : 0;
@@ -76,8 +78,8 @@ class MoodPanel {
     const useZone = this.role === 'driver' && score;
     const zlo = useZone ? score.zoneLo : 0, zhi = useZone ? score.zoneHi : 0;
     const tranq = who === 'dono' && this.role === 'driver';
-    this.b1.set(a, m.floor, zlo, zhi, tranq);
-    this.b2.set(s, m.floor, zlo, zhi, tranq);
+    this.b1.set(a, m.floor, zlo, zhi, tranq, m.whyA);
+    this.b2.set(s, m.floor, zlo, zhi, tranq, m.whyS);
     setClass(this.root, 'inzone', !!(useZone && score.inZone && zhi > zlo));
     setClass(this.root, 'peak', lvl >= 85);
     setClass(this.root, 'calm-mode', tranq && lvl < ZERO_TRANQ);
