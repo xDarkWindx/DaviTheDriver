@@ -60,6 +60,23 @@ test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () =>
   }
 });
 
+test('estacionamentos do STJ (norte/oeste/leste): ida e volta sem retorno, pelas rotatórias certas', () => {
+  const rbOf = (r) => new Set(r.map((id) => { const l = net.lanes[id]; return l.isConnector ? net.getNode(l.nodeId).roundaboutId : l.segId && net.segments.get(l.segId).roundaboutId; }).filter(Boolean));
+  const need = { norte: ['R_STJN1', 'R_STJN2'], oeste: ['R_STJ1'], leste: ['R_STJ1', 'R_STJ2'] };
+  for (const pk of ['norte', 'oeste', 'leste']) {
+    const z = net.laneForZone('stj_' + pk), st = net.snapStart(net.starts['stj_' + pk]);
+    for (const cid of ['eixo', 'parque']) {
+      const ida = net.planRouteVia(casa.lane.id, casa.s, net.routeCorridors[cid]['casa-stj'].filter((x) => x !== 's3_safs' || pk === 'leste'), z.targets);
+      const volta = net.planRouteVia(st.lane.id, st.s, net.routeCorridors[cid]['stj-casa'], toCasa.targets);
+      assert.ok(ida && volta, `${pk}/${cid}: sem rota`);
+      assert.ok(!hasUturn(ida) && !hasUturn(volta), `${pk}/${cid}: retorno`);
+      for (const r of need[pk]) assert.ok(rbOf(ida).has(r) && rbOf(volta).has(r), `${pk}/${cid}: não passa por ${r}`);
+      assert.equal(net.lanes[volta[0]].dir, st.lane.dir, 'largada no sentido da rota');
+      console.log(`        ${pk.padEnd(5)} ${cid.padEnd(6)} ida ${net.routeLength(ida, casa.s).toFixed(0)} m, volta ${net.routeLength(volta, st.s).toFixed(0)} m: ${[...rbOf(ida)].join(' ')}`);
+    }
+  }
+});
+
 test('corredores das 2 rotas × 2 sentidos (planRouteVia)', () => {
   const want = {
     'eixo casa-stj': ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 's3_safs', 'stj_acesso'],
@@ -123,7 +140,7 @@ test('nearestLane respeita o sentido', () => {
 test('roadInfoAt: pista, canteiro, fora', () => {
   const o = {};
   assert.ok(net.roadInfoAt(-300, 40, o).onRoad, 'Eixo Sul');
-  assert.equal(o.limitKmh, 70);
+  assert.equal(o.limitKmh, 80);
   assert.ok(!net.roadInfoAt(-300, 0, o).onRoad, 'gramado central do Eixo não é pista');
   assert.ok(!net.roadInfoAt(-430, 600, o).onRoad, 'canteiro da W3 não é pista');
   assert.ok(net.roadInfoAt(-1050 + 26, 680, o).onRoad, 'balão');

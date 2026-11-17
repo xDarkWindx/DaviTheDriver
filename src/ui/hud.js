@@ -278,7 +278,12 @@ export class Hud {
     setText(this.road, p.offroad ? 'Fora da via' : p.roadName || '—');
     const dl = tr.routeDistLeft || tr.distToDest || 0;
     const dq = Math.round(dl / 10);
-    if (this._q.dist !== dq) { this._q.dist = dq; setText(this.dest, 'destino ' + fmtDist(dl)); }
+    const dkey = dq + '|' + tr.destLabel;
+    if (this._q.dist !== dkey) {
+      this._q.dist = dkey;
+      const where = tr.to === 'stj' && tr.destLabel ? tr.destLabel.replace(/^STJ\s*—\s*/, 'STJ · ') : 'destino';
+      setText(this.dest, where + ' ' + fmtDist(dl));
+    }
     // ações com cooldown
     const acts = st.actions;
     for (const a of ACTIONS) {

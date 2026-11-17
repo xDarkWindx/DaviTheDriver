@@ -40,7 +40,7 @@ export function createAutopilot(ctx) {
       const p = st.player, tr = st.trip;
       const r = net.nearestLane(p.x, p.z, near, p.heading, 1.2);
       if (!r) return false;
-      const dest = net.laneForZone(ctx.ROUTES[tr.routeId].destZone).targets;
+      const dest = (ctx.trip._dest || net.laneForZone(ctx.ROUTES[tr.routeId].destZone)).targets;
       let route = null;
       if (this.corridor === 'parque' && !this._viaDone) {
         const via = net.routeCorridors.parque && net.routeCorridors.parque[tr.routeId];
@@ -277,9 +277,16 @@ export function createAutopilot(ctx) {
         if (o.state === 'gone') continue;
         const ox = o.x - ph.x, oz = o.z - ph.z;
         if (ox * ox + oz * oz > 50 * 50 || ox * fx + oz * fz < 0) continue;
-        for (let j = 0; j < Math.min(P.n, 20); j++) {
-          const ex = o.x - P.x[j], ez = o.z - P.z[j];
-          if (ex * ex + ez * ez < (myW + 1.3) ** 2) { obstacle(j * PATH_DS - veh.length * 0.5 - 2, 0, 'pedestre'); legit = true; break; }
+        // posição atual e prevista (quem atravessa anda ~1,3 m/s): para antes de cruzar o caminho dele
+        const mv = o.state === 'crossing' || o.state === 'walking' ? 1 : 0;
+        const ps = (o.speed || 1.3) * (o.hurry ? 1.6 : 1);
+        let hit = false;
+        for (let q = 0; q <= 2 && !hit; q++) {
+          const px = o.x + Math.sin(o.heading) * ps * 1.2 * q * mv, pz = o.z + Math.cos(o.heading) * ps * 1.2 * q * mv;
+          for (let j = 0; j < Math.min(P.n, 20); j++) {
+            const ex = px - P.x[j], ez = pz - P.z[j];
+            if (ex * ex + ez * ez < (myW + 1.3) ** 2) { obstacle(j * PATH_DS - veh.length * 0.5 - 2.5, 0, 'pedestre'); legit = true; hit = true; break; }
+          }
         }
       }
       // --- IDM
@@ -291,9 +298,13 @@ export function createAutopilot(ctx) {
       }
       acc = Math.min(acc, aCons < 99 ? aCons * 1.15 : 99);
       this.debug.acc = acc; this.debug.gap = obsGap; this.debug.v0 = v0;
+      // impasse com quem está de lado (cone/cruza) parado há > 5 s: avança devagar ignorando esses (como um jogador faria)
+      if (v < 0.4 && (this.debug.why === 'cone' || this.debug.why === 'cruza') && obsV < 0.3) this.sideWaitT = (this.sideWaitT || 0) + dt; else this.sideWaitT = 0;
+      if (this.sideWaitT > 5) { this.sideWaitT = 0; this.creepT = 1.5; }
+      if (this.creepT > 0) { this.creepT -= dt; if (this.debug.why !== 'pedestre' && this.debug.why !== 'faixa') acc = Math.max(acc, 0.8); }
       // preso (sem motivo): ré curta
-      if (v < 0.5 && !legit && obsGap > 8 && acc > 0.3) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
-      if (this.stuckT > 4) { this.reverseT = 1.4; this.stuckT = 0; }
+      if (v < 0.5 && !legit && ((obsGap > 8 && acc > 0.3) || (obsGap < 0.5 && obsV < 0.3))) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
+      if (this.stuckT > 6) { this.reverseT = 1.6; this.stuckT = 0; }
       if (this.reverseT > 0) { this.reverseT -= dt; this._steer(-u * 0.5); this._pedals(0, 1); return; }
       // pedais
       let th = 0, br = 0;
@@ -327,7 +338,7 @@ export function createAutopilot(ctx) {
       let D = net.lanes[R[this.ri]];
       if (!D || D.isConnector || D.segId !== T.segId || D.dir !== T.dir) return;
       const sib = net.siblingLanes(T), left = T.length - this.s;
-      if (D.kind === 'bus' && !prof.busLane) { // a rota passa pela exclusiva: usa a normal ao lado
+      if (D.kind === 'bus' && !prof.busLane && left > 75) { // a rota passa pela exclusiva: usa a normal ao lado (só entra nela para a conversão à direita)
         let best = null; for (const id of sib) { const L = net.lanes[id]; if (L.kind !== 'bus' && (!best || Math.abs(L.index - D.index) < Math.abs(best.index - D.index))) best = L; }
         if (best) D = best;
       }
@@ -354,8 +365,8 @@ export function createAutopilot(ctx) {
         const step = D.index > T.index ? 1 : -1;
         let nid = -1; for (const id of sib) if (net.lanes[id].index === T.index + step) nid = id;
         if (nid < 0) return;
-        const urgent = left < 70 || (T.kind === 'bus' && !prof.busLane);
-        const onBus = T.kind === 'bus' && !prof.busLane;
+        const urgent = left < 70 || (T.kind === 'bus' && !prof.busLane && D.kind !== 'bus');
+        const onBus = T.kind === 'bus' && !prof.busLane && D.kind !== 'bus';
         const stay = slowLead === false && !onBus && !urgent && T.kind !== 'bus' && this.profile === 'apressado' && left > 200;
         if (stay) return;
         if (this._laneFree(nid, this.s, urgent ? 4 : 9, urgent ? 10 : 22) || left < 25) { this.track = nid; this.lastLC = this.t; }

@@ -18,7 +18,7 @@ export const RULES_BALANCE = {
   },
   redLight: { minKmh: 5, headingCos: 0.5, radarDist: 40, sideMargin: 1.5 },
   crosswalk: { minKmh: 8, occupiedMemory: 1.5, pedRadiusExtra: 2 },
-  busLane: { minTime: 3.0, offGrace: 1.0, radarRange: 45 },
+  busLane: { minTime: 3.0, offGrace: 1.0, radarRange: 45, turnZone: 90 }, // turnZone: m antes de uma conversão à direita em que a faixa pode ser usada
   agent: { fovHalf: 1.45, rangeMul: 1.1 },
   dedupe: { seconds: 15, meters: 150 },
   heading: { alignCos: 0.5 },

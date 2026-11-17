@@ -212,7 +212,8 @@ export class SceneryBuilder {
       samplePts(seg.pts, seg.cum, s, T0); samplePts(seg.pts, seg.cum, e, T1);
       const ax = T0.x - T0.tz * off, az = T0.z + T0.tx * off, bx = T1.x - T1.tz * off, bz = T1.z + T1.tx * off;
       const mx = (ax + bx) / 2, mz = (az + bz) / 2, len = Math.hypot(bx - ax, bz - az), h = Math.atan2(bx - ax, bz - az);
-      if (this.net.clearance(mx, mz, 8) < 0.3) continue; // não invade outra via (cruzamentos)
+      // não invade outra via (cruzamentos, passagem por baixo de viaduto, alça que se junta): pontas e meio fora do asfalto
+      if (this.net.clearance(mx, mz, 8) < 0.6 || this.net.clearance(ax, az, 8) < 0.6 || this.net.clearance(bx, bz, 8) < 0.6) continue;
       this.inst.add('box', mx, 0.45, mz, h, 0.12, 0.32, len + 0.1, 0xd7dadd);   // lâmina
       this.inst.add('box', ax, 0, az, h, 0.14, 0.75, 0.14, 0x6d7075);           // poste
       const col = makeOBB(mx, mz, 0.25, len / 2, h); col.kind = 'guardrail'; this.colliders.add(col);
@@ -341,8 +342,8 @@ export function buildScenery(sb) {
   // --- fileiras de árvores à beira das vias
   for (const id of ['qrsw2', 'qrsw2_e', 'quarta_av', 'quarta_av_s', 'terceira_w', 'terceira_m', 'terceira_e', 'segunda_w', 'segunda_e', 'eqrsw',
     'rua_q1', 'rua_q34', 'rua_q56', 'clsw', 'primeira_av',
-    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
-    's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'safs_east'])
+    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_b2', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
+    's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'l2m_far', 'safs_east'])
     sb.rowAlong(id, 6.5, 13);
   sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
   for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
@@ -353,7 +354,7 @@ export function buildScenery(sb) {
   // --- postes e guard-rails
   for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1', 'eixo_n1_e']) sb.lampsAlong(id, 42, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
-  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
+  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_b2', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
     sb.lampsAlong(id, 46, [0]);
   for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }

@@ -6,6 +6,14 @@ import { MODES, ROUTES, VEHICLES } from '../config.js';
 
 const MENU_ORBIT = { x: 420, z: 30 }; // passeio da câmera no menu (Esplanada)
 
+/** Estacionamento do STJ da viagem (MODES[mode].parking: lista de opções). seed != null => determinístico. */
+export function chooseParking(modeId, seed) {
+  const opts = (MODES[modeId] && MODES[modeId].parking) || ['leste'];
+  if (opts.length === 1) return opts[0];
+  const r = seed != null ? (((seed >>> 0) * 2654435761) >>> 0) / 4294967296 : Math.random();
+  return opts[Math.floor(r * opts.length) % opts.length];
+}
+
 export class Game {
   constructor(ctx) {
     this.ctx = ctx;
@@ -15,7 +23,7 @@ export class Game {
     this.stepDt = 1 / 60;
     this.preStep = null;
     const ev = ctx.events;
-    ev.on(EV.REQ_START, (p) => this.startTrip(p.routeId, p.mode));
+    ev.on(EV.REQ_START, (p) => this.startTrip(p.routeId, p.mode, p));
     ev.on(EV.REQ_PAUSE, () => this.pause());
     ev.on(EV.REQ_RESUME, () => this.resume());
     ev.on(EV.REQ_MENU, () => this.toMenu());
@@ -63,7 +71,7 @@ export class Game {
   /**
    * Inicia uma viagem. routeId: chave de ROUTES ('casa-stj'|'stj-casa'); mode: chave de MODES ('davi'|'carona'|'perigo').
    */
-  startTrip(routeId = 'casa-stj', modeId = 'davi') {
+  startTrip(routeId = 'casa-stj', modeId = 'davi', opts = {}) {
     const ctx = this.ctx, st = ctx.state;
     const route = ROUTES[routeId], mode = MODES[modeId];
     if (!route) throw new Error('rota desconhecida: ' + routeId);
@@ -78,7 +86,10 @@ export class Game {
     st.mood.passenger.who = mode.passenger; st.mood.passenger.active = !!mode.passenger;
     st.fines.length = 0; st.fineTotal = 0;
 
-    const pose = ctx.trip.setup(routeId);
+    // estacionamento do STJ: carona = Norte (o caminho do dono); Davi = Entrada Oeste ou Estacionamento Leste (sorteio,
+    // reproduzível com state.traffic.seed). opts.parking força ('norte'|'oeste'|'leste').
+    tr.parking = opts && opts.parking ? opts.parking : chooseParking(modeId, st.traffic && st.traffic.seed);
+    const pose = ctx.trip.setup(routeId, tr.parking);
     ctx.player.setVehicle(vehicle.id);
     ctx.player.reset(pose);
     ctx.view.setTimeOfDay(route.timeOfDay);
@@ -89,7 +100,7 @@ export class Game {
     this._setMode(MODE.PLAYING, null);
     ctx.events.emit(EV.TRIP_START, {
       tripId: tr.id, routeId, mode: modeId, label: tr.label, timeOfDay: tr.timeOfDay, from: tr.from, to: tr.to,
-      vehicleId: vehicle.id, driver: mode.driver, passenger: mode.passenger,
+      vehicleId: vehicle.id, driver: mode.driver, passenger: mode.passenger, parking: tr.parking, destLabel: tr.destLabel,
     });
   }
 

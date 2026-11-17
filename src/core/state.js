@@ -34,6 +34,8 @@ export function createState() {
       guideBearing: 0,          // heading (convenção do jogo) do carro até guide
       destX: 0, destZ: 0, destRadius: 0,
       arrived: false,
+      parking: null,            // STJ: 'norte' | 'oeste' | 'leste' (estacionamento de destino/largada; core/game.js)
+      destLabel: '',            // nome do destino para HUD/minimapa (ex.: 'STJ — Entrada Oeste')
     },
 
     player: {                   // player/player.js

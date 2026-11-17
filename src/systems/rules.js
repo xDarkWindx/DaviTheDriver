@@ -103,6 +103,8 @@ export default {
     if (!this.par && st.trip.routeDistLeft > 0) this.par = st.trip.routeDistLeft / RULES_BALANCE.final.parSpeed;
     snap.t = st.trip.elapsed; snap.x = sp.x; snap.z = sp.z; snap.heading = sp.heading;
     snap.speedKmh = sp.speedKmh || 0; snap.limitKmh = sp.speedLimitKmh || 0; snap.onBusLane = !!sp.onBusLane;
+    // CTB: pode usar a faixa exclusiva para a conversão à direita logo adiante (não conta como trânsito na faixa)
+    if (snap.onBusLane && this._busTurnAllowed(ctx, sp)) snap.onBusLane = false;
     snap.radars = T.radars(); snap.agents = T.agents();
     // semáforos perto
     const ap = this._apNear; ap.length = 0;
@@ -150,6 +152,16 @@ export default {
     const dono = md.driver.who === 'dono' ? md.driver : md.passenger.active && md.passenger.who === 'dono' ? md.passenger : null;
     stepScore(this.score, { davi, dono }, dt);
     writeScore(this.score, st.score);
+  },
+
+  /** Na faixa de ônibus a menos de RULES_BALANCE.busLane.turnZone m de uma conversão à direita (saída). */
+  _busTurnAllowed(ctx, sp) {
+    const net = ctx.net; if (!net || sp.laneId < 0 || !net.getLane) return false;
+    const lane = net.getLane(sp.laneId); if (!lane || !lane.next) return false;
+    let right = false;
+    for (let i = 0; i < lane.next.length; i++) { const c = net.getLane(lane.next[i]); if (c && c.turn === 'right') { right = true; break; } }
+    if (!right) return false;
+    return lane.length - net.projectOnLane(lane, sp.x, sp.z) < RULES_BALANCE.busLane.turnZone;
   },
 
   _applyFine(f) {

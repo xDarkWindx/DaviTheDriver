@@ -220,7 +220,7 @@ export class RoadNetwork {
       const ents = Object.entries(rb.entries).map(([id, deg]) => ({ id, phi: deg * D2R }))
         .sort((a, b) => a.phi - b.phi);
       const r = { id: rb.id, name: rb.name, x: rb.x, z: rb.z, radius: rb.radius, lanes: rb.lanes, laneW: rb.laneW,
-        islandRadius: rb.radius - rb.lanes * rb.laneW / 2 - 0.6, nodeIds: [], segIds: [] };
+        islandRadius: rb.radius - rb.lanes * rb.laneW / 2 - 0.6, nodeIds: [], segIds: [], stj: rb.stj || 0 };
       for (const e of ents) {
         this.nodes.set(e.id, { id: e.id, x: rb.x + rb.radius * Math.cos(e.phi), z: rb.z - rb.radius * Math.sin(e.phi),
           type: 'ring', radius: 0, segs: [], signalId: -1, roundaboutId: rb.id, phi: e.phi });

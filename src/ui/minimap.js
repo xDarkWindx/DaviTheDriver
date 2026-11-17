@@ -114,7 +114,9 @@ export class Minimap {
     for (const key in zones) {
       const z = zones[key];
       const sx = k * (m.a * z.x + m.c * z.z) + e, sy = k * (m.b * z.x + m.d * z.z) + f;
-      const isDest = Math.hypot(tr.destX - z.x, tr.destZ - z.z) < 60;
+      const isDest = Math.hypot(tr.destX - z.x, tr.destZ - z.z) < 25;
+      // STJ: só o estacionamento da viagem (stj_norte/oeste/leste); 'stj' é apelido
+      if (key !== 'casa' && key !== 'stj_' + (tr.parking || 'leste')) continue;
       if (sx < -10 || sy < -10 || sx > SIZE + 10 || sy > SIZE + 10) continue;
       this._pin(g, sx, sy, key === 'casa' ? 'CASA' : 'STJ', isDest ? '#ffc928' : '#8a8f99', isDest);
     }

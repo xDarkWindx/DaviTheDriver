@@ -38,6 +38,14 @@ export const PERSONAS = {
     bus: true, lcGain: 1.0, lcBackTime: 1.2, minBack: 8, keepRight: 1.5, gapRing: 3.5, dwell: [6, 10],
     flash: { yield: 0.1, brake: 0.1, ignore: 0.8 }, temper: 0.7, honkPatience: 3, aggr: 0.3, react: [0.6, 1.2],
   },
+  // ônibus institucional do STJ (evento da rotatória, sim.js `_stjBusLogic`): não para em ponto, entra no balão sem
+  // esperar brecha e, por ser comprido, a traseira varre para fora na curva.
+  onibusSTJ: {
+    label: 'ônibus do STJ', models: { onibus: 1 },
+    speedMul: [0.8, 0.9], maxKmh: 45, T: [1.4, 1.6], s0: 2.5, a: [1.0, 1.2], b: 2.4,
+    noLaneChange: true, lcGain: 9, lcBackTime: 1.2, minBack: 8, keepRight: 0, gapRing: 0.6,
+    flash: { yield: 0, brake: 0, ignore: 1 }, temper: 0.2, honkPatience: 99, aggr: 0, react: [0.4, 0.6],
+  },
   moto: {
     label: 'motoboy', models: { moto: 1 },
     speedMul: [1.12, 1.3], T: [0.8, 1.0], s0: 1.2, a: [3.0, 3.8], b: 4.5,

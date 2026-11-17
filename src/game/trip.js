@@ -39,20 +39,24 @@ export class Trip {
   }
 
   /** Configura a viagem (rota) e retorna a pose de largada {x,z,heading}. */
-  setup(routeId) {
+  setup(routeId, parking = null) {
     const def = ROUTES[routeId];
     if (!def) throw new Error('rota desconhecida: ' + routeId);
     this.def = def;
-    const zone = this.net.zones[def.destZone];
+    // STJ: o destino/largada é o estacionamento da viagem (state.trip.parking): zones/starts 'stj_<parking>'
+    const pk = (id) => (id === 'stj' && parking && this.net.zones['stj_' + parking] ? 'stj_' + parking : id);
+    this.destZoneId = pk(def.destZone); this.startId = pk(def.start);
+    const zone = this.net.zones[this.destZoneId];
+    this.state.trip.destLabel = zone.label || '';
     const tr = this.state.trip;
     tr.destX = zone.x; tr.destZ = zone.z; tr.destRadius = zone.r; tr.arrived = false; tr.elapsed = 0;
-    this._dest = this.net.laneForZone(def.destZone);
+    this._dest = this.net.laneForZone(this.destZoneId);
     this.ring.position.set(zone.x, 0.12, zone.z); this.ring.scale.setScalar(zone.r);
     this.beam.position.set(zone.x, 0, zone.z); this.beam.scale.set(zone.r * 0.35, 60, zone.r * 0.35);
     this.ring.visible = this.beam.visible = true;
     this.arrow.visible = true;
     this._gpsT = 0; this.route.length = 0;
-    return this.net.snapStart(this.net.starts[def.start]);
+    return this.net.snapStart(this.net.starts[this.startId]);
   }
 
   hide() { this.ring.visible = this.beam.visible = this.arrow.visible = false; }

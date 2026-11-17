@@ -35,6 +35,8 @@ export const TUNING = {
   // trecho sem ultrapassagem: o lento com fila atrás encosta no acostamento e deixa passar (ninguém fica preso atrás dele a rota toda)
   honkEventGap: 3.5,  // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação)
   spawnQueueMax: 3,   // parados na faixa a partir dos quais não nasce mais ninguém nela
+  // evento "ônibus do STJ na rotatória": chance por viagem e peso de cada rotatória do entorno (roundabout.stj = 1..5)
+  stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.45, 3: 0.4, 4: 0.3, 5: 0.8 }, stjBusSwing: 0.2,
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
 
@@ -98,6 +100,8 @@ class Vehicle {
     this.blink = 0; this.flashing = false; this.braking = false; this.honking = false; this.acc = 0; this.yawOff = 0;
     this.v0min = 0; this.rbT = 0; this.lastStop = -1;
     this.pullT = 0; this.pullCd = 0; this.queueT = 0; // lento que encosta para a fila passar (trecho sem ultrapassagem)
+    this.stjBus = false; this.cutDone = false; this.swing = 0; // ônibus do STJ (evento da rotatória)
+    this.pWaitT = 0; this.pIgnT = 0; // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
   }
 }
 
@@ -295,6 +299,8 @@ export class TrafficSim {
     const erng = makeRng((this.seed * 2654435761) >>> 0 || 7);
     this._rollHazards(erng);
     this._rollEnforcement(erng);
+    const stjOn = opts.stjBus != null ? !!opts.stjBus : erng() < TUNING.stjBusChance;
+    this.stjEvent = { on: stjOn, fired: false, ring: -1, busId: -1, tried: new Set(), rng: erng() };
     if (this.player) {
       this._readPlayer();
       if (this.autoSpawn) this._fillInitial();
@@ -447,7 +453,7 @@ export class TrafficSim {
         if (seeJ && vj.ghostT <= 0) this._coneObs(vj, fJ - vj.length * 0.5 - (cdh * vi.length * 0.5 + sdh * vi.width * 0.5), Math.max(0, vi.speed * Math.cos(dh)), LEAD.CONE, vi.slot);
       }
       // jogador
-      if (this.player) {
+      if (this.player && vi.pIgnT <= 0) {
         const dx = this.px - vi.x, dz = this.pz - vi.z;
         if (dx * dx + dz * dz < 1100 && !this._gradeSep(li.segId, this.pSeg)) {
           const dh = wrap(this.ph - vi.heading), cdh = Math.abs(Math.cos(dh)), sdh = Math.abs(Math.sin(dh));
@@ -644,6 +650,7 @@ export class TrafficSim {
     const latVel = (v.latOff - latPrev) / dt;
     v.yawOff += (-Math.atan2(latVel, Math.max(sp, 2)) - v.yawOff) * Math.min(1, dt * 10);
     v.heading = h + v.yawOff;
+    if (v.stjBus) this._busSwing(v, h);
     v.laneId = w.lane.id;
     // seta para curva adiante
     if (v.lcT <= 0 && v.dwellT <= 0 && v.crashT <= 0) {
@@ -666,6 +673,17 @@ export class TrafficSim {
     if (v.revengeT > 0) v.revengeT -= dt;
     if (v.furaoT > 0) v.furaoT -= dt;
     if (v.ghostT > 0) v.ghostT -= dt;
+    if (v.pIgnT > 0) v.pIgnT -= dt;
+    // impasse: parado pelo cone do jogador (também parado) que NÃO está claramente à frente (cruzamento/balão)
+    if (v.coneKind === LEAD.PLAYER && v.speed < 0.3 && Math.abs(this.pSpeed) < 0.5) {
+      v.pWaitT += dt;
+      if (v.pWaitT > 3) {
+        const dx = this.px - v.x, dz = this.pz - v.z, sh = Math.sin(v.heading), ch = Math.cos(v.heading);
+        const f = dx * sh + dz * ch, l = Math.abs(-dx * ch + dz * sh);
+        if (f < v.length * 0.5 + 1.5 || l > v.width * 0.5 + 0.6) { v.pIgnT = 2; }
+        v.pWaitT = 0;
+      }
+    } else v.pWaitT = 0;
     if (v.collCd > 0) v.collCd -= dt;
     if (v.nmCd > 0) v.nmCd -= dt;
     if (v.tailCd > 0) v.tailCd -= dt;
@@ -1081,6 +1099,11 @@ export class TrafficSim {
         }
       }
       v.corr = inCorr;
+      // ônibus do STJ entrando à frente de quem circula: é a "fechada" do evento (ring: true), 1x
+      if (v.stjBus && !v.cutDone && rel > 0 && rel < 24 && Math.abs(lat) < 3.2 && pAbs > 1.5 && this.pLaneId >= 0 && (this.laneOnRing[this.pLaneId] >= 0 || this.lanes[this.pLaneId].isConnector)) {
+        v.cutDone = true;
+        this._emit(EV.CUT_OFF, { id: v.id, otherId: v.id, kind: v.kind, persona: v.persona, gap: Math.max(0, rel - (Lp + v.length) * 0.5), ring: true, stj: true });
+      }
       if (!inCorr && Math.abs(lat) > 2.0 && Math.abs(lat) < 7) v.sideT = 2; else if (v.sideT > 0) v.sideT -= dt;
       // ---- colado na traseira do jogador
       if (rel < 0 && Math.abs(lat) < 1.4 && adh < 0.5) {
@@ -1627,6 +1650,7 @@ export class TrafficSim {
       this._slowGuarantee();
     }
     if (this.stepN % 30 === 15) this._furaoLogic();
+    if (this.stepN % 15 === 7) this._stjBusLogic();
     this.dirCd -= dt;
     if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
   }
@@ -1724,6 +1748,66 @@ export class TrafficSim {
       }
       base += this.lanes[lid].length;
     }
+  }
+
+  /**
+   * Evento "ônibus do STJ na rotatória" (no máx. 1x por viagem, chance TUNING.stjBusChance): quando o caminho do
+   * jogador circula por uma rotatória do entorno do STJ e a próxima entrada está a 22–90 m, um ônibus do STJ
+   * (persona onibusSTJ, com seta) aparece nessa aproximação e entra no balão sem esperar brecha, fechando quem
+   * está circulando. Visível antes; quem freia/dá espaço escapa; quem força por dentro leva a traseira (_busSwing).
+   */
+  _stjBusLogic() {
+    const E = this.stjEvent;
+    if (!E || !E.on || E.fired || !this.player || this.pPathN === 0) return;
+    let base = -this.pS, node = null, rbi = -1;
+    for (let k = 0; k < this.pPathN && base < 110; k++) {
+      const lane = this.lanes[this.pPath[k]], ri = this.laneOnRing[lane.id];
+      if (ri >= 0 && this.rbs[ri].stj && lane.segId && lane.endNode) {
+        const end = base + lane.length;
+        if (end > 22 && end < 90) { node = lane.endNode; rbi = ri; break; }
+      }
+      base += lane.length;
+    }
+    if (!node || E.tried.has(node)) return;
+    E.tried.add(node);
+    const w = TUNING.stjBusRing[this.rbs[rbi].stj] || 0.4;
+    if (this.rng() > w) return;
+    const apps = this.ringApproachByNode.get(node); if (!apps) return;
+    let lid = -1;
+    for (const a of apps) { const L = this.lanes[a]; if (L.length > 40 && (lid < 0 || L.index < this.lanes[lid].index)) lid = a; }
+    if (lid < 0) return;
+    const lane = this.lanes[lid], s = lane.length - 30;
+    const o = this.net.sampleLane(lane, s, this._tmpS || (this._tmpS = {}));
+    for (const v of this.vehicles) { const dx = v.x - o.x, dz = v.z - o.z; if (dx * dx + dz * dz < 18 * 18) this._despawn(v); }
+    this._rebuildLists();
+    if (this.vehicles.length >= this.maxV) { // libera o mais distante
+      let far = null, fd = 0;
+      for (const v of this.vehicles) { const ex = v.x - this.px, ez = v.z - this.pz, d = ex * ex + ez * ez; if (d > fd) { fd = d; far = v; } }
+      if (far) { this._despawn(far); this._rebuildLists(); }
+    }
+    const v = this.spawn('onibusSTJ', 'onibus', lid, s, { furao: true, exact: true, speed: 6.5 });
+    if (!v) return;
+    v.stjBus = true; v.furaoT = 14; v.color = 0; v.blink = -1;
+    this._buildBucketsFor(v);
+    E.fired = true; E.ring = rbi; E.busId = v.id; E.node = node;
+    this.stats.stjBus = (this.stats.stjBus || 0) + 1;
+  }
+  /** Ônibus comprido na curva: gira para dentro em torno da frente, então a TRASEIRA varre para fora (até ~2 m). */
+  _busSwing(v, h) {
+    const w = v.w, lane = w.lane, onRing = this.laneOnRing[lane.id] >= 0;
+    let target = 0;
+    if (onRing || lane.isConnector) {
+      const T = this._tmpS2 || (this._tmpS2 = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 });
+      this.net.sampleLane(lane, Math.min(lane.length, w.s + 5), T);
+      let dh = T.heading - h; if (dh > Math.PI) dh -= TAU; else if (dh < -Math.PI) dh += TAU;
+      target = Math.sign(dh) * TUNING.stjBusSwing * Math.min(1, Math.abs(dh) / 0.25);
+    }
+    v.swing += (target - v.swing) * 0.08;
+    const a = v.swing; if (Math.abs(a) < 1e-4) return;
+    // pivô perto da frente (0,3 L à frente do centro): o centro desloca e a traseira abre para fora da curva
+    const piv = v.length * 0.3, fx = Math.sin(h), fz = Math.cos(h), ha = h + a;
+    v.x += fx * piv - Math.sin(ha) * piv; v.z += fz * piv - Math.cos(ha) * piv;
+    v.heading += a;
   }
 
   /** Rotatória: de vez em quando alguém entra na frente do jogador. */
