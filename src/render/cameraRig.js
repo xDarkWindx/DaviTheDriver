@@ -5,10 +5,11 @@ import { CONFIG } from '../config.js';
 import { clamp, damp } from '../core/math.js';
 
 export class CameraRig {
-  constructor(aspect = 16 / 9) {
+  constructor(aspect = 16 / 9, quality = null) {
     const c = CONFIG.camera;
     this.cfg = c;
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, c.distance * 3);
+    this.quality = quality;
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, c.distance + (quality ? quality.cameraFar : 900));
     const el = c.elevationDeg * Math.PI / 180, az = c.azimuthDeg * Math.PI / 180;
     // direção alvo -> câmera
     this.dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
@@ -37,7 +38,7 @@ export class CameraRig {
   snap(x, z) { this.tx = x; this.tz = z; this.lookX = 0; this.lookZ = 0; this.view = this.cfg.baseView; }
 
   _applyFrustum() {
-    const h = this.view * this.zoomMul / 2, w = h * this.aspect;
+    const h = this.view * this.zoomMul * (this.quality ? this.quality.viewMul : 1) / 2, w = h * this.aspect;
     const cam = this.camera;
     cam.left = -w; cam.right = w; cam.top = h; cam.bottom = -h;
     cam.updateProjectionMatrix();

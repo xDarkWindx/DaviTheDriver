@@ -1,6 +1,5 @@
 // Renderer WebGL, cena e iluminação (sem sombras dinâmicas, sem pós-processamento).
 import * as THREE from 'three';
-import { CONFIG } from '../config.js';
 
 // Paletas por período do dia. fx.js pode ler/alterar via ctx.view.setTimeOfDay / ctx.view.lights.
 export const TIME_OF_DAY = {
@@ -16,9 +15,10 @@ export const TIME_OF_DAY = {
   },
 };
 
-export function createView(container) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', alpha: false, stencil: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.pixelRatioMax));
+/** Cria renderer/cena a partir do perfil de qualidade (antialias e postprocess exigem recriar). */
+export function createView(container, quality) {
+  const renderer = new THREE.WebGLRenderer({ antialias: !!quality.antialias, powerPreference: 'high-performance', alpha: false, stencil: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.pixelRatioMax));
   renderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
   renderer.shadowMap.enabled = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -36,7 +36,11 @@ export function createView(container) {
   const tintables = [];
 
   const view = {
-    renderer, scene, lights: { hemi, sun }, timeOfDay: 'manha', tintables,
+    renderer, scene, lights: { hemi, sun }, timeOfDay: 'manha', tintables, quality,
+    /** Muda só o que vale em tempo real (pixelRatio). Demais chaves: ver README (recriar). */
+    applyLiveQuality(q) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatioMax));
+    },
     setTimeOfDay(name) {
       const p = TIME_OF_DAY[name] || TIME_OF_DAY.manha;
       view.timeOfDay = name;

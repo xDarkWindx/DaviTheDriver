@@ -3,8 +3,7 @@
 export const CONFIG = {
   simHz: 60,              // passo fixo da simulação
   maxSubSteps: 5,         // máx. de passos por frame (evita espiral da morte)
-  pixelRatioMax: 1.5,
-  chunkSize: 400,         // tamanho dos "chunks" de culling (m)
+  defaultQuality: 'leve', // chave de QUALITY (state.quality guarda a escolha atual)
   debug: false,
 
   camera: {
@@ -23,6 +22,54 @@ export const CONFIG = {
   // a partir desta velocidade de impacto (km/h) o provisório de rules.js encerra com 'bateu'
   crashImpactKmh: 18,
 };
+
+// ---------------------------------------------------------------------------
+// PERFIS DE QUALIDADE. Toda decisão de custo gráfico sai daqui (ninguém usa constante solta).
+// 'leve' = padrão (Intel UHD 770). 'hd' = ESQUELETO para GPU dedicada (TODO, ainda não suportado:
+// materialKind 'standard', shadows 'shadowmap' e postprocess ainda não têm implementação).
+// Coluna "recria": R = exige recriar o renderer; M = exige reconstruir o mundo (cenário/texturas);
+//                  - = pode mudar em tempo real.
+// ---------------------------------------------------------------------------
+export const QUALITY = {
+  leve: {
+    id: 'leve', label: 'Leve (gráficos integrados)', implemented: true,
+    pixelRatioMax: 1.5,          // -  teto do devicePixelRatio
+    antialias: true,             // R  MSAA do contexto WebGL
+    materialKind: 'lambert',     // M  'lambert' | 'basic' | 'standard'(hd/TODO)
+    shadows: 'blob',             // M  'none' | 'blob' | 'shadowmap'(hd/TODO)
+    textureSize: 256,            // M  lado (px) das texturas geradas em canvas (chão, asfalto)
+    anisotropy: 4,               // M
+    signTextureWidth: 1024,      // M  largura do atlas de placas
+    chunkSize: 400,              // M  m — tamanho do chunk de culling de cenário/chão
+    cameraFar: 900,              // -  plano distante da câmera (m)
+    viewMul: 1.0,                // -  multiplica a abertura de zoom da câmera
+    density: {                   // M  multiplicadores de cenário instanciado (1 = padrão)
+      trees: 1.0, scrub: 1.0, lamps: 1.0, buildings: 1.0, guardrails: 1.0,
+    },
+    vehicleLOD: 'low',           // M  'low' | 'high'(TODO) — detalhe dos carros
+    landmarkLOD: 'low',          // M  'low' | 'high'(TODO) — detalhe dos marcos
+    maxTrafficVehicles: 40,      // -  teto p/ systems/traffic.js
+    maxPedestrians: 24,          // -  teto p/ systems/traffic.js
+    maxParticles: 300,           // -  teto p/ systems/fx.js
+    postprocess: null,           // R  gancho: null | (ctx) => { render(dt) } — vazio no leve
+  },
+  hd: {
+    id: 'hd', label: 'HD (placa dedicada) — TODO', implemented: false,
+    pixelRatioMax: 2, antialias: true, materialKind: 'standard', shadows: 'shadowmap',
+    textureSize: 1024, anisotropy: 8, signTextureWidth: 2048, chunkSize: 600, cameraFar: 1500, viewMul: 1.0,
+    density: { trees: 2.0, scrub: 2.5, lamps: 1.0, buildings: 1.0, guardrails: 1.0 },
+    vehicleLOD: 'high', landmarkLOD: 'high',
+    maxTrafficVehicles: 90, maxPedestrians: 60, maxParticles: 2000,
+    postprocess: null, // TODO: bloom/vinheta etc. (fx.js registra aqui)
+  },
+};
+
+/** Perfil efetivo (perfis não implementados caem para 'leve' com aviso). */
+export function resolveQuality(id) {
+  const q = QUALITY[id] || QUALITY.leve;
+  if (!q.implemented) { console.warn(`[qualidade] perfil '${id}' ainda não implementado; usando 'leve'.`); return QUALITY.leve; }
+  return q;
+}
 
 // ---------------------------------------------------------------------------
 // Tabela de VEÍCULOS do jogador. Nada de "if (vehicle === ...)" espalhado:

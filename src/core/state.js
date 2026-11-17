@@ -13,6 +13,7 @@ export function moodBars(who = null) {
 export function createState() {
   return {
     mode: MODE.MENU,            // core/game.js
+    quality: 'leve',            // chave de QUALITY em uso (main.js define; UI pode oferecer troca)
     finishReason: null,         // 'chegou' | 'bateu' | 'desistiu' | null   (core/game.js)
     finishDetails: null,        // payload livre de quem pediu o fim
 
