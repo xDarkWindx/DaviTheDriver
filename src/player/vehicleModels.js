@@ -239,11 +239,11 @@ function kwidSpec(v) {
       return k <= 3 ? [K.TRIM, 0] : [K.WHITE, 0];
     },
   };
-  return { spec, R, archR, wz };
+  return { spec, R, archR, wz, zRW };
 }
 
 function kwidBody(b, v, g) {
-  const { spec, wz } = kwidSpec(v);
+  const { spec, wz, zRW } = kwidSpec(v);
   loft(b, spec, g);
   const L = v.length, W = v.width, H = v.height, zF = L / 2, zR = -L / 2, hw = W / 2;
   // caixas de roda: forro escuro interno

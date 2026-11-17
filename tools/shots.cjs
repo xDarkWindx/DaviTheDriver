@@ -8,7 +8,7 @@ const fs = require('fs');
 const OUT = path.resolve(process.argv[2] || path.join(__dirname, '..', '.shots'));
 const FILTER = process.argv[3] || '';
 fs.mkdirSync(OUT, { recursive: true });
-const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const URL = process.env.DAVI_URL || ('file://' + path.resolve(__dirname, '..', 'index.html'));
 
 // [nome, x, z, altura visível (m), extra]
 const VIEWS = [
