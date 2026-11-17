@@ -11,6 +11,7 @@ import { MOOD_BALANCE } from './mood/balance.js';
 import { createMoodModel, stepMood, moodEvent, drainOut, neutralMods } from './mood/model.js';
 import { Speaker } from './mood/lines.js';
 import { TrafficAdapter } from './rules/traffic-adapter.js';
+import { makeRng, deriveSeed } from '../core/math.js';
 
 const WINDOW_GESTURES = { bracoPraFora: 1, banana: 1, buzinaImaginaria: 1, apontando: 1 };
 const RADAR_AHEAD_M = 150;
@@ -53,7 +54,10 @@ export default {
 
   reset(ctx, trip) {
     const st = ctx.state;
-    this.model = createMoodModel(trip.mode || st.trip.mode);
+    // sorteios do humor e das falas pela semente da viagem (mesma semente + mesmas entradas = mesma viagem)
+    const seed = (st.traffic && st.traffic.tripSeed) || ((Math.random() * 0xffffffff) >>> 0) || 1;
+    this.model = createMoodModel(trip.mode || st.trip.mode, { rng: makeRng(deriveSeed(seed, 0x6d6f6f64)) });
+    this.speaker.rng = makeRng(deriveSeed(seed, 0x66616c61));
     this.speaker.reset();
     this._chgT = 0; this._last = ''; this._hornEndT = 0; this._yawLeft = 0;
     st.actions = this.model.actions;   // { horn, breathe, curse, flash } -> { cooldown, max }

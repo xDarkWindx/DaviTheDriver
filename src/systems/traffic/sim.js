@@ -314,8 +314,9 @@ export class TrafficSim {
     this.time = 0; this.stepN = 0; this.nextId = 1; this.nextPedId = 1; this._lpOk = false;
     this.pTailT = 0; this.furaoCd = 6; this.dirCd = 2; this.honkGlobalCd = 0; this._cwEmitted = -1;
     this.noPassCd.fill(0); this.cwCount.fill(0); this.cwCross.fill(0); this.cwWait.fill(0); this.cwPrevCross.fill(0); this.cwHold.fill(0); this.cwStart.fill(0);
-    for (const v of this.veh) { v.active = false; v.reset(); }
-    for (const p of this.peds) { p.active = false; p.state = 'gone'; }
+    for (const v of this.veh) { v.active = false; v.reset(); v.w.rng = makeRng((this.seed ^ (v.slot * 2246822519)) >>> 0 || 3); }
+    // walkers dos corredores/ciclistas sorteiam a próxima faixa com o PRNG próprio: semeado por viagem (reprodutível)
+    for (const p of this.peds) { p.active = false; p.state = 'gone'; p.w.rng = makeRng((this.seed ^ (p.slot * 3266489917)) >>> 0 || 5); }
     this.vehicles.length = 0; this.pedestrians.length = 0;
     const erng = makeRng((this.seed * 2654435761) >>> 0 || 7);
     this._rollHazards(erng);

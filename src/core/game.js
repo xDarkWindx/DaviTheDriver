@@ -104,10 +104,14 @@ export class Game {
     st.mood.passenger.who = mode.passenger; st.mood.passenger.active = !!mode.passenger;
     st.fines.length = 0; st.fineTotal = 0;
 
-    // estacionamento do STJ: carona = Norte (o caminho do dono); Davi = Entrada Oeste ou Estacionamento Leste (sorteio,
-    // reproduzível com state.traffic.seed). opts.parking força ('norte'|'oeste'|'leste').
-    tr.parking = opts && opts.parking ? opts.parking : chooseParking(modeId, st.traffic && st.traffic.seed);
-    tr.arrivalVia = opts && opts.via ? opts.via : chooseArrivalVia(modeId, routeId, tr.parking, st.traffic && st.traffic.seed);
+    // semente da viagem: state.traffic.seed fixo = viagem reproduzível; null = sorteia uma por viagem. TODO sorteio de
+    // jogo (trânsito, humor, falas, regras, estacionamento) deriva de state.traffic.tripSeed.
+    if (!st.traffic) st.traffic = { seed: null, tripSeed: 0, active: 0, peds: 0 };
+    st.traffic.tripSeed = st.traffic.seed != null ? (st.traffic.seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0) || 1;
+    // estacionamento do STJ: carona = Norte (o caminho do dono); Davi = Entrada Oeste ou Estacionamento Leste (sorteio
+    // pela semente da viagem). opts.parking força ('norte'|'oeste'|'leste').
+    tr.parking = opts && opts.parking ? opts.parking : chooseParking(modeId, st.traffic.tripSeed);
+    tr.arrivalVia = opts && opts.via ? opts.via : chooseArrivalVia(modeId, routeId, tr.parking, st.traffic.tripSeed);
     const pose = ctx.trip.setup(routeId, tr.parking, tr.arrivalVia);
     ctx.player.setVehicle(vehicle.id);
     ctx.player.reset(pose);

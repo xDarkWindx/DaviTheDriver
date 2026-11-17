@@ -14,6 +14,7 @@ import { createFineDetector, stepFines } from './rules/fines.js';
 import { createScore, stepScore, writeScore, penalize } from './rules/score.js';
 import { buildResult } from './rules/result.js';
 import { TrafficAdapter } from './rules/traffic-adapter.js';
+import { makeRng, deriveSeed } from '../core/math.js';
 
 const NEAR_SIGNAL = 45, NEAR_CW = 35;
 // só quem está NA faixa conta (esperando na calçada ou já saindo dela, 'walking', não)
@@ -62,7 +63,8 @@ export default {
     writeScore(this.score, st.score);
     st.fines.length = 0; st.fineTotal = 0;
     this.mode = mode; this.par = 0; this.scrapes = 0; this.lastHazard = null; this.lastCol = null;
-    this.sinistroNo = 2 + Math.floor(Math.random() * 98);
+    const seed = (st.traffic && st.traffic.tripSeed) || ((Math.random() * 0xffffffff) >>> 0) || 1;
+    this.sinistroNo = 2 + Math.floor(makeRng(deriveSeed(seed, 0x72756c65))() * 98);
     this._snap.px = null; this._snap.pz = null;
     this._occMem.clear(); this._occFlag.clear();
   },

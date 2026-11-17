@@ -27,6 +27,13 @@ export function makeRng(seed = 1) {
   return r;
 }
 
+/** Semente derivada (para dar a cada sistema seu próprio fluxo a partir da semente da viagem). */
+export function deriveSeed(seed, salt) {
+  let h = ((seed >>> 0) ^ Math.imul(salt >>> 0, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0; h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) || 1;
+}
+
 /** Ruído 1D suave e barato (soma de senos), útil p/ steerNoise etc. Retorna ~[-1,1]. */
 export function smoothNoise(t, seed = 0) {
   return (Math.sin(t * 1.7 + seed) * 0.5 + Math.sin(t * 3.1 + seed * 2.3) * 0.3 + Math.sin(t * 7.3 + seed * 0.7) * 0.2);

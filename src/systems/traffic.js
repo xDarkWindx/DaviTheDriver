@@ -68,7 +68,9 @@ const api = {
     this.menuOn = false;
     const st = ctx.state;
     if (!st.traffic) st.traffic = { seed: null, tripSeed: 0, active: 0, peds: 0 };
-    const seed = st.traffic.seed != null ? (st.traffic.seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0) || 1;
+    // semente da viagem: o núcleo (game.startTrip) já sorteou/fixou em tripSeed; sem núcleo, sorteia aqui
+    const seed = st.traffic.tripSeed ? (st.traffic.tripSeed >>> 0)
+      : st.traffic.seed != null ? (st.traffic.seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0) || 1;
     st.traffic.tripSeed = seed;
     sim.setPlayer(ctx.player);
     // faixas das duas rotas da viagem (Eixo = GPS livre; Parque = corredor): onde os congestionamentos podem cair

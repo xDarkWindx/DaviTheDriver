@@ -205,6 +205,7 @@ export function createAutopilot(ctx) {
       // --- obstáculos
       let obsGap = 1e9, obsV = 0, legit = false;
       let obsDh = 0;
+      this.debug.why = null; this.debug.curve = aCons < 99;
       const obstacle = (gap, vo, why, dh = 0) => { if (gap < obsGap) { obsGap = gap; obsV = vo; this.debug.why = why; obsDh = dh; } };
       // semáforos e faixas de pedestre ao longo do caminho
       {
