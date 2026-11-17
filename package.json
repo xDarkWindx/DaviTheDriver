@@ -1,0 +1,17 @@
+{
+  "name": "davi-the-driver",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Davi, the Driver — jogo isométrico de direção em Brasília (three.js)",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --target=es2019 --minify --legal-comments=none --outfile=dist/game.js",
+    "watch": "esbuild src/main.js --bundle --format=iife --target=es2019 --sourcemap=inline --outfile=dist/game.js --watch",
+    "smoke": "node tools/smoke.cjs",
+    "test": "node tools/test-roads.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  },
+  "type": "module"
+}
