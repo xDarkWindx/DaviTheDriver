@@ -108,7 +108,7 @@ test('efeitos no volante: crescem com as barras, nunca absurdos; só quando o Da
   assert.ok(m.mods.steerNoise > 0.1 && m.mods.steerNoise <= 0.2);
   assert.ok(m.mods.steerGain > 1.2 && m.mods.steerGain <= 1.31);
   assert.ok(m.mods.brakeMul >= 0.8 && m.mods.brakeMul < 0.9);
-  assert.ok(m.pull > 0.1, 'puxa para a esquerda colado no lento');
+  assert.ok(m.pull > 0.06 && m.pull <= 0.1, 'puxa (pouco) para a esquerda colado no lento');
   stepMood(m, base({ speedKmh: 60, brake: 1 }), DT);
   assert.equal(m.mods.throttleBias, 0, 'pé no freio solta o acelerador');
   const c = model('carona');
