@@ -12,6 +12,7 @@ const lerpAng = (a, b, t) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU;
 const C = { brake: new THREE.Color(0xff1a10), blink: new THREE.Color(0xffa010), flash: new THREE.Color(0xfffbe0), honk: new THREE.Color(0xffe23a),
   hand: new THREE.Color(0xc68e62), note: new THREE.Color(0xf4f4ee), hazardOff: new THREE.Color(0x000000) };
 // altura das lanternas por modelo [y, meia-separação a partir da borda]
+const MANGO = [0, 0, 0.34, 0.22, -0.22, 0.3];
 const LAMP_Y = { onibus: 1.0, mudanca: 0.85, moto: 0.82, picape: 0.95, suv: 0.95 };
 
 /**
@@ -43,15 +44,17 @@ function bikeGeometry() {
 function pardalGeometry() {
   // poste à direita da via; braço sobre a pista (local +X = esquerda do sentido); câmera olha para -Z (quem chega)
   const b = new PartBuilder();
-  b.cylY(0.11, 5.6, 8, 0x8b9097, 0, 2.8, 0);
-  b.box(2.6, 0.13, 0.13, 0x8b9097, 1.3, 5.5, 0);
-  b.box(0.5, 0.42, 0.75, 0x2a2d31, 2.45, 5.15, 0);
-  b.box(0.28, 0.28, 0.06, 0x050505, 2.45, 5.13, -0.4);
-  b.box(0.22, 0.12, 0.05, 0xf5f5f5, 2.45, 5.42, -0.39);
-  b.box(0.62, 0.82, 0.04, 0xf3f3ef, 0, 2.9, -0.14);   // placa "fiscalização eletrônica"
-  b.box(0.52, 0.18, 0.045, 0x1c1c1c, 0, 3.12, -0.15);
-  b.box(0.52, 0.06, 0.045, 0xd8a400, 0, 2.66, -0.15);
-  b.box(0.36, 0.5, 0.3, 0x5f656c, 0, 0.25, 0);         // caixa de controle
+  b.cylY(0.13, 6.0, 8, 0x9aa0a7, 0, 3.0, 0);
+  for (let k = 0; k < 4; k++) b.cylY(0.14, 0.35, 8, k % 2 ? 0x1c1c1c : 0xf2c200, 0, 0.6 + k * 0.35, 0); // faixas zebradas na base
+  b.box(3.2, 0.16, 0.16, 0x9aa0a7, 1.6, 5.9, 0);
+  b.box(0.8, 0.62, 1.15, 0xeceeef, 2.9, 5.45, 0);     // caixa da câmera (clara, bem visível de cima)
+  b.box(0.82, 0.08, 1.2, 0x2a2d31, 2.9, 5.8, 0);      // tampa
+  b.box(0.42, 0.42, 0.06, 0x050505, 2.9, 5.42, -0.6); // lente
+  b.box(0.3, 0.14, 0.05, 0xfff6c8, 2.9, 5.74, -0.6);  // flash
+  b.box(1.05, 1.25, 0.05, 0xf2c200, 0, 3.4, -0.16);   // placa amarela "fiscalização eletrônica"
+  b.box(0.9, 0.3, 0.055, 0x1c1c1c, 0, 3.7, -0.17);
+  b.box(0.5, 0.5, 0.055, 0xf4f4f0, 0, 3.15, -0.17);
+  b.box(0.42, 0.6, 0.34, 0x5f656c, 0, 0.3, 0.3);       // caixa de controle
   return b.build();
 }
 
@@ -62,7 +65,7 @@ function fruitGeometry() {
 }
 
 export class TrafficRenderer {
-  constructor(scene, { maxVehicles, maxPedestrians, blobMaterial, maxRadars = 64, maxHazards = 24, maxAgents = 8 }) {
+  constructor(scene, { maxVehicles, maxPedestrians, blobMaterial, maxRadars = 64, maxHazards = 72, maxAgents = 8 }) {
     this.scene = scene; this.maxV = maxVehicles; this.maxP = maxPedestrians;
     this.group = new THREE.Group(); this.group.name = 'traffic';
     scene.add(this.group);
@@ -98,7 +101,7 @@ export class TrafficRenderer {
     this.fruitMesh = this._prep(new THREE.InstancedMesh(fruitGeometry(), mat, maxHazards), 'traffic:fruit');
     this.pardalMesh = this._prep(new THREE.InstancedMesh(pardalGeometry(), mat, maxRadars), 'traffic:pardal');
     this._static = { radars: null, hazardsVer: -1 };
-    this.fruitColors = { manga: [new THREE.Color(0xf2a91c), new THREE.Color(0xd9b52a), new THREE.Color(0x9cbc2e)], jaca: [new THREE.Color(0x7f9b2c)],
+    this.fruitColors = { manga: [new THREE.Color(0xffb21c), new THREE.Color(0xf5c832), new THREE.Color(0xe8722a)], jaca: [new THREE.Color(0x7f9b2c)],
       splatManga: new THREE.Color(0xe0a12a), splatJaca: new THREE.Color(0xd2c46a) };
     this.time = 0;
   }
@@ -227,13 +230,19 @@ export class TrafficRenderer {
       const dx = hz.x - cx, dz = hz.z - cz; if (dx * dx + dz * dz < 160 * 160) nearF = true;
       const jaca = hz.kind === 'jaca', y = (net && hz.laneId != null ? (net.lanes[hz.laneId].layer || 0) * 0.09 : 0) + 0.06;
       if (hz.squashed) {
-        this._set(this.fruitMesh, nf, hz.x, y + 0.02, hz.z, hz.rot, jaca ? 0.95 : 0.42, 0.035, jaca ? 1.2 : 0.55);
+        this._set(this.fruitMesh, nf, hz.x, y + 0.02, hz.z, hz.rot, jaca ? 1.0 : 0.6, 0.035, jaca ? 1.3 : 0.75);
         this.fruitMesh.setColorAt(nf, jaca ? this.fruitColors.splatJaca : this.fruitColors.splatManga);
-      } else {
-        const s = jaca ? 1 : 1;
-        this._set(this.fruitMesh, nf, hz.x, y + (jaca ? 0.36 : 0.15), hz.z, hz.rot, (jaca ? 0.42 : 0.17) * s, jaca ? 0.36 : 0.14, (jaca ? 0.58 : 0.26) * s);
-        const tbl = jaca ? this.fruitColors.jaca : this.fruitColors.manga;
-        this.fruitMesh.setColorAt(nf, tbl[hz.id % tbl.length]);
+      } else if (jaca) {
+        this._set(this.fruitMesh, nf, hz.x, y + 0.38, hz.z, hz.rot, 0.46, 0.4, 0.64);
+        this.fruitMesh.setColorAt(nf, this.fruitColors.jaca[0]);
+      } else { // manga: cacho de 3 caídas do pé
+        const sr = Math.sin(hz.rot), cr = Math.cos(hz.rot), tbl = this.fruitColors.manga;
+        for (let k = 0; k < 3 && nf < this.fruitMesh.instanceMatrix.count; k++) {
+          const ox = MANGO[k * 2], oz = MANGO[k * 2 + 1];
+          this._set(this.fruitMesh, nf, hz.x + cr * ox + sr * oz, y + 0.17, hz.z - sr * ox + cr * oz, hz.rot + k * 1.9, 0.2, 0.16, 0.29);
+          this.fruitMesh.setColorAt(nf, tbl[(hz.id + k) % tbl.length]);
+          if (k < 2) nf++;
+        }
       }
       nf++;
     }

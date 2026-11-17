@@ -83,7 +83,7 @@ src/player/physics.js    física arcade pura (stepVehicle, engineAccel, defaultM
 src/player/vehicleModels.js  modelos Kwid e Cactus + modelos de TRÁFEGO e PESSOAS instanciáveis (ver "Modelos")
 src/player/player.js     Player (física + colisão estática + state.player)
 src/game/trip.js         viagem: largada, cronômetro, GPS, seta, chegada
-src/systems/traffic.js   STUB  trânsito (IA + pedestres)
+src/systems/traffic.js   trânsito: IA de veículos, pedestres, frutas na pista, radares/agentes da viagem (lógica em systems/traffic/)
 src/systems/rules.js     multas, colisões, pontuação e state.result (lógica pura em systems/rules/: fines, score, result, balance)
 src/systems/mood.js      ansiedade/estresse, efeitos no volante, ações, falas (lógica pura em systems/mood/: model, lines, balance)
 src/systems/rules/traffic-adapter.js  adaptador defensivo p/ ctx.modules.traffic (valores neutros se faltar algo)
@@ -152,6 +152,7 @@ inteiro mantendo `name: 'ui'`: ela só lê `ctx.state`, escuta eventos e emite `
   settings: { volume 0..1, muted, retro, quality },                // dono: UI (persiste em localStorage); áudio/fx só LEEM
   result: null | { reason, time, points, grade, title, fines[], crash{...,sinistroNo?}, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
   actions?: { horn, breathe, curse, flash }  // dono: mood.js; cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
+  traffic: { seed: null|n, tripSeed, active, peds },  // dono: traffic.js; seed fixo = viagem reproduzível (radares, agentes, frutas, IA)
   time: { sim, real, frame },
 }
 ```
@@ -169,17 +170,21 @@ carona → driver=dono, passenger=davi; perigo → driver=davi, passenger=dono. 
 | `REQ_START` / `REQ_PAUSE` / `REQ_RESUME` / `REQ_MENU` / `REQ_FINISH` | qualquer um (UI, regras) | `{ routeId, mode }` / `{}` / `{}` / `{}` / `{ reason, details }` |
 | `HORN`, `HORN_END`, `BREATHE`, `CURSE` | núcleo (input, só em PLAYING) | `{ source: 'player' }` |
 | `OFFROAD` | núcleo | `{ on, x, z }` |
-| `COLLISION` | núcleo (estáticos) / traffic (veículos, pedestres) | `{ a:'player', b:'static'|'vehicle'|'pedestrian', kind, impactKmh, x, z, nx, nz, otherId }` |
+| `COLLISION` | núcleo (estáticos) / traffic (veículos, pedestres) | `{ a:'player', b:'static'|'vehicle'|'pedestrian', kind, impactKmh, x, z, nx, nz, otherId }`; traffic acrescenta `id, persona, playerAtFault, otherKmh, brakeChecked` (veículo) / `id, playerAtFault, crosswalkId` (pedestre; `kind` = `pedestre`\|`corredor`\|`ciclista`) |
 | `SIGNAL_CHANGE` | núcleo | `{ signalId, group, state }` |
 | `FINE` | rules | `{ code, label, amount, points, x, z }` |
-| `NEAR_MISS`, `OVERTAKEN`, `CUT_OFF` ("fechado"), `HONKED_AT`, `PEDESTRIAN_CROSSING` | traffic | `{ otherId, ... }` |
+| `NEAR_MISS` | traffic | `{ id, otherId, kind, b:'vehicle'\|'pedestrian'\|'cyclist', dist (m de folga), relKmh, x, z }` |
+| `OVERTAKEN` / `PLAYER_OVERTOOK` | traffic | `{ id, otherId, kind, persona, side:'left'\|'right', relKmh }` (no `PLAYER_OVERTOOK`, `'right'` = jogador passou pela direita) |
+| `CUT_OFF` ("fechado") | traffic | `{ id, otherId, kind, persona, gap, ring }` (`ring` = entrada/dentro de rotatória) |
+| `HONKED_AT` / `FLASHED` / `TAILGATED` | traffic | `{ id, otherId, kind, persona, x, z }` / `{ id, otherId, kind, persona }` / `{ ..., gap }` |
+| `PEDESTRIAN_CROSSING` | traffic | `{ crosswalkId, x, z, dist, on, pedCount, signalized }` — `on:true` 1x por travessia na faixa à frente do jogador, `on:false` quando esvazia |
+| `HAZARD_HIT` | traffic | `{ id, kind:'manga'\|'jaca', x, z, speedKmh, wheel }` (o escorregão é de humor/regras) |
 | `MOOD_CHANGE`, `MOOD_PEAK`, `PASSENGER_SAY` | mood | `{ who, ... }` / `{ text, intensity }` |
 | `CAMERA_SHAKE` | qualquer um | `{ amount, duration }` (o núcleo aplica no `cameraRig`) |
 | `SETTINGS_CHANGE` | **ui** (única que escreve `state.settings`) | `{ volume, muted, retro, quality }` — emitido no boot e a cada mudança |
 | `FLASH` | núcleo (input, tecla F, só em PLAYING) | `{ source: 'player' }` |
 | `SIGNAL_RUN` | rules | `{ signalId, group, state:'red'\|'yellow', x, z, seen }` (passou do semáforo; multa só se `seen`) |
 | `TAKEOVER` | mood (perigo) | `{ who:'dono' }` → rules encerra com `'tomouOCarro'` |
-| `FLASHED`, `TAILGATED`, `HAZARD_HIT`, `PLAYER_OVERTOOK` | traffic | ver contrato do trânsito (declarados em events.js se ainda não existirem) |
 | `SAY` | mood/traffic/rules | `{ who:'davi'\|'dono', role:'driver'\|'passenger', text, tone:'anx'\|'stress'\|'calm'\|'panic', ttl (s) }` → balão de fala (`PASSENGER_SAY` também vira balão do passageiro) |
 
 ### Malha viária (`ctx.net`, `src/world/roadNetwork.js`)
@@ -348,6 +353,50 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
   4/3/6; base 1/1/1,5); estourar o teto corta o multiplicador pela metade. Fim: bônus de tempo (par = distância/45 km/h), −(pontos CNH×100
   + R$) por multa, batida mantém 35 %. `state.result.crash = { withWhat, excuse (causa impessoal), repairCost (só Cactus), repairItems,
   impactKmh, kind, cause, sinistroNo }`; `yearsLost` só no perigo.
+
+## Trânsito (`src/systems/traffic.js`)
+
+Lógica pura em `systems/traffic/sim.js` (sem three.js), elenco em `traffic/personas.js`, desenho em `traffic/render.js`.
+Testes em Node: **`node src/systems/traffic/__tests__/traffic.test.js`** (`MINUTOS=10` para o teste longo; `VERBOSE=1` detalha).
+Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de via, faixas, conectores, balões, pontos, `fruitSpots`...).
+
+- **IA:** cada veículo é um `LaneWalker` com um caminho curto já sorteado (`path`). Longitudinal = IDM (seguimento suave) contra todos
+  os obstáculos do caminho: veículo/jogador à frente (baldes por faixa), linha de parada no vermelho/amarelo (antes da faixa de pedestre
+  colada no semáforo), faixa de pedestre com gente atravessando ou sinalizando, entrada de balão sem brecha (quem circula tem a vez;
+  brecha por persona), ponto de ônibus, curva/limite menor adiante, ponto de conflito entre conectores que se cruzam (quem chega
+  antes passa), fusão de dois conectores na mesma faixa ("zíper") e um cone geométrico (jogador fora da faixa, pedestres, cruzamentos).
+  Troca de faixa estilo MOBIL com checagem de espaço (seta acesa); ninguém entra na faixa de ônibus (quem cai nela sai). Vigia de "preso":
+  parado > 25 s sem motivo legítimo (vermelho, pedestre, ponto, jogador ou fila atrás deles) → some se longe, senão ignora o cone por 3 s.
+  Decisões em fatias (1/15 da frota por passo); cinemática todo passo.
+- **Elenco** (`PERSONAS`): normal, *tio de chapéu* (30–40 km/h na faixa da esquerda, não sai), autoescola (lenta, freia do nada,
+  "deixa morrer" no verde), caminhão de mudança, ônibus (faixa exclusiva, para nos pontos 6–10 s), motoboy (corredor entre faixas,
+  buzina), apressado (cola, pisca, ultrapassa — inclusive pela direita — e fecha). Mistura e densidade por `segment.kind`
+  (`ROAD_TRAFFIC`: urbano cheio e variado, Eixo/Eixão rápido, local vazio); tarde = 100 % do pool, manhã = 80 %.
+  Garantias: trecho longo de mão dupla com 1 faixa por sentido (o anel do Parque) ganha um lento à frente do jogador; ao circular num
+  balão, de vez em quando alguém "fura" e entra na frente; metade da reposição nasce na via do jogador (à frente ou atrás, fora da vista).
+- **Spawn/despawn:** pool fixo `quality.maxTrafficVehicles` / `maxPedestrians`; nasce a 135–330 m do jogador (fora da vista), some a
+  > 385 m (ou > 250 m e já para trás de quem anda). Na largada pode nascer a partir de 26 m.
+- **Reação ao jogador:** `provoke(amount, radius)` → agressividade sobe por `temper`; > 0,55 vira revanche (buzina de volta, cola,
+  ultrapassa e fecha, freada de birra). Buzina do jogador (`EV.HORN`, este módulo escuta) e `flashLead()` / cola do jogador no da
+  frente por ~2,5 s → sorteio ponderado por persona: `yield` (sai da faixa), `brake` (freia de birra) ou `ignore`. A irritação geral
+  (`provoke`) é chamada pelo humor, não por este módulo.
+- **Pedestres:** aguardam na calçada, levantam a mão (sem semáforo) e atravessam quando os carros param/há brecha; com semáforo, só em
+  `isPedWalk`; ~16 % atravessam correndo; os carros param (Brasília). Corredores/ciclistas pelo acostamento dos trechos sem ultrapassagem.
+- **Por viagem (PRNG com `state.traffic.seed`/`tripSeed`):** radares ativos (`speed` 55 %, `busLane` 60 %, `redLight` 25 % dos
+  `enforcementSpots`), 2–4 agentes nos `agentHideouts` (agachados atrás da cobertura; `revealAgent(id)` → vai à calçada com o
+  bloquinho), 6–10 cachos de manga (e jaca às vezes) nos `fruitSpots`. A multa é de `rules.js`.
+- **Colisão jogador × IA:** OBB×OBB, empurra o jogador para fora, impulso por massa (`massKg`), IA para com pisca-alerta;
+  `playerAtFault` heurístico (bateu na traseira = jogador; levou na traseira / o outro trocava de faixa ou furou o balão = outro).
+  Viadutos (`net.isGradeSeparated`) não colidem. Velocidade do jogador = `phys.vx/vz` (um piloto que teleporta com v = 0 atravessa
+  carros e pode levar batidas de baixa velocidade).
+- **API** (`ctx.modules.traffic`, objetos reutilizados): `vehicles`, `pedestrians`, `hazards`, `radars`, `agents`, `leadInfo()`,
+  `rearInfo()`, `freeAhead()`, `neighbors(r)`, `crosswalkAhead()`, `provoke(a, r)`, `flashLead()`, `revealAgent(id)`, `stats()`;
+  depuração: `debug.spawn(modeloOuPersona, metrosÀFrente, faixa±, opts)`, `debug.clear()`, `debug.spawnPed(cw, atravessarJá)`,
+  `debug.setAutoSpawn(bool)` (desliga spawn/despawn automáticos), `debug.repopulate()`, `debug.sim`. Campos completos no topo de `traffic.js`.
+- **Desenho:** 1 `InstancedMesh` por modelo de `TRAFFIC_MODELS` + luzes (freio, setas, pisca-alerta, farol piscando, "!" de buzina,
+  mão do pedestre, bloquinho) + sombras blob + 2 pedestres + bicicleta + agente + frutas + pardal: 9–14 draw calls e ~20–45 mil
+  triângulos visíveis com o pool cheio (malhas vazias ficam invisíveis). Som: `audio.vehiclePass` para os ~5 mais próximos.
+- **Custo** (passo de 1/60 s, frota cheia de 40 + 24 pedestres): ~0,05–0,1 ms em Node, ~0,05–0,25 ms no Chromium headless.
 
 ## Interface (src/ui/)
 

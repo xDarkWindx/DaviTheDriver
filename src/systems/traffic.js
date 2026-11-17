@@ -19,7 +19,7 @@
 //   debug.setAutoSpawn(bool) / debug.repopulate() / debug.sim (a simulação)
 // Eventos emitidos: COLLISION (b:'vehicle'|'pedestrian'), OVERTAKEN, CUT_OFF, HONKED_AT, NEAR_MISS, PEDESTRIAN_CROSSING,
 //   HAZARD_HIT, PLAYER_OVERTOOK, TAILGATED, FLASHED (formatos em core/events.js).
-// Escuta EV.HORN (source 'player'): o carro da frente reage (sai da faixa / freia de birra). A irritação geral (provoke)
+// Escuta EV.HORN (tecla H ou buzina automática do humor): o carro da frente reage (sai da faixa / freia de birra). A irritação geral (provoke)
 //   é chamada pelo humor (mood.js) — este módulo NÃO chama provoke sozinho.
 import { TrafficSim } from './traffic/sim.js';
 import { TrafficRenderer } from './traffic/render.js';
@@ -27,7 +27,7 @@ import { AUDIO_KIND } from './traffic/personas.js';
 import { TRAFFIC_MODELS } from '../player/vehicleModels.js';
 
 let sim = null, rnd = null, C = null;
-const perf = { last: 0, avg: 0, max: 0, n: 0 };
+const perf = { last: 0, avg: 0, max: 0, n: 0, render: 0, renderAvg: 0 };
 const _aud = { idx: new Int32Array(6), d: new Float64Array(6) };
 
 const api = {
@@ -46,8 +46,9 @@ const api = {
     api.debug.sim = sim;
     rnd = new TrafficRenderer(ctx.view.scene, { maxVehicles: sim.maxV, maxPedestrians: sim.maxP,
       blobMaterial: ctx.world && ctx.world.materials ? ctx.world.materials.blobMat : null,
-      maxRadars: Math.max(8, ctx.net.enforcementSpots.length), maxHazards: 24, maxAgents: Math.max(4, ctx.net.agentHideouts.length) });
-    ctx.events.on(ctx.EV.HORN, (p) => { if (!p || p.source === 'player') { if (ctx.state.mode === 'PLAYING') sim.playerHorn(); } });
+      maxRadars: Math.max(8, ctx.net.enforcementSpots.length), maxHazards: 72, maxAgents: Math.max(4, ctx.net.agentHideouts.length) });
+    // buzina do carro do jogador (tecla H ou a buzina "sozinha" do humor): o da frente reage
+    ctx.events.on(ctx.EV.HORN, () => { if (ctx.state.mode === 'PLAYING') sim.playerHorn(); });
   },
 
   reset(ctx, trip) {
@@ -72,7 +73,9 @@ const api = {
   frame(dt, alpha, ctx) {
     const playing = ctx.state.mode === 'PLAYING';
     const sp = ctx.state.player;
+    const t0 = performance.now();
     rnd.sync(sim, playing ? alpha : 1, ctx.state.mode === 'PAUSED' ? 0 : dt, sp.x, sp.z, ctx.net);
+    perf.render = performance.now() - t0; perf.renderAvg += (perf.render - perf.renderAvg) * 0.02;
     // som de passagem: os ~5 mais próximos (o áudio limita a 4 vozes)
     const audio = ctx.modules.audio;
     if (playing && audio && audio.vehiclePass) {
@@ -102,7 +105,7 @@ const api = {
   revealAgent(id) { return sim ? sim.revealAgent(id) : null; },
   stats() {
     const r = rnd ? rnd.stats() : { drawCalls: 0, triangles: 0 };
-    return { updateMs: perf.last, updateAvgMs: perf.avg, updateMaxMs: perf.max, vehicles: sim.vehicles.length, pedestrians: sim.pedestrians.length,
+    return { updateMs: perf.last, updateAvgMs: perf.avg, updateMaxMs: perf.max, frameSyncMs: perf.render, frameSyncAvgMs: perf.renderAvg, vehicles: sim.vehicles.length, pedestrians: sim.pedestrians.length,
       max: sim.maxV, seed: sim.seed, ...sim.stats, ...r };
   },
 

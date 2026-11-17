@@ -35,6 +35,27 @@ export const TUNING = {
 const LEAD = { NONE: 0, VEH: 1, PLAYER: 2, SIGNAL: 3, CROSSWALK: 4, RING: 5, BUSSTOP: 6, LIMIT: 7, CONE: 8, PED: 9 };
 export { LEAD };
 
+/** Primeiro cruzamento entre as polilinhas de duas faixas: { sa, sb } (distâncias ao longo de cada uma) ou null. */
+function polyCross(a, b) {
+  const pa = a.pts, pb = b.pts, na = pa.length / 2, nb = pb.length / 2;
+  let best = null;
+  for (let i = 0; i < na - 1; i++) {
+    const x1 = pa[i * 2], z1 = pa[i * 2 + 1], x2 = pa[i * 2 + 2], z2 = pa[i * 2 + 3];
+    for (let j = 0; j < nb - 1; j++) {
+      const x3 = pb[j * 2], z3 = pb[j * 2 + 1], x4 = pb[j * 2 + 2], z4 = pb[j * 2 + 3];
+      const den = (x1 - x2) * (z3 - z4) - (z1 - z2) * (x3 - x4);
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((x1 - x3) * (z3 - z4) - (z1 - z3) * (x3 - x4)) / den;
+      const u = -((x1 - x2) * (z1 - z3) - (z1 - z2) * (x1 - x3)) / den;
+      if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+      const sa = a.cum[i] + t * (a.cum[i + 1] - a.cum[i]), sb = b.cum[j] + u * (b.cum[j + 1] - b.cum[j]);
+      if (sa < 0.5 && sb < 0.5) continue; // nascem no mesmo ponto
+      if (!best || sa < best.sa) best = { sa, sb };
+    }
+  }
+  return best;
+}
+
 class Vehicle {
   constructor(slot, net, sim) {
     this.slot = slot; this.id = 0; this.active = false;
@@ -64,8 +85,9 @@ class Vehicle {
     this.brakeT = 0; this.brakeDecel = 4; this.rbT = 0; this.crashT = 0; this.ghostT = 0; this.stuckT = 0;
     this.honkT = 0; this.honkCd = 0; this.honkBackT = 0; this.flashT = 0; this.flashCd = 0; this.impatT = 0;
     this.revengeT = 0; this.tailT = 0; this.tailCd = 0; this.overtakeT = 0; this.cutIntent = false; this.furaoT = 0;
-    this.ovSign = 0; this.ovLat = 0; this.corr = false; this.prevAbsLat = 9; this.collCd = 0; this.nmCd = 0; this.reactCd = 0;
+    this.ovSign = 0; this.ovLat = 0; this.corr = false; this.sideT = 0; this.collCd = 0; this.nmCd = 0; this.reactCd = 0;
     this.blink = 0; this.flashing = false; this.braking = false; this.honking = false; this.acc = 0; this.yawOff = 0;
+    this.v0min = 0; this.rbT = 0; this.lastStop = -1;
   }
 }
 
@@ -128,6 +150,12 @@ export class TrafficSim {
     this._hasCw = false; this._cwEmitted = -1;
     this.pTailT = 0; this.furaoCd = 0; this.dirCd = 0; this.honkGlobalCd = 0;
     this._near = []; this._flashRes = { id: -1, kind: '', persona: '', reaction: 'ignore', gap: 0 };
+    this._mInter = 0; this._mSpeed = 0; this._mSlot = -1;
+    // temporários reutilizados (criados aqui para o "formato" do objeto não mudar depois: evita desotimizar o JIT)
+    const sit = () => ({ lGap: 0, lSpeed: 0, fGap: 0, fSpeed: 0, lPlayer: false, fPlayer: false });
+    this._sitA = sit(); this._sitB = sit(); this._sitF = sit();
+    this._tmpS = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 }; this._wa = { laneId: 0, s: 0 };
+    this._lpx = 0; this._lpz = 0; this._lpOk = false; this.seed = 1;
     this.stats = { spawned: 0, despawned: 0, ghosted: 0, stuckRemoved: 0 };
   }
 
@@ -179,7 +207,28 @@ export class TrafficSim {
       }
     }
     this.noPassLanes = []; for (let i = 0; i < nL; i++) if (this.laneNoPass[i]) this.noPassLanes.push(i);
+    this._buildConflicts();
     this.noPassCd = new Float64Array(nL);
+  }
+
+  /** Pontos de conflito entre conectores do mesmo nó que se cruzam (não os que só se juntam ou se separam). */
+  _buildConflicts() {
+    const lanes = this.lanes, byNode = new Map();
+    this.connConf = new Array(lanes.length).fill(null);
+    for (const l of lanes) if (l.isConnector) { let a = byNode.get(l.nodeId); if (!a) { a = []; byNode.set(l.nodeId, a); } a.push(l); }
+    let n = 0;
+    for (const list of byNode.values()) {
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        if (a.toLane === b.toLane || a.fromLane === b.fromLane) continue;
+        const hit = polyCross(a, b);
+        if (!hit) continue;
+        (this.connConf[a.id] || (this.connConf[a.id] = [])).push({ other: b.id, sMe: hit.sa, sOther: hit.sb });
+        (this.connConf[b.id] || (this.connConf[b.id] = [])).push({ other: a.id, sMe: hit.sb, sOther: hit.sa });
+        n++;
+      }
+    }
+    this.conflictPairs = n;
   }
 
   _precomputeCrosswalks() {
@@ -225,7 +274,7 @@ export class TrafficSim {
     this.rng = makeRng(this.seed);
     this.timeOfDay = opts.timeOfDay || 'manha';
     this.playerRoute = opts.route || null;
-    this.time = 0; this.stepN = 0; this.nextId = 1; this.nextPedId = 1;
+    this.time = 0; this.stepN = 0; this.nextId = 1; this.nextPedId = 1; this._lpOk = false;
     this.pTailT = 0; this.furaoCd = 6; this.dirCd = 2; this.honkGlobalCd = 0; this._cwEmitted = -1;
     this.noPassCd.fill(0); this.cwCount.fill(0); this.cwCross.fill(0); this.cwWait.fill(0);
     for (const v of this.veh) { v.active = false; v.reset(); }
@@ -245,7 +294,7 @@ export class TrafficSim {
 
   step(dt) {
     this.time += dt; this.stepN++;
-    this._readPlayer();
+    this._readPlayer(dt);
     for (let i = 0; i < this.vehicles.length; i++) { const v = this.vehicles[i]; v.px = v.x; v.pz = v.z; v.ph = v.heading; }
     for (let i = 0; i < this.pedestrians.length; i++) { const p = this.pedestrians[i]; p.px = p.x; p.pz = p.z; p.ph = p.heading; }
     this._buildBuckets();
@@ -280,11 +329,18 @@ export class TrafficSim {
   _emit(name, payload) { if (name && this.events) this.events.emit(name, payload); }
 
   // =============================================================== jogador
-  _readPlayer() {
+  /**
+   * Lê o jogador. Velocidade = phys.vx/vz (mesma convenção da colisão estática do núcleo). Obs.: um piloto de teste que
+   * TELEPORTA o carro com vx = vz = 0 (tools/smoke.cjs) é visto pela IA como parado e atravessa os outros carros.
+   */
+  _readPlayer(dt = 0) {
+    void dt;
     const pl = this.player; if (!pl) return;
     const ph = pl.phys;
-    this.px = ph.x; this.pz = ph.z; this.ph = ph.heading; this.pvx = ph.vx; this.pvz = ph.vz;
-    this.pSpeed = ph.vx * Math.sin(ph.heading) + ph.vz * Math.cos(ph.heading);
+    const vx = ph.vx, vz = ph.vz;
+    this._lpx = ph.x; this._lpz = ph.z; this._lpOk = true;
+    this.px = ph.x; this.pz = ph.z; this.ph = ph.heading; this.pvx = vx; this.pvz = vz;
+    this.pSpeed = vx * Math.sin(ph.heading) + vz * Math.cos(ph.heading);
     const r = this.net.laneAt(this.px, this.pz, this.ph, this._pLaneTmp);
     if (r && r.dist < 5.5) { this.pLaneId = r.laneId; this.pS = r.s; this.pSeg = r.lane.segId; }
     else { this.pLaneId = -1; this.pSeg = null; if (r && r.dist < 12) this.pSeg = r.lane.segId; }
@@ -405,7 +461,8 @@ export class TrafficSim {
     }
   }
   _coneObs(v, gap, vLead, kind, slot) {
-    const it = this._inter(v, v.speed, gap, vLead, v.T * 0.8, Math.min(v.s0, 1.8));
+    const tail = kind === LEAD.PLAYER && (v.p.tailgater || v.revengeT > 0);
+    const it = this._inter(v, v.speed, gap, vLead, tail ? 0.3 : v.T * 0.8, tail ? 0.8 : Math.min(v.s0, 1.8));
     if (it > v.coneInter) { v.coneInter = it; v.coneKind = kind; v.coneGap = gap; v.coneSpeed = vLead; v.coneSlot = slot; }
   }
 
@@ -438,7 +495,7 @@ export class TrafficSim {
         else { if (ignoreVeh) continue; const o = this.veh[slot]; oL = o.length; oV = o.speed; kind = LEAD.VEH; }
         const gap = base + sO - halfL - oL * 0.5;
         if (gap > look) continue;
-        const T = kind === LEAD.PLAYER && tail ? 0.45 : v.T, s0 = kind === LEAD.PLAYER && tail ? 1.0 : v.s0;
+        const T = kind === LEAD.PLAYER && tail ? 0.3 : v.T, s0 = kind === LEAD.PLAYER && tail ? 0.8 : v.s0;
         const it = this._inter(v, vel, gap, oV, T, s0);
         if (it > inter) { inter = it; leadKind = kind; leadGap = gap; leadSpeed = oV; leadSlot = slot; }
       }
@@ -450,6 +507,25 @@ export class TrafficSim {
           const it = this._inter(v, vel, Math.max(g, 0.5), vl, 0, 0);
           if (it > inter) { inter = it; leadKind = LEAD.LIMIT; leadGap = g; leadSpeed = vl; leadSlot = -1; }
         }
+      }
+      // conflito em cruzamento: quem chega antes ao ponto de cruzamento passa primeiro
+      const cf = lane.isConnector && !ignoreVeh ? this.connConf[lid] : null;
+      if (cf) {
+        for (let c = 0; c < cf.length; c++) {
+          const dm = base + cf[c].sMe;
+          if (dm < halfL + 1.0 || dm > 45) continue; // já estou em cima (sigo) ou longe
+          const r = this._conflictFirst(v, cf[c].other, cf[c].sOther, dm, vel);
+          if (r >= 0) {
+            const gap = dm - halfL - 2.0;
+            const it = this._inter(v, vel, gap, 0, v.T, 0.5);
+            if (it > inter) { inter = it; leadKind = LEAD.VEH; leadGap = gap; leadSpeed = 0; leadSlot = r; }
+          }
+        }
+      }
+      // fusão ("zíper"): outro veículo indo para a MESMA faixa por outro conector, mais perto do ponto de junção
+      if (lane.isConnector && !ignoreVeh && base + lane.length < 60) {
+        const g = this._mergeLeader(v, lane, base + lane.length, vel);
+        if (inter < this._mInter) { inter = this._mInter; leadKind = LEAD.VEH; leadGap = g; leadSpeed = this._mSpeed; leadSlot = this._mSlot; }
       }
       // semáforo
       if (lane.signal && !lane.isConnector && v.goLane !== lid) {
@@ -592,14 +668,61 @@ export class TrafficSim {
     } else v.stuckT = 0;
   }
 
+  /** Alguém com o conector `other` no caminho chega antes ao ponto de conflito? Retorna o slot dele ou -1. */
+  _conflictFirst(v, other, sOther, dm, vel) {
+    const act = this.vehicles, lanes = this.lanes;
+    const tm = dm / Math.max(vel, 0.5);
+    for (let i = 0; i < act.length; i++) {
+      const u = act[i]; if (u === v || !u.active) continue;
+      let dist = -u.w.s, du = -1e9;
+      for (let j = 0; j < u.pathN && j < 3; j++) {
+        if (u.path[j] === other) { du = dist + sOther; break; }
+        dist += lanes[u.path[j]].length; if (dist > 50) break;
+      }
+      if (du === -1e9) continue;
+      const half = u.length * 0.5 + 1.2;
+      if (du < -half) continue;                         // já passou
+      if (du < half) return u.slot;                     // está em cima do ponto
+      const tu = du / Math.max(u.speed, 0.5);
+      if (tu < tm - 0.05 || (Math.abs(tu - tm) <= 0.05 && u.slot < v.slot)) return u.slot;
+    }
+    return -1;
+  }
+
+  /** Líder virtual na fusão de dois conectores que levam à mesma faixa. dm = distância (centro) até o fim do meu conector. */
+  _mergeLeader(v, conn, dm, vel) {
+    this._mInter = 0; this._mSpeed = 0; this._mSlot = -1;
+    const target = conn.next[0], lanes = this.lanes, act = this.vehicles;
+    const ringT = this.laneOnRing[target] >= 0, meIn = ringT && this.laneOnRing[conn.fromLane] >= 0;
+    let bestGap = 999;
+    for (let i = 0; i < act.length; i++) {
+      const u = act[i]; if (u === v || !u.active) continue;
+      let dist = -u.w.s, du = -1;
+      for (let j = 0; j < u.pathN && j < 3; j++) {
+        const L = lanes[u.path[j]];
+        if (L.isConnector && L !== conn && L.next[0] === target) {
+          // no balão a fusão não é zíper: quem circula tem a vez; quem entra respeita a brecha (_ringGapOk)
+          if (ringT && meIn !== (this.laneOnRing[L.fromLane] >= 0)) break;
+          du = dist + L.length; break;
+        }
+        dist += L.length; if (dist > 60) break;
+      }
+      if (du < 0) continue;
+      if (du > dm + 0.3 || (Math.abs(du - dm) <= 0.3 && u.slot > v.slot)) continue; // eu estou mais perto: tenho a vez
+      const gap = dm - du - v.length * 0.5 - u.length * 0.5;
+      const it = this._inter(v, vel, gap, u.speed, v.T, v.s0);
+      if (it > this._mInter) { this._mInter = it; this._mSpeed = u.speed; this._mSlot = u.slot; bestGap = gap; }
+    }
+    return bestGap;
+  }
+
   _onLaneChanged(v, prevLane) {
     if (v.goLane === prevLane) v.goLane = -1;
     if (v.ringGo === prevLane) v.ringGo = -1;
     while (v.pathN > 0 && v.path[0] !== v.w.lane.id) { for (let i = 1; i < v.pathN; i++) v.path[i - 1] = v.path[i]; v.pathN--; }
     if (v.pathN === 0) { v.path[0] = v.w.lane.id; v.pathN = 1; }
     if (v.lcT > 0) { v.lcT = 0; v.latOff = v.latTarget; v.lcFrom = -1; } // troca de faixa não atravessa o fim da faixa
-    v.filtering = v.filtering && !v.w.lane.isConnector;
-    if (v.w.lane.isConnector) { v.latTarget = 0; }
+    // moto no corredor atravessa o cruzamento no corredor; os demais voltam ao centro
   }
 
   /** Sorteia a próxima faixa a partir de `lane` (pesos por tipo de manobra). */
@@ -682,7 +805,7 @@ export class TrafficSim {
     // apressado/revanche colado atrás do jogador lento: pisca, depois tenta ultrapassar
     if (leadIsPlayer && (p.tailgater || v.revengeT > 0) && this.pSpeed < v.v0 - 2) {
       v.overtakeT += dtT;
-      if (v.leadGap < 8 && (p.flasher || v.revengeT > 0) && v.flashCd <= 0 && rng() < 0.4) this._flash(v);
+      if (v.leadGap < 10 && (p.flasher || v.revengeT > 0) && v.flashCd <= 0 && rng() < 0.4) this._flash(v);
     } else v.overtakeT = Math.max(0, v.overtakeT - dtT);
     // moto no corredor
     if (p.filter) this._thinkFilter(v);
@@ -713,7 +836,7 @@ export class TrafficSim {
 
   _thinkFilter(v) {
     const lane = v.w.lane;
-    if (lane.isConnector) { v.filtering = false; v.latTarget = 0; return; }
+    if (lane.isConnector) return;
     const sib = this.net.siblingLanes(lane);
     const st = this._sit(lane.id, v.w.s, v, this._sitF || (this._sitF = {}));
     const slow = st.lGap < 25 && st.lSpeed < v.v0 - 2;
@@ -757,7 +880,9 @@ export class TrafficSim {
     const vel = v.speed;
     const accFree = v.a * (1 - Math.pow(vel / v.v0, 4));
     const accCur = accFree - (cur.lGap < 200 ? this._inter(v, vel, cur.lGap, cur.lSpeed, v.T, v.s0) : 0);
-    const wantPass = v.overtakeT > 1.5 || (v.revengeT > 0 && cur.lPlayer);
+    // apressado/revanche atrás do jogador: primeiro cola e pisca (~3,5 s), só depois ultrapassa
+    if (!forced && cur.lPlayer && cur.lGap < 45 && (v.p.tailgater || v.revengeT > 0) && v.overtakeT < 6) return false;
+    const wantPass = v.overtakeT > 6 || (v.revengeT > 0 && cur.lPlayer);
     let best = -1, bestGain = -1e9, bestS = 0;
     for (let d = -1; d <= 1; d += 2) {
       if (onlyDir && d !== onlyDir) continue;
@@ -797,7 +922,7 @@ export class TrafficSim {
     v.lat0 = (oldX - w.x) * rx + (oldZ - w.z) * rz;
     v.latOff = v.lat0; v.latTarget = 0;
     v.lcFrom = oldId; v.lcOffS = oldS - w.s;
-    v.lcDur = v.lcT = v.p.cutter || v.revengeT > 0 ? 1.4 : v.persona === 'moto' ? 1.0 : 2.2 + this.rng() * 0.8;
+    v.lcDur = v.lcT = v.cutIntent ? 1.1 : v.p.cutter || v.revengeT > 0 ? 1.4 : v.persona === 'moto' ? 1.0 : 2.2 + this.rng() * 0.8;
     v.blink = v.lat0 > 0 ? -1 : 1; // veio da direita => indo para a esquerda
     v.goLane = -1;
     this._rebuildPath(v);
@@ -827,7 +952,7 @@ export class TrafficSim {
       const v = act[i];
       if (!v.active) continue;
       const dx = v.x - this.px, dz = v.z - this.pz, d2 = dx * dx + dz * dz;
-      if (d2 > 1600) { v.ovSign = 0; v.corr = false; v.prevAbsLat = 9; v.tailT = 0; continue; }
+      if (d2 > 1600) { v.ovSign = 0; v.corr = false; v.sideT = 0; v.tailT = 0; continue; }
       const rel = dx * sph + dz * cph, lat = -dx * cph + dz * sph;
       const dh = wrap(v.heading - this.ph), adh = Math.abs(dh);
       const gs = this._gradeSep(this.pSeg, v.w.lane.segId);
@@ -839,8 +964,9 @@ export class TrafficSim {
         if (obbVsObb(A, B, c)) {
           const nx = c.nx, nz = c.nz;
           ph.x += nx * c.depth; ph.z += nz * c.depth; this.px = ph.x; this.pz = ph.z;
+          this._lpx += nx * c.depth; this._lpz += nz * c.depth; // empurrão não conta como velocidade
           const vax = sv * v.speed, vaz = cv * v.speed;
-          const vn = (ph.vx - vax) * nx + (ph.vz - vaz) * nz;
+          const vn = (this.pvx - vax) * nx + (this.pvz - vaz) * nz;
           if (vn < 0) {
             const mP = this.pMass, mA = v.mass, e = 0.25;
             const j = -(1 + e) * vn / (1 / mP + 1 / mA);
@@ -878,7 +1004,7 @@ export class TrafficSim {
         if (v.nmCd <= 0) {
           const I = this._pObbI; I.x = A.x; I.z = A.z; I.hx = A.hx + 0.6; I.hz = A.hz + 0.6; I.angle = A.angle;
           if (obbVsObb(I, B, c)) {
-            const rvx = ph.vx - sv * v.speed, rvz = ph.vz - cv * v.speed, rs = Math.sqrt(rvx * rvx + rvz * rvz);
+            const rvx = this.pvx - sv * v.speed, rvz = this.pvz - cv * v.speed, rs = Math.sqrt(rvx * rvx + rvz * rvz);
             if (rs > 4.2) {
               v.nmCd = 5;
               this._emit(EV.NEAR_MISS, { id: v.id, otherId: v.id, kind: v.kind, b: 'vehicle', dist: Math.max(0, 0.6 - c.depth), relKmh: rs * 3.6, x: v.x, z: v.z });
@@ -903,26 +1029,27 @@ export class TrafficSim {
       } else v.ovSign = 0;
       // ---- fechada (entrou no corredor à frente do jogador vindo do lado)
       const inCorr = rel > 0 && rel < 26 && Math.abs(lat) < 1.5 && adh < 0.75;
-      if (inCorr && !v.corr && v.prevAbsLat > 2.1 && (v.lcT > 0 || v.w.lane.isConnector) && pAbs > 3) {
+      if (inCorr && !v.corr && v.sideT > 0 && (v.lcT > 0 || v.w.lane.isConnector) && pAbs > 3) {
         const gap = rel - (Lp + v.length) * 0.5;
-        if (gap < Math.max(10, pAbs * 1.1)) {
+        if (gap < Math.max(12, pAbs * 1.5)) {
           this._emit(EV.CUT_OFF, { id: v.id, otherId: v.id, kind: v.kind, persona: v.persona, gap: Math.max(0, gap), ring: this.laneOnRing[v.w.lane.id] >= 0 });
           v.cutIntent = false;
         }
       }
-      v.corr = inCorr; if (!inCorr) v.prevAbsLat = Math.abs(lat);
+      v.corr = inCorr;
+      if (!inCorr && Math.abs(lat) > 2.0 && Math.abs(lat) < 7) v.sideT = 2; else if (v.sideT > 0) v.sideT -= dt;
       // ---- colado na traseira do jogador
       if (rel < 0 && Math.abs(lat) < 1.4 && adh < 0.5) {
         const gap = -rel - (Lp + v.length) * 0.5;
-        if (gap < Math.max(4, v.speed * 0.55) && v.speed > 4) v.tailT += dt; else v.tailT = Math.max(0, v.tailT - dt * 2);
+        if (gap < Math.max(5, v.speed * 0.7) && v.speed > 4) v.tailT += dt; else v.tailT = Math.max(0, v.tailT - dt * 2);
       } else v.tailT = Math.max(0, v.tailT - dt * 2);
-      if (v.tailT > 2.5 && v.tailCd <= 0) {
+      if (v.tailT > 2.0 && v.tailCd <= 0) {
         v.tailCd = 12;
         this._emit(EV.TAILGATED, { id: v.id, otherId: v.id, kind: v.kind, persona: v.persona, gap: Math.max(0, -rel - (Lp + v.length) * 0.5) });
       }
       // ---- intenção de fechar: apressado/revanche que acabou de passar o jogador pela faixa ao lado
       if ((v.p.cutter || v.revengeT > 0) && rel > (Lp + v.length) * 0.5 + 2 && rel < 20 && Math.abs(lat) > 2 && Math.abs(lat) < 5 && adh < 0.4 && v.w.lane.id !== this.pLaneId) {
-        if (!v.cutIntent && this.rng() < 0.02) v.cutIntent = true;
+        if (!v.cutIntent && this.rng() < 0.05) v.cutIntent = true;
         if (v.cutIntent && v.lcT <= 0 && this.pLaneId >= 0) {
           const sib = this.net.siblingLanes(v.w.lane);
           if (sib.indexOf(this.pLaneId) >= 0) this._tryLaneChange(v, false, this.lanes[this.pLaneId].index > v.w.lane.index ? 1 : -1);
@@ -1212,10 +1339,10 @@ export class TrafficSim {
     const nM = Math.min(mangas.length, 6 + ((rng() * 5) | 0));
     const used = new Set();
     const add = (spot, kind) => {
-      const ln = spot.lanes[(rng() * spot.lanes.length) | 0];
+      const ln = spot.lanes[rng() < 0.75 ? 0 : (rng() * spot.lanes.length) | 0]; // quase sempre na faixa rente à árvore
       const fx = Math.sin(spot.heading), fz = Math.cos(spot.heading), rx = -fz, rz = fx;
       const j = (rng() - 0.5) * 1.6, a = (rng() - 0.5) * 3;
-      this.hazards.push({ id: this.hazards.length, kind, x: ln.x + rx * j + fx * a, z: ln.z + rz * j + fz * a, r: kind === 'jaca' ? 0.5 : 0.28,
+      this.hazards.push({ id: this.hazards.length, kind, x: ln.x + rx * j + fx * a, z: ln.z + rz * j + fz * a, r: kind === 'jaca' ? 0.5 : 0.5,
         active: true, squashed: false, rot: rng() * Math.PI * 2, spotId: spot.id, laneId: ln.laneId });
     };
     for (let t = 0; t < nM * 4 && used.size < nM; t++) {
@@ -1241,7 +1368,8 @@ export class TrafficSim {
       // meio escondido: um pouco atrás da cobertura (mais longe da pista)
       const ux = h.x - h.roadX, uz = h.z - h.roadZ, ul = Math.hypot(ux, uz) || 1;
       const hx = h.x + ux / ul * 0.8, hz = h.z + uz / ul * 0.8;
-      const sx = h.x - ux / ul * 4.5, sz = h.z - uz / ul * 4.5; // para onde vai ao multar (beira da calçada)
+      const seg = this.net.getSegment(h.segId), edge = seg ? Math.max(-seg.edgeL, seg.edgeR) + 1.8 : ul - 4;
+      const sx = h.roadX + ux / ul * edge, sz = h.roadZ + uz / ul * edge; // para onde vai ao multar (beira da calçada, fora da cobertura)
       this.agents.push({ id: h.id, x: hx, z: hz, heading: h.facing, range: (h.s1 - h.s0) * 0.5, revealed: false,
         segId: h.segId, dir: h.dir, laneIds: h.laneIds, s0: h.s0, s1: h.s1, roadX: h.roadX, roadZ: h.roadZ, cover: h.cover,
         hideX: hx, hideZ: hz, standX: sx, standZ: sz, revealT: 0, px: hx, pz: hz });
@@ -1370,11 +1498,27 @@ export class TrafficSim {
     }
     return null;
   }
+  _trySpawnOnPlayerRoad(minD = TUNING.spawnMin) {
+    const rng = this.rng, ahead = rng() < 0.6;
+    const r = this.walkAlong(this.pLaneId, this.pS, ahead ? minD + 5 + rng() * (300 - minD) : -(minD + 5 + rng() * (260 - minD)), this._wa || (this._wa = {}));
+    if (!r) return null;
+    const lane = this.lanes[r.laneId], sib = this.net.siblingLanes(lane);
+    const lid = sib.length > 1 ? sib[(rng() * sib.length) | 0] : lane.id;
+    const s = r.s * this.lanes[lid].length / lane.length;
+    const o = this.net.sampleLane(this.lanes[lid], s, this._tmpS || (this._tmpS = {}));
+    if (!this._spawnClear(o.x, o.z, lid, s, minD)) return null;
+    const pid = this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
+    const fast = !ahead && this.pSpeed > 5;
+    const v = this.spawn(pid, null, lid, s, fast ? { v0min: this.pSpeed + 2, speed: this.pSpeed + 1 } : {});
+    if (v) this._buildBucketsFor(v);
+    return v;
+  }
   _buildBucketsFor(v) { this._addEnt(v.w.lane.id, v.w.s, v.slot); }
 
   _fillInitial() {
     this._buildBuckets();
     const target = this.targetCount;
+    if (this.pLaneId >= 0) for (let t = 0; t < 60 && this.vehicles.length < target * 0.35; t++) this._trySpawnOnPlayerRoad(TUNING.initMin + 10);
     for (let t = 0; t < 400 && this.vehicles.length < target; t++) this._trySpawnRandom(TUNING.initMin, TUNING.spawnMax);
     // pedestres iniciais nas faixas próximas
     for (let i = 0; i < 6; i++) this._pedSpawnTick(true);
@@ -1411,7 +1555,11 @@ export class TrafficSim {
 
   _spawnLogic(dt) {
     // reposição fora da vista
-    if (this.vehicles.length < this.targetCount && (this.stepN & 1) === 0) this._trySpawnRandom(TUNING.spawnMin, TUNING.spawnMax);
+    if (this.vehicles.length < this.targetCount && (this.stepN & 1) === 0) {
+      // ~metade da reposição vai para a via do jogador (à frente/atrás, fora da vista): é onde o trânsito "acontece"
+      if (this.pLaneId >= 0 && this.rng() < 0.5) this._trySpawnOnPlayerRoad();
+      else this._trySpawnRandom(TUNING.spawnMin, TUNING.spawnMax);
+    }
     if (this.stepN % 30 === 0) this._pedSpawnTick(false);
     if (this.stepN % 60 === 0) {
       let j = 0; for (const p of this.pedestrians) if (p.crosswalkId < 0) j++;
@@ -1420,7 +1568,7 @@ export class TrafficSim {
     }
     if (this.stepN % 30 === 15) this._furaoLogic();
     this.dirCd -= dt;
-    if (this.dirCd <= 0) { this.dirCd = 3; this._directedSpawn(); }
+    if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
   }
 
   _pedSpawnTick(initial) {
@@ -1447,7 +1595,9 @@ export class TrafficSim {
     for (const v of this.vehicles) {
       if (!v.active) continue;
       const dx = v.x - this.px, dz = v.z - this.pz;
-      if (dx * dx + dz * dz > D2) this._despawn(v);
+      const d2 = dx * dx + dz * dz;
+      // longe, ou já ficou para trás de quem está andando (recicla para a frente)
+      if (d2 > D2 || (d2 > 250 * 250 && this.pSpeed > 4 && dx * Math.sin(this.ph) + dz * Math.cos(this.ph) < -150)) this._despawn(v);
     }
     for (const p of this.pedestrians) {
       if (!p.active) continue;
@@ -1466,7 +1616,7 @@ export class TrafficSim {
       const dx = v.x - this.px, dz = v.z - this.pz;
       if (dx * dx + dz * dz < 170 * 170 && Math.abs(wrap(v.heading - this.ph)) < 0.6) n++;
     }
-    if (n >= 3) return;
+    if (n >= 4) return;
     const rng = this.rng, ahead = rng() < 0.55;
     const r = this.walkAlong(this.pLaneId, this.pS, ahead ? 150 + rng() * 40 : -(150 + rng() * 30), this._wa || (this._wa = {}));
     if (!r) return;

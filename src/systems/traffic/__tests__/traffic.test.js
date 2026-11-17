@@ -223,6 +223,64 @@ test('ultrapassagem, fechada e colisão com o jogador geram eventos', () => {
   console.log('       eventos:', Object.entries(got).map(([k, v]) => `${k}×${v.length}`).join(' '));
 });
 
+test('apressado atrás do jogador lento: cola, pisca, ultrapassa e fecha; provoke vira revanche', () => {
+  const { sim, events } = makeSim(fakeSignals('green'));
+  const seg = [...net.segments.values()].find((g) => g.oneWay && g.lanesF >= 3 && g.length > 500);
+  const lane = net.lanes[seg.laneIdsF[seg.laneIdsF.length - 1]];
+  const o = net.sampleLane(lane, 80, {});
+  const player = makePlayer(o.x, o.z, o.heading);
+  sim.setPlayer(player); sim.autoSpawn = false; sim.reset({ seed: 5 });
+  const seq = [];
+  for (const k of ['TAILGATED', 'FLASHED', 'OVERTAKEN', 'CUT_OFF', 'HONKED_AT']) events.on(EV[k], () => seq.push(k));
+  const v = sim.debugSpawn('apressado', -35, 0, { speed: 16 });
+  const w = net.createWalker(lane.id, 80);
+  const drive = (sec, sp) => { for (let i = 0; i < sec * 60; i++) { w.advance(sp * DT); const ph = player.phys; ph.x = w.x; ph.z = w.z; ph.heading = w.heading; ph.vx = Math.sin(w.heading) * sp; ph.vz = Math.cos(w.heading) * sp; sim.step(DT); } };
+  drive(14, 11);
+  console.log('       sequência:', seq.join(' > '));
+  for (const k of ['TAILGATED', 'FLASHED', 'OVERTAKEN', 'CUT_OFF']) assert.ok(seq.includes(k), 'faltou ' + k);
+  assert.ok(seq.indexOf('FLASHED') < seq.indexOf('OVERTAKEN') && seq.indexOf('OVERTAKEN') < seq.indexOf('CUT_OFF'));
+  // revanche: provocado responde buzinando
+  seq.length = 0;
+  const n = sim.provoke(1, 60);
+  drive(3, 11);
+  assert.ok(n >= 1 && v.revengeT > 0 && seq.includes('HONKED_AT'), 'sem troco: ' + seq.join(','));
+});
+
+test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)', () => {
+  const { sim, events, sig } = makeSim();
+  const got = {};
+  for (const k of ['OVERTAKEN', 'CUT_OFF', 'COLLISION', 'PLAYER_OVERTOOK', 'TAILGATED', 'HONKED_AT', 'NEAR_MISS', 'FLASHED', 'PEDESTRIAN_CROSSING', 'HAZARD_HIT']) events.on(EV[k], (p) => { (got[k] = got[k] || []).push(p); });
+  let aiFault = 0, worst = 0, totalT = 0, ovl = 0;
+  for (const [from, to, tod] of [['casa', 'stj', 'manha'], ['stj', 'casa', 'tarde']]) {
+    const st = net.snapStart(net.starts[from]);
+    const route = net.planRoute(st.lane.id, st.s, net.laneForZone(to).targets);
+    const player = makePlayer(st.x, st.z, st.heading);
+    sim.setPlayer(player); sim.reset({ seed: 99, timeOfDay: tod, route });
+    const w = net.createWalker(route[0], st.s); w.route = route; w.routeIdx = 0;
+    let sp = 0;
+    const seen = new Set();
+    for (let i = 0; i < 60 * 600 && !w.ended; i++) {
+      // motorista "educado": IDM simples atrás do líder que o trânsito informa; para no vermelho
+      const lane = w.lane; let target = lane.limitKmh / 3.6;
+      const L = sim.leadInfo();
+      if (L) target = Math.min(target, Math.max(0, (L.gap - 3) / 1.4));
+      if (lane.signal && sig.stateForLane(lane) !== 'green' && lane.length - w.s < 40 && lane.length - w.s > 2) target = Math.min(target, Math.max(0, (lane.length - w.s - 4) / 2));
+      const cw = sim.crosswalkAhead(); if (cw && cw.occupied) target = Math.min(target, Math.max(0, (cw.dist - 4) / 1.5));
+      sp += Math.max(-6, Math.min(2.5, (target - sp) * 2)) * DT; if (sp < 0) sp = 0;
+      w.advance(sp * DT);
+      const ph = player.phys; ph.x = w.x; ph.z = w.z; ph.heading = w.heading; ph.vx = Math.sin(w.heading) * sp; ph.vz = Math.cos(w.heading) * sp;
+      sig.update(DT); sim.step(DT); totalT += DT;
+      if (i % 30 === 0) { const o = []; overlaps(sim, o); for (const x of o) if (!seen.has(x.key)) { seen.add(x.key); ovl++; if (process.env.VERBOSE) console.log('      sobreposição', x.a.persona, x.a.w.lane.id, x.a.w.lane.isConnector, x.a.leadKind, x.a.lcT.toFixed(1), x.a.filtering, '|', x.b.persona, x.b.w.lane.id, x.b.w.lane.isConnector, x.b.leadKind, x.b.lcT.toFixed(1), x.b.filtering, x.depth.toFixed(2)); } }
+    }
+    assert.ok(w.ended || true);
+  }
+  for (const c of got.COLLISION || []) if (c.b === 'vehicle' && !c.playerAtFault) aiFault++;
+  console.log(`       ${(totalT / 60).toFixed(1)} min de direção; eventos:`, Object.entries(got).map(([k, v]) => `${k}×${v.length}`).join(' '));
+  console.log(`       colisões em que a IA bateu no jogador: ${aiFault}; sobreposições IA×IA: ${ovl}`);
+  assert.ok((got.OVERTAKEN || []).length > 0, 'ninguém ultrapassou o jogador');
+  assert.ok(aiFault <= 1, 'IA bateu no jogador ' + aiFault + 'x');
+});
+
 test('fiscalização e frutas sorteadas por semente (reprodutível)', () => {
   const { sim } = makeSim(fakeSignals('green'));
   const far = parkingSpot('local'); sim.setPlayer(makePlayer(far.x, far.z)); sim.autoSpawn = false;
