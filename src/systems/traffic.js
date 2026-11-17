@@ -15,6 +15,7 @@
 //   leadInfo() -> { id, kind, persona, gap, speed, closing } | null      rearInfo() -> idem (closing = quanto o de trás se aproxima)
 //   freeAhead() -> m (≤150)     neighbors(radius) -> vehicles[] (array reutilizado)
 //   crosswalkAhead() -> { crosswalkId, dist, occupied, pedCount, waiting, x, z, signalized } | null
+//   crosswalkBlockedAt(cid, x, z) -> bool (bloqueio por faixa de rolamento: o pedestre está nela ou chegando)
 //   provoke(amount, radius) -> nº de afetados     flashLead() -> { id, kind, persona, reaction:'yield'|'brake'|'ignore', gap } | null
 //   revealAgent(id) -> agente | null              stats() -> diagnóstico (custo do update, contagens, draw calls)
 //   debug.spawn(kindOrPersona, aheadMeters, laneOffset, opts) / debug.clear() / debug.spawnPed(crosswalkId, crossNow) /
@@ -133,6 +134,8 @@ const api = {
   freeAhead() { return sim ? sim.freeAhead() : 150; },
   neighbors(radius = 30) { return sim ? sim.neighbors(radius) : []; },
   crosswalkAhead() { return sim ? sim.crosswalkAhead() : null; },
+  /** Alguém atravessando a faixa `cid` bloqueia o ponto (x, z)? (só a faixa de rolamento onde o pedestre está ou vai chegar) */
+  crosswalkBlockedAt(cid, x, z) { return sim ? sim.cwBlockedAt(cid, x, z) : false; },
   provoke(amount = 0.3, radius = 30) { return sim ? sim.provoke(amount, radius) : 0; },
   flashLead() { return sim ? sim.flashLead() : null; },
   revealAgent(id) { return sim ? sim.revealAgent(id) : null; },

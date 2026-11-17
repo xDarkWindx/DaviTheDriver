@@ -227,7 +227,7 @@ export function createAutopilot(ctx) {
           for (const c of lane.crosswalks) {
             const d = base + c.s - 2.5 - veh.length * 0.5 - 1.2;
             if (d < -1 || d > 90) continue;
-            const busy = sim.cwCross[c.id] > 0 || (prof.waitPed && sim.cwWait[c.id] > 0 && d < 40);
+            const busy = (sim.cwCross[c.id] > 0 && (c.m == null || sim.cwBlockedM(c.id, c.m))) || (prof.waitPed && sim.cwWait[c.id] > 0 && d < 40);
             if (busy && !(d < 1.5 && v > 8)) { obstacle(Math.max(0, d), 0, 'faixa'); legit = true; }
           }
           base += lane.length;

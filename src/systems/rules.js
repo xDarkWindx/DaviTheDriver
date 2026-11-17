@@ -127,10 +127,12 @@ export default {
     for (const cw of list) {
       const dx = cw.x - sp.x, dz = cw.z - sp.z;
       if (dx * dx + dz * dz > NEAR_CW * NEAR_CW) continue;
-      let occ = this._occFlag.get(cw.id) === true;
+      // ocupação POR FAIXA DE ROLAMENTO (o trânsito sabe onde cada pedestre está); sem isso, a faixa inteira
+      const lane = T.crosswalkBlockedAt(cw.id, sp.x, sp.z);
+      let occ = lane === true || (lane == null && this._occFlag.get(cw.id) === true);
       const mem = this._occMem.get(cw.id);
       if (!occ && mem != null && snap.t - mem < RULES_BALANCE.crosswalk.occupiedMemory) occ = true;
-      if (!occ) {
+      if (!occ && lane == null) {
         const r = (cw.halfWidth || 8) + RULES_BALANCE.crosswalk.pedRadiusExtra;
         for (const p of peds) {
           if (p.crosswalkId !== cw.id || !PED_ON_CROSSWALK[p.state]) continue;

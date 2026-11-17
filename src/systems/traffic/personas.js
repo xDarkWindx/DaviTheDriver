@@ -9,34 +9,34 @@
 export const PERSONAS = {
   normal: {
     label: 'motorista normal', models: { sedan: 3, hatch: 4, suv: 2, picape: 1 },
-    speedMul: [0.86, 1.06], T: [1.2, 1.6], s0: 2.2, a: [1.7, 2.4], b: 3.0,
+    speedMul: [0.86, 1.06], T: [1.2, 1.6], s0: 2.2, a: [2.2, 3.0], b: 3.0,
     lcGain: 0.45, lcBackTime: 0.9, minBack: 5, keepRight: 0.25, gapRing: 3.0,
-    flash: { yield: 0.6, brake: 0.12, ignore: 0.28 }, temper: 0.8, honkPatience: 3.5, aggr: 0.2, react: [0.4, 1.0],
+    flash: { yield: 0.6, brake: 0.12, ignore: 0.28 }, temper: 0.8, honkPatience: 3.5, aggr: 0.2, react: [0.4, 0.9],
   },
   tio: {
     label: 'tio de chapéu', models: { sedan: 3, hatch: 1 },
-    speedKmh: [30, 40], T: [1.8, 2.3], s0: 3, a: [1.0, 1.4], b: 2.5,
+    speedKmh: [30, 40], T: [1.8, 2.3], s0: 3, a: [1.3, 1.7], b: 2.5,
     noLaneChange: true, preferLeft: true, gapRing: 3.8,
-    flash: { yield: 0.05, brake: 0.25, ignore: 0.7 }, temper: 0.5, honkPatience: 99, aggr: 0.05, react: [1.0, 1.8],
+    flash: { yield: 0.05, brake: 0.25, ignore: 0.7 }, temper: 0.5, honkPatience: 99, aggr: 0.05, react: [0.8, 1.3],
   },
   autoescola: {
     label: 'autoescola', models: { autoescola: 1 },
-    speedMul: [0.55, 0.7], maxKmh: 40, T: [2.0, 2.4], s0: 3, a: [0.9, 1.3], b: 2.5,
+    speedMul: [0.55, 0.7], maxKmh: 40, T: [2.0, 2.4], s0: 3, a: [1.2, 1.6], b: 2.5,
     lcGain: 1.5, lcBackTime: 1.4, minBack: 9, keepRight: 0.8, gapRing: 4.5,
-    randomBrake: [7, 18], stallDelay: [2.2, 4.5],
-    flash: { yield: 0.45, brake: 0.35, ignore: 0.2 }, temper: 0.3, honkPatience: 99, aggr: 0, react: [1.2, 2.0],
+    randomBrake: [7, 18], stallDelay: [1.8, 2.8], // "deixou morrer": TUNING.stallChance das paradas
+    flash: { yield: 0.45, brake: 0.35, ignore: 0.2 }, temper: 0.3, honkPatience: 99, aggr: 0, react: [0.9, 1.4],
   },
   mudanca: {
     label: 'caminhão de mudança', models: { mudanca: 1 },
-    speedMul: [0.72, 0.85], maxKmh: 55, T: [1.8, 2.2], s0: 3.5, a: [0.7, 0.9], b: 2.2,
+    speedMul: [0.72, 0.85], maxKmh: 55, T: [1.8, 2.2], s0: 3.5, a: [0.9, 1.1], b: 2.2,
     lcGain: 1.2, lcBackTime: 1.2, minBack: 8, keepRight: 1.0, gapRing: 4.0,
-    flash: { yield: 0.3, brake: 0.1, ignore: 0.6 }, temper: 0.6, honkPatience: 5, aggr: 0.15, react: [0.8, 1.4],
+    flash: { yield: 0.3, brake: 0.1, ignore: 0.6 }, temper: 0.6, honkPatience: 5, aggr: 0.15, react: [0.7, 1.1],
   },
   onibus: {
     label: 'ônibus', models: { onibus: 1 },
-    speedMul: [0.8, 0.95], maxKmh: 60, T: [1.6, 2.0], s0: 3, a: [0.8, 1.05], b: 2.2,
+    speedMul: [0.8, 0.95], maxKmh: 60, T: [1.6, 2.0], s0: 3, a: [1.0, 1.3], b: 2.2,
     bus: true, lcGain: 1.0, lcBackTime: 1.2, minBack: 8, keepRight: 1.5, gapRing: 3.5, dwell: [6, 10],
-    flash: { yield: 0.1, brake: 0.1, ignore: 0.8 }, temper: 0.7, honkPatience: 3, aggr: 0.3, react: [0.6, 1.2],
+    flash: { yield: 0.1, brake: 0.1, ignore: 0.8 }, temper: 0.7, honkPatience: 3, aggr: 0.3, react: [0.6, 1.0],
   },
   // ônibus institucional do STJ (evento da rotatória, sim.js `_stjBusLogic`): não para em ponto, entra no balão sem
   // esperar brecha e, por ser comprido, a traseira varre para fora na curva.

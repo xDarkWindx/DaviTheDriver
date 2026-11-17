@@ -25,12 +25,22 @@ export const TUNING = {
   lookMax: 130,        // horizonte do IDM (m)
   pathMax: 12,
   thinkEvery: 15,      // passos entre decisões de cada veículo (fatias: 1/15 da frota por passo)
-  todDensity: { manha: 0.7, tarde: 0.85 },
+  todDensity: { manha: 0.9, tarde: 1.0 },
+  // PRESENÇA na via do jogador: veículos no mesmo sentido em 0..flowRange m à frente, por faixa (sem a de ônibus) e tipo de
+  // via. Abaixo disso nasce gente à frente, fora da vista, a uma distância que cresce com a velocidade do jogador.
+  flowRange: 200, flowPerLane: { eixo: 6, eixao: 5, urban: 4, arterial: 4, ramp: 2, local: 1.2 }, flowLocalMinLen: 400,
+  flowAheadBase: 70, flowAheadPerMps: 4.2, behindRecycle: 140,
   stuckSec: 25,        // parado sem motivo legítimo => "fantasma" por 3 s (ou some, se longe)
-  pedRate: { urban: 0.07, eixo: 0.035, eixao: 0.02, arterial: 0.04, local: 0.05, ring: 0.02, ramp: 0 },
+  // travessias: ~1/3 da taxa antiga, em pequenos grupos espaçados (a presença nas calçadas fica com os "passantes")
+  pedRate: { urban: 0.024, eixo: 0.012, eixao: 0.007, arterial: 0.014, local: 0.017, ring: 0.007, ramp: 0 },
+  pedGroup: [0.45, 0.2],   // chance de vir 1 / 2 acompanhantes junto (mesmo lado)
+  pedGather: 6,            // s: sem semáforo, quem chega sozinho espera o grupo juntar (ou este tempo) antes de pedir passagem
+  pedStroll: 0.05,         // chance por faixa por meio segundo de um passante andando pela calçada (não atravessa)
+  cwBand: 1.9, cwAheadM: 2.4, // m: um pedestre bloqueia a faixa do carro só de cwAheadM antes dela até sair dela (cwBand = meia largura)
+  pCwCalm: 45,             // s: depois que o jogador parou para um grupo, a próxima faixa à frente dele não abre travessia
   maxJoggers: 4,
   cwHalf: 2.0,         // meia-profundidade da faixa de pedestre
-  cwCarTurn: 7,        // s de "vez dos carros" depois que uma faixa sem semáforo esvazia
+  cwCarTurn: 30,       // s de "vez dos carros" depois que uma faixa sem semáforo esvazia
   cwJoin: 2.5,         // s após o 1º começar a atravessar em que outros ainda entram junto
   // trecho sem ultrapassagem: o lento com fila atrás encosta no acostamento e deixa passar (ninguém fica preso atrás dele a rota toda)
   honkEventGap: 3.5,  // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação)
@@ -51,7 +61,9 @@ export const TUNING = {
   // TRAÇOS de motorista, independentes da persona (pesquisa autodeclarada de motoristas brasileiros): fração da frota.
   traits: { speeder: 0.59, onPhone: 0.38, noYield: 0.27, noSignal: 0.23 },
   speederMul: [1.05, 1.25],     // speeder: alvo 5–25% acima do limite (os demais ficam no limite ou abaixo)
-  phoneStart: [1.0, 3.0],       // onPhone: s a mais para sair no verde
+  phoneStart: [0.8, 1.5],       // onPhone: s a mais para sair no verde...
+  phoneStartChance: 0.4,        // ...só numa parte das paradas
+  stallChance: 0.25,            // autoescola "deixa morrer" ~1 em cada 4 paradas (tranco + pisca-alerta), stallDelay da persona
   phoneT: 1.2, phoneSway: 0.22, phoneSpeedWobble: 0.09, // onPhone: reage mais tarde (T x1,2), oscila na faixa (m) e na velocidade
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
@@ -108,7 +120,7 @@ class Vehicle {
     this.filtering = false; this.filterT = 0;
     this.coneInter = 0; this.coneKind = 0; this.coneGap = 999; this.coneSpeed = 0; this.coneSlot = -1;
     this.leadKind = 0; this.leadGap = 999; this.leadSpeed = 0; this.leadSlot = -1; this.waitLegit = false;
-    this.goLane = -1; this.ringGo = -1; this.redHold = false; this.startDelay = 0; this.dwellT = 0; this.lastStop = -1;
+    this.goLane = -1; this.ringGo = -1; this.redHold = false; this.startDelay = 0; this.stallT = 0; this.stallJolt = 0; this.phoneLate = false; this.dwellT = 0; this.lastStop = -1;
     this.brakeT = 0; this.brakeDecel = 4; this.rbT = 0; this.crashT = 0; this.ghostT = 0; this.stuckT = 0;
     this.honkT = 0; this.honkCd = 0; this.honkBackT = 0; this.flashT = 0; this.flashCd = 0; this.impatT = 0;
     this.revengeT = 0; this.tailT = 0; this.tailCd = 0; this.overtakeT = 0; this.cutIntent = false; this.furaoT = 0;
@@ -180,7 +192,7 @@ export class TrafficSim {
     this._hasLead = false; this._hasRear = false;
     this.playerInJam = -1;
     this.cwAhead = { crosswalkId: -1, dist: 0, occupied: false, pedCount: 0, waiting: 0, x: 0, z: 0, signalized: false };
-    this._hasCw = false; this._cwEmitted = -1;
+    this._hasCw = false; this._cwEmitted = -1; this.pCwCalmT = -1; this.pCwCalmId = -1;
     this.pTailT = 0; this.furaoCd = 0; this.dirCd = 0; this.honkGlobalCd = 0;
     this._near = []; this._flashRes = { id: -1, kind: '', persona: '', reaction: 'ignore', gap: 0 };
     this._mInter = 0; this._mSpeed = 0; this._mSlot = -1;
@@ -271,7 +283,7 @@ export class TrafficSim {
     this.cwCross = new Int16Array(n); this.cwWait = new Int16Array(n); this.cwCount = new Int16Array(n);
     this.cwGroup = new Int8Array(n); this.cwRate = new Float32Array(n);
     this.cwAx = new Float64Array(n); this.cwAz = new Float64Array(n); this.cwBx = new Float64Array(n); this.cwBz = new Float64Array(n);
-    this.cwLen = new Float64Array(n);
+    this.cwLen = new Float64Array(n); this.cwUx = new Float64Array(n); this.cwUz = new Float64Array(n);
     // vez dos carros: depois que a faixa esvazia, ninguém começa a atravessar por cwCarTurn s (sem semáforo; evita fila eterna)
     this.cwPrevCross = new Int16Array(n); this.cwHold = new Float64Array(n); this.cwStart = new Float64Array(n);
     for (const c of cws) {
@@ -279,11 +291,18 @@ export class TrafficSim {
       this.cwAx[c.id] = c.x + rx * off; this.cwAz[c.id] = c.z + rz * off;
       this.cwBx[c.id] = c.x - rx * off; this.cwBz[c.id] = c.z - rz * off;
       this.cwLen[c.id] = off * 2;
+      this.cwUx[c.id] = -rx; this.cwUz[c.id] = -rz; // eixo A -> B
       let g = 0;
       if (c.signalId >= 0) { const sig = net.signals[c.signalId]; const ap = sig && sig.approaches.find((a) => a.segId === c.segId); if (ap) g = ap.group; }
       this.cwGroup[c.id] = g;
       const seg = net.getSegment(c.segId);
-      this.cwRate[c.id] = TUNING.pedRate[seg.kind] ?? 0.05;
+      this.cwRate[c.id] = TUNING.pedRate[seg.kind] ?? 0.02;
+    }
+    // posição de cada faixa de rolamento ao longo da faixa de pedestre (m a partir do lado A): bloqueio por faixa
+    const tmp = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 };
+    for (const lane of net.lanes) for (const e of lane.crosswalks) {
+      net.sampleLane(lane, e.s, tmp);
+      e.m = (tmp.x - this.cwAx[e.id]) * this.cwUx[e.id] + (tmp.z - this.cwAz[e.id]) * this.cwUz[e.id];
     }
   }
 
@@ -312,7 +331,7 @@ export class TrafficSim {
     this.timeOfDay = opts.timeOfDay || 'manha';
     this.playerRoute = opts.route || null;
     this.time = 0; this.stepN = 0; this.nextId = 1; this.nextPedId = 1; this._lpOk = false;
-    this.pTailT = 0; this.furaoCd = 6; this.dirCd = 2; this.honkGlobalCd = 0; this._cwEmitted = -1;
+    this.pTailT = 0; this.furaoCd = 6; this.dirCd = 2; this.honkGlobalCd = 0; this._cwEmitted = -1; this.pCwCalmT = -1; this.pCwCalmId = -1;
     this.noPassCd.fill(0); this.cwCount.fill(0); this.cwCross.fill(0); this.cwWait.fill(0); this.cwPrevCross.fill(0); this.cwHold.fill(0); this.cwStart.fill(0);
     for (const v of this.veh) { v.active = false; v.reset(); v.w.rng = makeRng((this.seed ^ (v.slot * 2246822519)) >>> 0 || 3); }
     // walkers dos corredores/ciclistas sorteiam a próxima faixa com o PRNG próprio: semeado por viagem (reprodutível)
@@ -600,7 +619,7 @@ export class TrafficSim {
         const gapF = base + cw.s - TUNING.cwHalf - 0.8 - halfL;
         if (gapF < -1.2) continue;
         if (gapF > look) break;
-        if (this.cwCross[cid] > 0 || (this.cwWait[cid] > 0 && gapF > vel * vel / 7 && !(v.noYield && this.net.crosswalks[cid].signalId < 0))) {
+        if ((this.cwCross[cid] > 0 && this.cwBlockedM(cid, cw.m)) || (this.cwWait[cid] > 0 && gapF > vel * vel / 7 && !(v.noYield && this.net.crosswalks[cid].signalId < 0))) {
           const it = this._inter(v, vel, gapF, 0, v.T, 0.5);
           if (it > inter) { inter = it; leadKind = LEAD.CROSSWALK; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
         }
@@ -644,10 +663,18 @@ export class TrafficSim {
     if (leadKind === LEAD.SIGNAL && vel < 0.5) v.redHold = true;
     else if (v.redHold) {
       v.redHold = false;
-      v.startDelay = v.p.stallDelay && this.rng() < 0.6 ? rr(this.rng, v.p.stallDelay) : rr(this.rng, v.p.react);
-      if (v.onPhone) { v.startDelay += rr(this.rng, TUNING.phoneStart); v.phoneLate = true; } // distraído no celular: o verde abriu e ele não viu
+      // atrasos NÃO se empilham: reação normal OU motor morreu (autoescola) OU celular
+      v.startDelay = rr(this.rng, v.p.react); v.stallT = 0; v.phoneLate = false;
+      if (v.p.stallDelay && this.rng() < TUNING.stallChance) { v.startDelay = rr(this.rng, v.p.stallDelay); v.stallT = v.startDelay; v.stallJolt = 0.35; }
+      else if (v.onPhone && this.rng() < TUNING.phoneStartChance) { v.startDelay += rr(this.rng, TUNING.phoneStart); v.phoneLate = true; } // distraído no celular: o verde abriu e ele não viu
     }
-    if (v.startDelay > 0) { v.startDelay -= dt; if (acc > 0) acc = -1; }
+    if (v.startDelay > 0) {
+      v.startDelay -= dt;
+      if (v.stallJolt > 0) { v.stallJolt -= dt; acc = v.stallJolt > 0.2 ? 2.2 : -6; } // tranco: sai e o motor morre
+      else if (acc > 0) acc = -1;
+      if (v.startDelay <= 0) { v.stallT = 0; v.phoneLate = false; }
+    }
+    if (v.stallT > 0) v.blink = 2; // pisca-alerta enquanto religa
     if (v.dwellT > 0) { v.dwellT -= dt; acc = -4; v.blink = 1; }
     if (v.brakeT > 0) { v.brakeT -= dt; if (acc > -v.brakeDecel) acc = -v.brakeDecel; }
     if (v.crashT > 0) { v.crashT -= dt; acc = -8; }
@@ -697,7 +724,7 @@ export class TrafficSim {
       v.blink = v.noSignal ? 0 : bl; // sem seta (noSignal) em curva/rotatória
     }
     if (v.pullT > 0) v.blink = 1;
-    if (v.crashT > 0) v.blink = 2;
+    if (v.crashT > 0 || v.stallT > 0) v.blink = 2;
     // contadores
     if (v.honkT > 0) { v.honkT -= dt; v.honking = v.honkT > 0; }
     if (v.honkCd > 0) v.honkCd -= dt;
@@ -1255,7 +1282,7 @@ export class TrafficSim {
           const d = base + cws[c].s - halfP;
           if (d < -TUNING.cwHalf - halfP || d > 120) continue;
           const id = cws[c].id, cw = this.net.crosswalks[id], o = this.cwAhead;
-          o.crosswalkId = id; o.dist = Math.max(0, d); o.occupied = this.cwCross[id] > 0; o.pedCount = this.cwCount[id];
+          o.crosswalkId = id; o.dist = Math.max(0, d); o.occupied = this.cwCross[id] > 0 && this.cwBlockedAt(id, this.px, this.pz); o.pedCount = this.cwCount[id];
           o.waiting = this.cwWait[id]; o.x = cw.x; o.z = cw.z; o.signalized = cw.signalId >= 0;
           this._hasCw = true; break;
         }
@@ -1265,6 +1292,7 @@ export class TrafficSim {
     if (this._hasCw && this.cwAhead.occupied && this.cwAhead.dist < 70) {
       if (this._cwEmitted !== this.cwAhead.crosswalkId) {
         this._cwEmitted = this.cwAhead.crosswalkId;
+        this.pCwCalmT = this.time + TUNING.pCwCalm; this.pCwCalmId = this.cwAhead.crosswalkId;
         const o = this.cwAhead;
         this._emit(this.EV.PEDESTRIAN_CROSSING, { crosswalkId: o.crosswalkId, x: o.x, z: o.z, dist: o.dist, on: true, pedCount: o.pedCount, signalized: o.signalized });
       }
@@ -1278,6 +1306,11 @@ export class TrafficSim {
   /** Reação do veículo ao jogador (farol, buzina, cola): 'yield' | 'brake' | 'ignore'. */
   _react(v, cause) {
     const f = v.p.flash, rng = this.rng;
+    // parado no verde (reação, motor morreu, celular): buzina/farol fazem arrancar na hora; birra só de persona agressiva
+    if (v.startDelay > 0 && v.speed < 1 && (cause === 'horn' || cause === 'flash')) {
+      if ((v.p.aggr >= 0.5 || v.aggression > 0.55) && rng() < 0.4) { v.startDelay += 1.0; this._honk(v, true); v.reactCd = 3; return 'brake'; }
+      v.startDelay = v.stallT > 0 ? Math.min(v.startDelay, 0.4) : 0; v.stallJolt = 0; v.reactCd = 2; return 'go';
+    }
     let wy = f.yield, wb = f.brake + v.aggression * 0.5 + (cause === 'horn' ? 0.15 : 0), wi = f.ignore;
     if (v.revengeT > 0) { wy *= 0.2; wb += 0.5; }
     let r = rng() * (wy + wb + wi), out;
@@ -1305,6 +1338,25 @@ export class TrafficSim {
     const pc = this.cwPrevCross, cc = this.cwCross;
     for (let i = 0; i < cc.length; i++) if (pc[i] > 0 && cc[i] === 0) this.cwHold[i] = this.time + TUNING.cwCarTurn;
   }
+
+  /** m ao longo da faixa de pedestre `cid` (a partir do lado A) do ponto (x, z). */
+  cwPos(cid, x, z) { return (x - this.cwAx[cid]) * this.cwUx[cid] + (z - this.cwAz[cid]) * this.cwUz[cid]; }
+  /** Alguém atravessando bloqueia a posição `m` (m ao longo da faixa)? Só quem está NELA ou chegando a ela (quem já passou não). */
+  cwBlockedM(cid, m) {
+    if (this.cwCross[cid] <= 0) return false;
+    const ps = this.pedestrians, len = this.cwLen[cid], band = TUNING.cwBand, ahead = TUNING.cwAheadM;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (p.crosswalkId !== cid || (p.state !== 'crossing' && p.state !== 'down')) continue;
+      const t = p.t < 0 ? 0 : p.t > 1 ? 1 : p.t, pm = p.from > 0 ? t * len : (1 - t) * len;
+      if (p.state === 'down') { if (Math.abs(pm - m) < band + 1.5) return true; continue; }
+      const rel = (m - pm) * (p.from > 0 ? 1 : -1); // > 0: a faixa do carro ainda está à frente do pedestre
+      if (rel > -band && rel < band + ahead) return true;
+    }
+    return false;
+  }
+  /** Idem para um ponto do mundo (jogador, regras). */
+  cwBlockedAt(cid, x, z) { return this.cwBlockedM(cid, this.cwPos(cid, x, z)); }
 
   _cwSafe(cid, thr) {
     const cw = this.net.crosswalks[cid];
@@ -1356,6 +1408,22 @@ export class TrafficSim {
     return p;
   }
 
+  _spawnStroller(cid) {
+    const p = this._freePed(); if (!p) return null;
+    const rng = this.rng, cw = this.net.crosswalks[cid];
+    p.active = true; p.id = this.nextPedId++; p.kind = 'pedestre'; p.state = 'walking'; p.crosswalkId = -2; // -2: passante (não é corredor nem travessia)
+    p.from = rng() < 0.5 ? 1 : -1; p.runner = false; p.speed = 1.1 + rng() * 0.4; p.jit = 0; p.waitT = 0; p.signaling = false;
+    p.approach = false; p.hurry = false; p.downT = 0; p.awayT = 8 + rng() * 10;
+    p.color = (rng() * 7) | 0; p.variant = rng() < 0.3 ? 1 : 0; p.phase = rng() * 6;
+    const fx = Math.sin(cw.heading), fz = Math.cos(cw.heading), side = p.from > 0;
+    const ux = this.cwUx[cid], uz = this.cwUz[cid], out = 1.2 + rng() * 1.5;
+    const cx = (side ? this.cwAx[cid] - ux * out : this.cwBx[cid] + ux * out), cz = (side ? this.cwAz[cid] - uz * out : this.cwBz[cid] + uz * out);
+    const along = (rng() - 0.5) * 30, dir = rng() < 0.5 ? 1 : -1;
+    p.x = cx + fx * along; p.z = cz + fz * along; p.heading = Math.atan2(fx * dir, fz * dir);
+    p.px = p.x; p.pz = p.z; p.ph = p.heading; p.nmCd = 0;
+    return p;
+  }
+
   _spawnJogger() {
     const n = this.noPassLanes.length; if (!n) return;
     const rng = this.rng;
@@ -1389,6 +1457,11 @@ export class TrafficSim {
       if (p.nmCd > 0) p.nmCd -= dt;
       p.phase += dt * (p.state === 'waiting' && !p.approach ? 0 : p.speed * 3.2);
       if (p.state === 'down') { p.downT -= dt; if (p.downT <= 0) { p.state = 'gone'; p.active = false; } continue; }
+      if (p.crosswalkId === -2) { // passante na calçada
+        p.awayT -= dt; p.x += Math.sin(p.heading) * p.speed * dt; p.z += Math.cos(p.heading) * p.speed * dt;
+        if (p.awayT <= 0) { p.state = 'gone'; p.active = false; }
+        continue;
+      }
       if (p.state === 'walking' && p.crosswalkId < 0) { // corredor/ciclista no acostamento
         p.w.advance(p.speed * dt); this._placeJogger(p);
         if (p.w.ended) { p.active = false; p.state = 'gone'; }
@@ -1406,13 +1479,19 @@ export class TrafficSim {
         let go = false;
         if (cw.signalId >= 0) {
           p.signaling = false;
-          go = this.signals.isPedWalk(cw.signalId, this.cwGroup[cid]) && (this.signals.timeToChange(cw.signalId) > 4 || p.runner);
+          // só no vermelho dos carros E com tempo de cruzar inteira antes do verde deles (sem parada extra no verde)
+          const sg = this.signals, need = this.cwLen[cid] / (p.speed * 1.6) + 1;
+          go = sg.isPedWalk(cw.signalId, this.cwGroup[cid]) && (sg.timeToGreen ? sg.timeToGreen(cw.signalId, this.cwGroup[cid]) > need : sg.timeToChange(cw.signalId) > 4);
         } else {
-          p.signaling = p.waitT > 0.3 && this.time >= this.cwHold[cid]; // na vez dos carros espera sem levantar a mão
+          // grupo: quem chega espera os outros (pedGather s) e todos atravessam juntos; logo depois que o jogador parou
+          // para um grupo, a faixa seguinte à frente dele não abre travessia (nunca duas paradas seguidas)
+          const calm = this.time < this.pCwCalmT && cid !== this.pCwCalmId && this._hasCw && this.cwAhead.crosswalkId === cid;
+          const gathered = this.cwCount[cid] - this.cwCross[cid] >= 2 || p.waitT > TUNING.pedGather;
+          p.signaling = !calm && gathered && p.waitT > 0.3 && this.time >= this.cwHold[cid]; // na vez dos carros espera sem levantar a mão
           const minWait = p.runner ? 0.4 : 1.3;
           const thr = p.runner ? 1.6 : p.waitT > 12 ? 2.0 : 3.0;
           const joining = this.cwCross[cid] > 0 && this.time - this.cwStart[cid] < TUNING.cwJoin;
-          go = p.waitT > minWait && (joining || this.time >= this.cwHold[cid]) && this._cwSafe(cid, thr);
+          go = p.waitT > minWait && (joining || (!calm && gathered && this.time >= this.cwHold[cid])) && this._cwSafe(cid, thr);
           if (go && this.cwCross[cid] === 0) this.cwStart[cid] = this.time;
         }
         if (go) { p.state = 'crossing'; p.t = 0; p.signaling = false; }
@@ -1686,7 +1765,7 @@ export class TrafficSim {
     }
     if (this.stepN % 30 === 0) this._pedSpawnTick(false);
     if (this.stepN % 60 === 0) {
-      let j = 0; for (const p of this.pedestrians) if (p.crosswalkId < 0) j++;
+      let j = 0; for (const p of this.pedestrians) if (p.crosswalkId === -1) j++;
       if (j < Math.min(TUNING.maxJoggers, (this.maxP / 5) | 0)) this._spawnJogger();
       this._slowGuarantee();
     }
@@ -1695,6 +1774,54 @@ export class TrafficSim {
     if (this.stepN % 20 === 3) this._jamLogic();
     this.dirCd -= dt;
     if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
+    if (this.stepN % 15 === 11) this._flowKeeper();
+  }
+
+  /** Mantém a via do jogador povoada à frente (TUNING.flowPerLane): repõe fora da vista, proporcional à velocidade dele. */
+  _flowKeeper() {
+    if (!this.player || this.pLaneId < 0) return;
+    let pl = this.lanes[this.pLaneId];
+    if (pl.isConnector) { if (!pl.next.length) return; pl = this.lanes[pl.next[0]]; }
+    const seg = this.net.getSegment(pl.segId); if (!seg) return;
+    const per = TUNING.flowPerLane[seg.kind] || 0;
+    if (!per || (seg.kind === 'local' && seg.length < TUNING.flowLocalMinLen)) return;
+    const sib = this.net.siblingLanes(pl);
+    let nl = 0; for (let i = 0; i < sib.length; i++) if (this.lanes[sib[i]].kind !== 'bus') nl++;
+    const want = Math.round(per * Math.max(1, nl));
+    const fx = Math.sin(this.ph), fz = Math.cos(this.ph), R = TUNING.flowRange;
+    let n = 0;
+    for (const v of this.vehicles) {
+      const dx = v.x - this.px, dz = v.z - this.pz, a = dx * fx + dz * fz;
+      if (a > 0 && a < R && Math.abs(dx * fz - dz * fx) < 25 && Math.cos(v.heading - this.ph) > 0.5) n++;
+    }
+    if (n >= want) return;
+    // pool cheio: recicla quem ficou para trás (fora da vista) e é mais lento que o jogador
+    if (this.vehicles.length >= Math.min(this.maxV, this.poolCap || this.maxV)) {
+      let far = null, fd = TUNING.behindRecycle;
+      for (const v of this.vehicles) {
+        if (v.stalled || v.stjBus) continue;
+        const dx = v.x - this.px, dz = v.z - this.pz, a = -(dx * fx + dz * fz), d = Math.sqrt(dx * dx + dz * dz);
+        if (a > 0 && d > fd) { fd = d; far = v; }
+      }
+      if (!far) return;
+      this._despawn(far);
+    }
+    const rng = this.rng, sp = Math.max(0, this.pSpeed);
+    const d = Math.max(TUNING.spawnMin, TUNING.flowAheadBase + sp * TUNING.flowAheadPerMps) + rng() * 60;
+    const r = this.walkAlong(pl.id, Math.max(0, this.pLaneId === pl.id ? this.pS : 0), d, this._wa || (this._wa = {}));
+    if (!r) return;
+    const lane = this.lanes[r.laneId]; if (lane.isConnector) return;
+    const sb = this.net.siblingLanes(lane);
+    const lid = sb.length > 1 ? sb[(rng() * sb.length) | 0] : lane.id;
+    const s2 = r.s * this.lanes[lid].length / lane.length;
+    const o = this.net.sampleLane(this.lanes[lid], s2, this._tmpS || (this._tmpS = {}));
+    const dxp = o.x - this.px, dzp = o.z - this.pz; if (dxp * dxp + dzp * dzp < 95 * 95) return;
+    for (let i = 0; i < this.vehicles.length; i++) { const q = this.vehicles[i], ex = q.x - o.x, ez = q.z - o.z; if (ex * ex + ez * ez < 8 * 8) return; }
+    for (let e = this.laneHead[lid]; e >= 0; e = this.entNext[e]) if (Math.abs(this.entS[e] - s2) < 16) return;
+    if (this.laneJam[lid] >= 0) return; // congestionamento sorteado tem a própria fila
+    const pid = this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
+    const v = this.spawn(pid, null, lid, s2, {});
+    if (v) { this._buildBucketsFor(v); this.stats.flow = (this.stats.flow || 0) + 1; }
   }
 
   _pedSpawnTick(initial) {
@@ -1707,11 +1834,22 @@ export class TrafficSim {
       const cw = cws[i];
       const dx = cw.x - this.px, dz = cw.z - this.pz, d2 = dx * dx + dz * dz;
       if (d2 > 230 * 230 || (!initial && d2 < 30 * 30)) continue;
+      // passante: anda pela calçada perto da faixa, não atravessa (a cidade não parece vazia)
+      if (!initial && free > 6 && rng() < TUNING.pedStroll) { this._spawnStroller(i); if (--free <= 2) return; }
       if (this.cwCount[i] >= 3) continue;
       let rate = this.cwRate[i] * 0.5;
-      if (i === aheadId) rate *= 2;
-      if (initial) rate = 0.25;
-      if (rng() < rate) { this._spawnPedAt(i); this.cwCount[i]++; if (--free <= 2) return; }
+      if (i === aheadId) rate *= 1.5;
+      if (initial) rate = 0.12;
+      if (rng() < rate) {
+        const p0 = this._spawnPedAt(i); this.cwCount[i]++; if (--free <= 2) return;
+        // pequeno grupo: acompanhantes do mesmo lado
+        const extra = rng() < TUNING.pedGroup[1] ? 2 : rng() < TUNING.pedGroup[0] ? 1 : 0;
+        for (let k = 0; k < extra && p0 && free > 2; k++) {
+          const q = this._spawnPedAt(i); if (!q) break;
+          if (q.from !== p0.from) { q.from = p0.from; const cx = p0.from > 0 ? this.cwAx[i] : this.cwBx[i], cz = p0.from > 0 ? this.cwAz[i] : this.cwBz[i], fx = Math.sin(cw.heading), fz = Math.cos(cw.heading); q.tx = cx + fx * q.jit; q.tz = cz + fz * q.jit; q.heading = Math.atan2(q.tx - q.x, q.tz - q.z); }
+          this.cwCount[i]++; free--;
+        }
+      }
     }
   }
 
@@ -2004,7 +2142,7 @@ export class TrafficSim {
   }
   /** Buzina do jogador: só o da frente reage (sai da faixa / freia de birra). A irritação geral é provoke() (humor chama). */
   playerHorn() {
-    if (this._hasLead && this.lead.gap < 40 && this.lead.v && this.lead.v.reactCd <= 0) return this._react(this.lead.v, 'horn');
+    if (this._hasLead && this.lead.gap < 40 && this.lead.v && (this.lead.v.reactCd <= 0 || this.lead.v.startDelay > 0)) return this._react(this.lead.v, 'horn');
     return null;
   }
 

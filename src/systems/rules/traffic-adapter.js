@@ -50,6 +50,8 @@ export class TrafficAdapter {
   rearInfo() { const v = this._call('rearInfo'); return v && typeof v === 'object' ? v : null; }
   neighbors(radius) { const v = this._call('neighbors', radius); return Array.isArray(v) ? v : EMPTY; }
   /** { crosswalkId, dist, occupied, pedCount } | null */
+  /** true/false; null se o trânsito não souber responder (usa a ocupação da faixa inteira). */
+  crosswalkBlockedAt(cid, x, z) { const t = this.t; if (!t || typeof t.crosswalkBlockedAt !== 'function') return null; try { return !!t.crosswalkBlockedAt(cid, x, z); } catch (e) { return null; } }
   crosswalkAhead() { const v = this._call('crosswalkAhead'); return v && typeof v === 'object' ? v : null; }
   provoke(amount, radius) { this._call('provoke', amount, radius); }
   flashLead() { this._call('flashLead'); }
