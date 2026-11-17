@@ -16,7 +16,7 @@
 //   provoke(amount, radius) -> nº de afetados     flashLead() -> { id, kind, persona, reaction:'yield'|'brake'|'ignore', gap } | null
 //   revealAgent(id) -> agente | null              stats() -> diagnóstico (custo do update, contagens, draw calls)
 //   debug.spawn(kindOrPersona, aheadMeters, laneOffset, opts) / debug.clear() / debug.spawnPed(crosswalkId, crossNow) /
-//   debug.setAutoSpawn(bool) / debug.sim (a simulação)
+//   debug.setAutoSpawn(bool) / debug.repopulate() / debug.sim (a simulação)
 // Eventos emitidos: COLLISION (b:'vehicle'|'pedestrian'), OVERTAKEN, CUT_OFF, HONKED_AT, NEAR_MISS, PEDESTRIAN_CROSSING,
 //   HAZARD_HIT, PLAYER_OVERTOOK, TAILGATED, FLASHED (formatos em core/events.js).
 // Escuta EV.HORN (source 'player'): o carro da frente reage (sai da faixa / freia de birra). A irritação geral (provoke)
@@ -113,6 +113,8 @@ const api = {
     clear() { sim.debugClear(); },
     spawnPed(crosswalkId, crossNow = false) { return sim.debugSpawnPed(crosswalkId, crossNow); },
     setAutoSpawn(on) { sim.autoSpawn = !!on; },
+    /** Esvazia e repovoa em volta do jogador (após teleporte). */
+    repopulate() { sim.debugRepopulate(); },
   },
 };
 

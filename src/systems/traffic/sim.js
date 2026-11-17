@@ -1608,6 +1608,11 @@ export class TrafficSim {
     for (const p of this.peds) { p.active = false; p.state = 'gone'; }
     this._rebuildLists();
   }
+  /** Esvazia e repovoa em volta da posição atual do jogador (sem re-sortear radares/frutas). */
+  debugRepopulate() {
+    this.debugClear(); this._readPlayer(); this._updatePlayerPath(); this._fillInitial(); this._rebuildLists();
+    for (const v of this.vehicles) { v.px = v.x; v.pz = v.z; v.ph = v.heading; }
+  }
   debugSpawnPed(crosswalkId, crossNow = false) {
     const p = this._spawnPedAt(crosswalkId); if (!p) return null;
     p.approach = false; p.x = p.tx; p.z = p.tz;
