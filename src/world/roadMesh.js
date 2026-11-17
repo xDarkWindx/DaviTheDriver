@@ -7,11 +7,14 @@ export const ROAD_COLORS = {
   asphalt: 0x505257, asphaltDark: 0x3a3b3f, ringAsphalt: 0x55565b,
   white: 0xf4f4f0, yellow: 0xf0c03a, sidewalk: 0xc9c1b0, median: 0x8e9f55, island: 0x7f9a4c, curb: 0xdedad0,
   underShadow: 0x2c2d31, busLane: 0x8a4a3e, busLine: 0xf0c03a,
+  curbFace: 0xbdb7aa, gutter: 0xb4afa3, verge: 0xa9b46a, shoulder: 0xc3b583, shoulder2: 0xbcb27c, manhole: 0x3b3c3e, manholeRim: 0x77777a,
 };
 
 /** y de cada camada. Camada = viaduto visual (0 chão, 1, 2). */
 export function layerY(layer) { return layer * 0.09; }
 const Y = { sidewalk: 0.03, asphalt: 0.05, median: 0.065, marking: 0.075, zebra: 0.08 };
+/** Altura do meio-fio (calçadas e canteiros elevados das vias urbanas). Só visual: a física é 2D. */
+export const CURB_H = 0.15;
 
 function sub(seg, t0, t1) {
   // sub-polilinha da linha central entre t0 e (L - t1)
@@ -43,8 +46,9 @@ function dashes(mb, line, off, y, color, dash = 3, gap = 6, halfW = 0.08) {
 /**
  * Constrói a malha das vias. `mb` = ChunkedMeshBuilder; `inst` = ChunkedInstancer (para guarda-corpos 3D).
  */
-export function buildRoadMeshes(net, mb, inst, plain = mb) {
+export function buildRoadMeshes(net, mb, inst, plain = mb, walk = plain) {
   const C = ROAD_COLORS;
+  const T = { x: 0, z: 0, tx: 0, tz: 0 };
   for (const seg of net.segments.values()) {
     const ly = layerY(seg.layer);
     const nA = net.getNode(seg.from), nB = net.getNode(seg.to);
@@ -52,30 +56,61 @@ export function buildRoadMeshes(net, mb, inst, plain = mb) {
     const trimmed = sub(seg, nA.radius, nB.radius);
     const isRing = seg.kind === 'ring';
     const asph = isRing ? C.ringAsphalt : C.asphalt;
+    const urban = seg.kind === 'urban' || seg.kind === 'local';
+    const cy = ly + CURB_H;
     // asfalto
     if (!seg.oneWay && seg.median > 0) {
       band(mb, full.pts, seg.median / 2 - 0.01, seg.edgeR, ly + Y.asphalt, asph);
       band(mb, full.pts, seg.edgeL, -seg.median / 2 + 0.01, ly + Y.asphalt, asph);
-      band(plain, trimmed.pts, -seg.median / 2, seg.median / 2, ly + Y.median, seg.median > 4 ? C.median : C.curb);
+      const raised = urban || seg.median <= 4;
+      const my = raised ? cy : ly + Y.median;
+      band(plain, trimmed.pts, -seg.median / 2, seg.median / 2, my, seg.median > 4 ? C.median : C.curb);
+      if (raised) { // canteiro com meio-fio de verdade
+        walk.wallStrip(offsetPolyline(trimmed.pts, seg.median / 2), ly + Y.asphalt, my, C.curb, 1);
+        walk.wallStrip(offsetPolyline(trimmed.pts, -seg.median / 2), ly + Y.asphalt, my, C.curb, -1);
+      }
       if (seg.median > 4) {
-        band(plain, trimmed.pts, -seg.median / 2, -seg.median / 2 + 0.3, ly + Y.median + 0.004, C.curb);
-        band(plain, trimmed.pts, seg.median / 2 - 0.3, seg.median / 2, ly + Y.median + 0.004, C.curb);
+        band(walk, trimmed.pts, -seg.median / 2, -seg.median / 2 + 0.3, my + 0.004, C.curb);
+        band(walk, trimmed.pts, seg.median / 2 - 0.3, seg.median / 2, my + 0.004, C.curb);
       }
     } else {
       band(mb, full.pts, seg.edgeL, seg.edgeR, ly + Y.asphalt, asph);
     }
-    // calçadas
-    if (seg.kind === 'urban' || seg.kind === 'local') {
-      band(plain, trimmed.pts, seg.edgeR, seg.edgeR + 2.6, ly + Y.sidewalk, C.sidewalk);
-      band(plain, trimmed.pts, seg.edgeL - 2.6, seg.edgeL, ly + Y.sidewalk, C.sidewalk);
-    } else if (!isRing) { // acostamento claro estreito
-      band(plain, trimmed.pts, seg.edgeR, seg.edgeR + 0.6, ly + Y.sidewalk, C.curb);
-      band(plain, trimmed.pts, seg.edgeL - 0.6, seg.edgeL, ly + Y.sidewalk, C.curb);
+    // calçadas elevadas (placas de concreto) com meio-fio e sarjeta; vias rápidas: acostamento + transição de terra
+    if (urban) {
+      for (const [e0, e1, inner, outer] of [[seg.edgeR, seg.edgeR + 2.6, -1, 1], [seg.edgeL - 2.6, seg.edgeL, 1, -1]]) {
+        band(walk, trimmed.pts, e0, e1, cy, C.sidewalk);
+        const ein = inner < 0 ? e0 : e1, eout = inner < 0 ? e1 : e0;
+        walk.wallStrip(offsetPolyline(trimmed.pts, ein), ly + Y.asphalt, cy, C.curbFace, inner);   // meio-fio (face da rua)
+        walk.wallStrip(offsetPolyline(trimmed.pts, eout), 0, cy, C.curbFace, outer);              // borda externa
+        band(walk, trimmed.pts, Math.min(ein, ein - inner * 0.16), Math.max(ein, ein - inner * 0.16), cy + 0.003, C.curb); // pedra do meio-fio
+        band(walk, trimmed.pts, Math.min(ein, ein + inner * 0.35), Math.max(ein, ein + inner * 0.35), ly + Y.asphalt + 0.006, C.gutter); // sarjeta
+        band(plain, trimmed.pts, Math.min(eout, eout + outer * 1.6), Math.max(eout, eout + outer * 1.6), 0.012, C.verge); // gramado de transição
+      }
+    } else if (!isRing) { // acostamento claro estreito + faixa de terra/capim que se funde ao cerrado
+      band(walk, trimmed.pts, seg.edgeR, seg.edgeR + 0.6, ly + Y.sidewalk, C.curb);
+      band(walk, trimmed.pts, seg.edgeL - 0.6, seg.edgeL, ly + Y.sidewalk, C.curb);
+      band(plain, trimmed.pts, seg.edgeR + 0.6, seg.edgeR + 2.4, 0.014, C.shoulder);
+      band(plain, trimmed.pts, seg.edgeL - 2.4, seg.edgeL - 0.6, 0.014, C.shoulder);
+      band(plain, trimmed.pts, seg.edgeR + 2.4, seg.edgeR + 4.4, 0.011, C.shoulder2);
+      band(plain, trimmed.pts, seg.edgeL - 4.4, seg.edgeL - 2.4, 0.011, C.shoulder2);
+    }
+    // tampas de bueiro / poços de visita nas vias urbanas
+    if (urban && seg.length > 40) {
+      for (let s0 = 18 + (seg.length % 17); s0 < seg.length - 15; s0 += 47) {
+        samplePts(seg.pts, seg.cum, s0, T);
+        const off = (seg.edgeR - seg.laneW * 0.5) * (Math.floor(s0) % 2 ? 1 : -1) * (seg.oneWay ? 0.5 : 1);
+        mb.disc(T.x - T.tz * off, T.z + T.tx * off, 0.42, ly + Y.marking - 0.004, C.manholeRim, 10);
+        mb.disc(T.x - T.tz * off, T.z + T.tx * off, 0.34, ly + Y.marking - 0.002, C.manhole, 10);
+        // boca de lobo na sarjeta
+        if (!seg.oneWay) { const o2 = seg.edgeR - 0.25; mb.rect(T.x - T.tz * o2, T.z + T.tx * o2, Math.atan2(T.tx, T.tz), 0.5, 0.18, ly + Y.marking - 0.002, C.manhole); }
+      }
     }
     // marcações
     const my = ly + Y.marking;
-    band(mb, trimmed.pts, seg.edgeR - 0.35, seg.edgeR - 0.2, my, C.white);
-    band(mb, trimmed.pts, seg.edgeL + 0.2, seg.edgeL + 0.35, my, C.white);
+    const ei = urban ? 0.55 : 0.2;
+    band(mb, trimmed.pts, seg.edgeR - ei - 0.15, seg.edgeR - ei, my, C.white);
+    band(mb, trimmed.pts, seg.edgeL + ei, seg.edgeL + ei + 0.15, my, C.white);
     if (!seg.oneWay) {
       if (seg.median > 0) {
         band(mb, trimmed.pts, seg.median / 2 + 0.2, seg.median / 2 + 0.35, my, C.yellow);
@@ -113,12 +148,15 @@ export function buildRoadMeshes(net, mb, inst, plain = mb) {
   }
   // rotatórias: ilha central
   for (const r of net.roundabouts) {
-    plain.disc(r.x, r.z, r.islandRadius, Y.median + 0.01, C.island, 36);
-    plain.ring(r.x, r.z, r.islandRadius - 0.2, r.islandRadius + 0.4, Y.median + 0.012, C.curb, 48);
+    plain.disc(r.x, r.z, r.islandRadius, CURB_H, C.island, 36);
+    walk.ring(r.x, r.z, r.islandRadius - 0.3, r.islandRadius, CURB_H + 0.003, C.curb, 48);
+    for (let i = 0; i < 48; i++) {
+      const a0 = (i / 48) * Math.PI * 2, a1 = ((i + 1) / 48) * Math.PI * 2, rr = r.islandRadius, am = (a0 + a1) / 2;
+      walk.wall(r.x + Math.cos(a0) * rr, r.z + Math.sin(a0) * rr, r.x + Math.cos(a1) * rr, r.z + Math.sin(a1) * rr, Y.asphalt, CURB_H, C.curbFace, Math.cos(am), Math.sin(am));
+    }
   }
 
   // linhas de retenção nos semáforos
-  const T = { x: 0, z: 0, tx: 0, tz: 0 };
   for (const sig of net.signals) {
     for (const ap of sig.approaches) {
       for (const id of ap.laneIds) {

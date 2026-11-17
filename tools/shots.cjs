@@ -23,6 +23,10 @@ const VIEWS = [
   ['scs-s3', -250, 230, 110],
   ['stj', 650, 280, 160],
   ['eixo-close', -600, 40, 60],
+  ['marco-torre-tv', -330, -10, 130],
+  ['marco-catedral', 300, 100, 110],
+  ['marco-esplanada-congresso', 700, 20, 380],
+  ['marco-estadio', -620, -240, 260],
 ];
 
 (async () => {
@@ -45,12 +49,19 @@ const VIEWS = [
   const info = () => page.evaluate(() => { const r = window.__davi.view.renderer.info.render; return { calls: r.calls, tris: r.triangles }; });
   for (const [name, x, z, view] of VIEWS) {
     if (FILTER && !name.includes(FILTER)) continue;
-    await page.evaluate(([x, z, v]) => { const c = window.__davi; c.cameraRig.lookAt(x, z, v); }, [x, z, view]);
+    await page.evaluate(([x, z, v]) => {
+      const c = window.__davi, cr = c.cameraRig;
+      if (!cr._d0) cr._d0 = cr.cfg.distance;
+      // vistas gerais: afasta a câmera e estica o far para não cortar o mapa (só nesta ferramenta)
+      cr.cfg.distance = v > 400 ? 4000 : cr._d0; cr.camera.far = v > 400 ? 9000 : cr._d0 + 900; cr.camera.updateProjectionMatrix();
+      cr.lookAt(x, z, v);
+    }, [x, z, view]);
     await render(1);
     const i = await info();
     save(name);
     console.log(name.padEnd(20), JSON.stringify(i));
   }
+  await page.evaluate(() => { const cr = window.__davi.cameraRig; if (cr._d0) { cr.cfg.distance = cr._d0; cr.camera.far = cr._d0 + 900; cr.camera.updateProjectionMatrix(); } });
   // carros do jogador e modelos de tráfego (vitrine num estacionamento improvisado)
   if (!FILTER || 'carros'.includes(FILTER) || FILTER === 'carros') {
     const ok = '';

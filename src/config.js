@@ -55,6 +55,8 @@ export const QUALITY = {
     maxTrafficVehicles: 40,      // -  teto p/ systems/traffic.js
     maxPedestrians: 24,          // -  teto p/ systems/traffic.js
     maxParticles: 300,           // -  teto p/ systems/fx.js
+    fxSkidMax: 160,              // -  pool de marcas de pneu (quads instanciados) — systems/fx.js
+    fxGrain: true,               // -  granulação do filtro retrô (div com ruído; sem custo de shader) — systems/fx.js
     postprocess: null,           // R  gancho: null | (ctx) => { render(dt) } — vazio no leve
     // Ajuste automático (render/renderer.js): mede o FPS e, abaixo de minFps, desce um degrau:
     //   1 sem sombra projetada (volta a sombra blob) → 2 resolução reduzida → 3 cenário reduzido/visão mais curta.

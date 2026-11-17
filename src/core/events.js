@@ -28,11 +28,11 @@ export const EV = {
 
   // --- previstos, emitidos por OUTROS módulos (contrato) ---
   FINE: 'rules:fine',                // rules.js  { code, label, amount, points, x, z }
-  NEAR_MISS: 'traffic:nearMiss',     // traffic.js { otherId, dist, kmh }
-  OVERTAKEN: 'traffic:overtaken',    // traffic.js { otherId }  (Davi foi ultrapassado)
-  CUT_OFF: 'traffic:cutOff',         // traffic.js { otherId }  (Davi foi "fechado")
-  HONKED_AT: 'traffic:honkedAt',     // traffic.js { otherId }  (alguém buzinou p/ Davi)
-  PEDESTRIAN_CROSSING: 'traffic:pedCrossing', // traffic.js { crosswalkId, on: bool }
+  NEAR_MISS: 'traffic:nearMiss',     // traffic.js { id, otherId, kind, b:'vehicle'|'pedestrian'|'cyclist', dist (m de folga), relKmh, x, z }
+  OVERTAKEN: 'traffic:overtaken',    // traffic.js { id, otherId, kind, persona, side:'left'|'right', relKmh }  (Davi foi ultrapassado; side = lado por onde passou)
+  CUT_OFF: 'traffic:cutOff',         // traffic.js { id, otherId, kind, persona, gap, ring }  (Davi foi "fechado"; ring = entrada/dentro de rotatória)
+  HONKED_AT: 'traffic:honkedAt',     // traffic.js { id, otherId, kind, persona, x, z }  (alguém buzinou p/ Davi)
+  PEDESTRIAN_CROSSING: 'traffic:pedCrossing', // traffic.js { crosswalkId, x, z, dist, on: true, pedCount, signalized } (1x por travessia, faixa à frente do jogador)
   MOOD_CHANGE: 'mood:change',        // mood.js { who:'davi'|'driver', anxiety, stress }
   MOOD_PEAK: 'mood:peak',            // mood.js { who, bar:'anxiety'|'stress', value }
   PASSENGER_SAY: 'mood:passengerSay',// mood.js/carona { text, intensity }  (Davi palpitando)
@@ -41,6 +41,12 @@ export const EV = {
   // --- acrescentados pela fase de UI ---
   SETTINGS_CHANGE: 'ui:settings',    // ui { volume, muted, retro, quality }  (cópia de state.settings; a UI é a ÚNICA que escreve)
   SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s), gesture?: 'bracoPraFora'|'buzinaImaginaria'|'maosNaCabeca'|'apontando'|'joinha'|'banana'|null }  -> balão de fala (text vazio + gesture = balão só com o ícone)
+
+  // --- acrescentados pelo trânsito (traffic.js). Todos os payloads de traffic trazem `id` (= `otherId`) e `kind` (modelo) quando há outro veículo/pessoa.
+  HAZARD_HIT: 'traffic:hazardHit',   // traffic.js { id, kind:'manga'|'jaca', x, z, speedKmh, wheel }  (jogador passou por cima; o escorregão é de humor/regras)
+  PLAYER_OVERTOOK: 'traffic:playerOvertook', // traffic.js { id, otherId, kind, persona, relKmh, side:'left'|'right' }  ('right' = jogador passou pela DIREITA)
+  TAILGATED: 'traffic:tailgated',    // traffic.js { id, otherId, kind, persona, gap }  (alguém colado na traseira do jogador por ~2,5 s)
+  FLASHED: 'traffic:flashed',        // traffic.js { id, otherId, kind, persona }  (piscaram farol para o jogador)
 
   // --- acrescentados pela fase de regras/humor (rules.js / mood.js) ---
   FLASH: 'player:flash',             // núcleo (input, tecla F) { source: 'player' }  piscar o farol

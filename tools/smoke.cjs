@@ -35,6 +35,8 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   const hold = async (keys, ms) => { for (const k of keys) await page.keyboard.down(k); await page.waitForTimeout(ms); for (const k of keys) await page.keyboard.up(k); };
 
   const results = [];
+  // Limiares abaixo do que só a parte simulada garante (Kwid 3,5 s ≈ 25 m; Cactus 2,5 s ≈ 14 m, ~42 km/h): o laço em tempo
+  // real que roda entre as chamadas só pode SOMAR distância, então o resultado não depende do FPS do headless.
   // Simulação DETERMINÍSTICA: as teclas ficam pressionadas (caminho real do teclado) enquanto o jogo avança
   // um número fixo de passos de 1/60 s (game.advance), independentemente do FPS do headless.
   const driveSim = async (keys, seconds) => {
@@ -48,14 +50,11 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   await page.click('#ui-start');
   await page.waitForFunction(() => window.__davi.state.mode === 'PLAYING', null, { timeout: 10000 });
   const a = await info();
-  await driveSim(['KeyW'], 2.5);
-  await driveSim(['KeyW', 'KeyA'], 0.25);
-  await driveSim(['KeyW'], 1.2);
-  await page.waitForTimeout(300);
+  await driveSim(['KeyW'], 3.5);
   const b = await info();
   await page.screenshot({ path: path.join(OUT, '02-davi-kwid.png') });
   const moved = Math.hypot(b.x - a.x, b.z - a.z);
-  results.push({ mode: 'davi', moved, kmh: b.kmh, vehicle: b.vehicle, road: b.road, ok: moved > 15 && b.kmh > 20 && b.vehicle === 'kwid' });
+  results.push({ mode: 'davi', moved, kmh: b.kmh, vehicle: b.vehicle, road: b.road, ok: moved > 12 && b.kmh > 20 && b.vehicle === 'kwid' });
   console.log('davi:', JSON.stringify({ moved: moved.toFixed(1), kmh: b.kmh.toFixed(0), road: b.road, mode: b.mode, calls: b.calls, tris: b.tris }));
   // eventos de ação (H/R/X) chegam ao barramento (viagem nova: só valem em PLAYING)
   await page.evaluate(() => {
@@ -74,22 +73,20 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   await page.waitForFunction(() => window.__davi.state.mode === 'PLAYING' && window.__davi.state.trip.vehicleId === 'cactus', null, { timeout: 10000 });
   const c1 = await info();
   await driveSim(['KeyW'], 2.5);
-  await page.waitForTimeout(300);
   const c2 = await info();
   await page.screenshot({ path: path.join(OUT, '03-carona-cactus-tarde.png') });
   const movedC = Math.hypot(c2.x - c1.x, c2.z - c1.z);
-  results.push({ mode: 'carona', moved: movedC, kmh: c2.kmh, vehicle: c2.vehicle, ok: movedC > 15 && c2.kmh > 20 && c2.vehicle === 'cactus' && c2.driver === 'dono' && c2.passenger === 'davi' });
+  results.push({ mode: 'carona', moved: movedC, kmh: c2.kmh, vehicle: c2.vehicle, ok: movedC > 9 && c2.kmh > 25 && c2.vehicle === 'cactus' && c2.driver === 'dono' && c2.passenger === 'davi' });
   console.log('carona:', JSON.stringify({ moved: movedC.toFixed(1), kmh: c2.kmh.toFixed(0), driver: c2.driver, passenger: c2.passenger }));
 
   // 3) Modo perigo (Davi no Cactus) Casa -> STJ
   await page.evaluate(() => window.__davi.game.startTrip('casa-stj', 'perigo'));
   const p1 = await info();
   await driveSim(['ArrowUp'], 2.5);
-  await page.waitForTimeout(300);
   const p2 = await info();
   await page.screenshot({ path: path.join(OUT, '04-perigo-cactus.png') });
   const movedP = Math.hypot(p2.x - p1.x, p2.z - p1.z);
-  results.push({ mode: 'perigo', moved: movedP, kmh: p2.kmh, vehicle: p2.vehicle, ok: movedP > 15 && p2.kmh > 20 && p2.vehicle === 'cactus' && p2.driver === 'davi' && p2.passenger === 'dono' });
+  results.push({ mode: 'perigo', moved: movedP, kmh: p2.kmh, vehicle: p2.vehicle, ok: movedP > 9 && p2.kmh > 25 && p2.vehicle === 'cactus' && p2.driver === 'davi' && p2.passenger === 'dono' });
   console.log('perigo:', JSON.stringify({ moved: movedP.toFixed(1), kmh: p2.kmh.toFixed(0), driver: p2.driver, passenger: p2.passenger }));
 
   // 3a) Seta do GPS na largada aponta para a frente (nas 2 viagens)
@@ -143,6 +140,13 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   console.log('rota automática:', JSON.stringify(auto));
   results.push({ mode: 'auto-chegada', ok: auto.mode === 'FINISHED' && auto.reason === 'chegou' });
 
+  // 4b) ajuste automático de qualidade: no SwiftShader (~10 FPS) ele DEVE ter descido degraus sozinho.
+  const aq = await page.evaluate(() => { const a = window.__davi.view.autoQuality; return { step: a.step, label: a.label, fps: +a.fps.toFixed(1), history: a.history, mirror: window.__davi.state.qualityAuto || null }; });
+  console.log('ajuste automático:', JSON.stringify(aq));
+  results.push({ mode: 'auto-qualidade-desceu', ok: aq.step >= 1 && aq.history.length >= 1 });
+  // para medir o custo do perfil completo: trava no degrau 0 (sombra ligada)
+  await page.evaluate(() => { const a = window.__davi.view.autoQuality; a.enabled = false; a.set(0); });
+
   // 5) cena típica parada no Eixo Monumental (métricas de render)
   await page.evaluate(() => { const c = window.__davi; c.game.startTrip('casa-stj', 'davi'); const p = c.player.phys; p.x = -300; p.z = 40; p.heading = Math.PI / 2; c.cameraRig.snap(-300, 40); });
   await hold(['KeyW'], 1500);
@@ -155,10 +159,10 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   await page.screenshot({ path: path.join(OUT, '06-esplanada.png') });
   console.log('cena Esplanada:', JSON.stringify({ calls: f.calls, tris: f.tris }));
   // pior caso: zoom máximo no centro
-  await page.evaluate(() => { const c = window.__davi; c.cameraRig.zoomMul = 1.7; });
+  await page.evaluate(() => { const c = window.__davi; c.cameraRig.zoomMul = 44 / 23; });
   await page.waitForTimeout(400);
   const g = await info();
-  console.log('zoom 1.7x:', JSON.stringify({ calls: g.calls, tris: g.tris }));
+  console.log('zoom máximo (vista de 44 m, como em alta velocidade):', JSON.stringify({ calls: g.calls, tris: g.tris }));
   await page.screenshot({ path: path.join(OUT, '07-zoom-aberto.png') });
   await page.evaluate(() => { window.__davi.cameraRig.zoomMul = 1; window.__davi.game.toMenu(); });
   await page.waitForTimeout(400);

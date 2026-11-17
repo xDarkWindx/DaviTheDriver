@@ -14,7 +14,7 @@ Abra `index.html` com duplo clique (funciona em `file://`) ou sirva a pasta com 
 | S / ↓ | frear / ré |
 | A D / ← → | direção |
 | Espaço | freio de mão |
-| H | buzinar · R respirar fundo · X xingar (só eventos; efeitos vêm depois) |
+| H | buzinar · R respirar fundo · X xingar · F piscar o farol (cada uma com recarga; ver *Regras e humor*) |
 | P / Esc | pausa |
 
 **Modos:** `davi` (Davi no Kwid), `carona` (você dirige seu C4 Cactus THP, Davi de passageiro),
@@ -31,8 +31,10 @@ npm install          # esbuild + three (devDependencies; three é empacotado no 
 npm run build        # src/ -> dist/game.js (IIFE único, minificado). dist/ ENTRA no git.
 npm run watch        # rebuild contínuo (não minificado, sourcemap inline)
 npm test             # testes da malha viária em Node puro (tools/test-roads.js)
+node --test 'src/systems/{mood,rules}/__tests__/*.test.js'   # testes de humor/regras/pontuação (Node puro, trânsito falso)
 npm run smoke        # Playwright: abre via file://, joga os 3 modos, mede draw calls, screenshots em .shots/
-node tools/smoke.cjs /tmp/minha-pasta   # idem, salvando screenshots em outra pasta
+node tools/smoke.cjs /tmp/minha-pasta   # idem, salvando screenshots em outra pasta (verificações por passos de simulação, não relógio)
+node tools/shots.cjs /tmp/pasta [filtro] # vistas de inspeção (mapa, bairros, marcos, carros, tráfego) + draw calls/triângulos
 node tools/tune-cars.js                 # mede 0-100, retomada, final e frenagem de cada carro
 ```
 
@@ -66,27 +68,30 @@ src/render/renderer.js   WebGLRenderer, luzes, TIME_OF_DAY (manha/tarde)
 src/render/cameraRig.js  câmera isométrica ortográfica
 src/render/instancer.js  ChunkedInstancer / ChunkedMeshBuilder (culling por chunk)
 src/render/geo.js        GeoBuilder (mescla primitivas com cor por vértice)
-src/render/textures.js   texturas em canvas (chão, asfalto, atlas de placas, blob)
-src/render/materials.js  makeMaterial(quality, params)
+src/render/renderer.js   (+ shadow map que acompanha a câmera e ajuste automático de qualidade: view.autoQuality)
+src/render/textures.js   texturas em canvas (chão, asfalto, calçada, grama, fachadas, atlas de placas + placas de trânsito, blob)
+src/render/materials.js  makeMaterial(quality, params), makeMaskedMaterial (cor da instância só onde paint=1), makeFacadeMaterial, LIVE_SHADOW
 src/world/mapData.js     O MAPA COMO DADOS (nós, vias, balões, semáforos, faixas, ônibus, fiscalização...)
 src/world/roadNetwork.js RoadNetwork (grafo de faixas + consultas) e LaneWalker — sem three.js
 src/world/roadMesh.js    malha das vias
 src/world/signals.js     SignalController (ciclo + visual)
-src/world/scenery.js     cenário procedural (prédios, ipês, cerrado, postes, guard-rails)
+src/world/scenery.js     cenário procedural (prédios com fachada, árvores por espécie, postes, bancos, lixeiras, guard-rails)
+src/world/props.js       geometrias instanciadas: ipê, mangueira, jaqueira, palmeira, cerrado, arbusto, poste, banco, lixeira, abrigo
 src/world/landmarks.js   marcos (Torre de TV, Estádio, Catedral, Congresso, STJ, Memorial JK...)
 src/world/world.js       monta o mundo; colisores; placas; getMinimapData()
 src/player/physics.js    física arcade pura (stepVehicle, engineAccel, defaultMods)
-src/player/vehicleModels.js  modelos Kwid e Cactus (MODELS, buildVehicleModel, buildBodyGeometry)
+src/player/vehicleModels.js  modelos Kwid e Cactus + modelos de TRÁFEGO e PESSOAS instanciáveis (ver "Modelos")
 src/player/player.js     Player (física + colisão estática + state.player)
 src/game/trip.js         viagem: largada, cronômetro, GPS, seta, chegada
 src/systems/traffic.js   STUB  trânsito (IA + pedestres)
-src/systems/rules.js     STUB  multas/colisões (tem 1 regra provisória: batida forte => 'bateu')
-src/systems/mood.js      STUB  ansiedade/estresse
+src/systems/rules.js     multas, colisões, pontuação e state.result (lógica pura em systems/rules/: fines, score, result, balance)
+src/systems/mood.js      ansiedade/estresse, efeitos no volante, ações, falas (lógica pura em systems/mood/: model, lines, balance)
+src/systems/rules/traffic-adapter.js  adaptador defensivo p/ ctx.modules.traffic (valores neutros se faltar algo)
 src/systems/fx.js        STUB  efeitos visuais
 src/systems/audio.js     STUB  áudio
 src/ui/ui.js             UI: menu, HUD, pausa, fim, recordes, toque (módulos auxiliares em src/ui/*; CSS em index.html)
 assets/                  arquivos do usuário (ex.: davi.png, a foto do menu)
-tools/                   smoke.cjs, test-roads.js, tune-cars.js
+tools/                   smoke.cjs, shots.cjs, test-roads.js, tune-cars.js
 ```
 
 ### Contrato de módulo
@@ -146,7 +151,7 @@ inteiro mantendo `name: 'ui'`: ela só lê `ctx.state`, escuta eventos e emite `
   score: { points, multiplier, inZone, zoneLo, zoneHi },           // dono: rules/mood; barras 0..100; zoneHi<=zoneLo = sem zona
   settings: { volume 0..1, muted, retro, quality },                // dono: UI (persiste em localStorage); áudio/fx só LEEM
   result: null | { reason, time, points, grade, title, fines[], crash{...,sinistroNo?}, yearsLost },  // dono: rules; preencher ANTES de REQ_FINISH
-  actions?: { horn, breathe, curse }  // opcional, cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
+  actions?: { horn, breathe, curse, flash }  // dono: mood.js; cada { cooldown (s restantes), max (s) }; a UI desenha o recarregamento se existir
   time: { sim, real, frame },
 }
 ```
@@ -171,6 +176,10 @@ carona → driver=dono, passenger=davi; perigo → driver=davi, passenger=dono. 
 | `MOOD_CHANGE`, `MOOD_PEAK`, `PASSENGER_SAY` | mood | `{ who, ... }` / `{ text, intensity }` |
 | `CAMERA_SHAKE` | qualquer um | `{ amount, duration }` (o núcleo aplica no `cameraRig`) |
 | `SETTINGS_CHANGE` | **ui** (única que escreve `state.settings`) | `{ volume, muted, retro, quality }` — emitido no boot e a cada mudança |
+| `FLASH` | núcleo (input, tecla F, só em PLAYING) | `{ source: 'player' }` |
+| `SIGNAL_RUN` | rules | `{ signalId, group, state:'red'\|'yellow', x, z, seen }` (passou do semáforo; multa só se `seen`) |
+| `TAKEOVER` | mood (perigo) | `{ who:'dono' }` → rules encerra com `'tomouOCarro'` |
+| `FLASHED`, `TAILGATED`, `HAZARD_HIT`, `PLAYER_OVERTOOK` | traffic | ver contrato do trânsito (declarados em events.js se ainda não existirem) |
 | `SAY` | mood/traffic/rules | `{ who:'davi'\|'dono', role:'driver'\|'passenger', text, tone:'anx'\|'stress'\|'calm'\|'panic', ttl (s) }` → balão de fala (`PASSENGER_SAY` também vira balão do passageiro) |
 
 ### Malha viária (`ctx.net`, `src/world/roadNetwork.js`)
@@ -202,8 +211,48 @@ Consultas (nenhuma aloca se você passar `out`):
 | `routeLength(route, fromS, toS)` · `siblingLanes(lane)` · `laneForZone(zoneId)` · `snapStart(pose)` | — |
 | `isGradeSeparated(segA, segB)` | veículos nesses segmentos não colidem no cruzamento em desnível |
 | `createWalker(laneId, s, rng)` | `LaneWalker`: `advance(ds)`, `x, z, heading, lane, s, ended, remaining`, `route`, `chooser(lane, nextIds, rng)`, `peekNext()` |
+| `planRouteVia(fromLaneId, fromS, viaSegIds[], toLane(s), outArr?)` | rota forçada por waypoints (ex.: `net.routeCorridors.parque['stj-casa']`) |
+| `routeNames(route)` | nomes das vias da rota, sem repetição (para HUD/relatórios) |
 
 Funções puras exportadas: `samplePts`, `offsetPolyline`, `smoothPolyline`. Teste: `npm test`.
+
+**Dados para trânsito/perigos (fase 2):**
+- `net.fruitSpots[]` — candidatos a **fruta no asfalto** ao longo da Av. das Jaqueiras:
+  `{ id, segId, dir, s, x, z, heading, fruit: 'manga'|'jaca', treeX, treeZ, lanes: [{ laneId, s, x, z }] }` (`lanes[0]` = faixa da
+  direita, rente à árvore). Quem sorteia/ativa e o efeito é do trânsito/regras.
+- `net.avenueTreeSlots[]` — `{ segId, s, side, x, z, kind }`: onde o cenário plantou as mangueiras/jaqueiras SÓLIDAS (colisor `tree`)
+  rente ao meio-fio (definido em `MAP.avenueTrees`).
+- `net.routeCorridors` — `{ eixo: { label, 'casa-stj': [segIds], 'stj-casa': [...] }, parque: {...} }` (as 2 rotas × 2 sentidos).
+- Trechos para mecânicas: retas livres no Eixo (Via S1/N1, 70 km/h, pardais), faixa ÚNICA sem ultrapassagem no anel do Parque
+  (`parque`, 1+1 faixas), rotatórias com fluxo (Cruzeiro, Três Poderes, Quarta/Terceira/Segunda Avenida, EPIG), semáforos com faixa
+  de pedestre na Via S3/SCS/SAUS, faixas de ônibus ao lado de faixa normal (Eixo Via S1, `s3_mid`, `s3_scs`).
+
+**Topologia (pós fase 2a).** O Sudoeste só se liga ao resto da cidade pela Av. das Jaqueiras (e a Primeira Avenida, que vai ao
+Balão da EPIG); EQRSW e Comércio Local são sem saída (senão o GPS cortava caminho). Rotas que o GPS devolve:
+- Casa → STJ (Eixo): QRSW 2 › Av. das Jaqueiras › Praça do Cruzeiro › Eixo (Via S1) › descida da Rodoviária (Via S2) › Via S2 › L2 Sul › Via S3 (SAFS — STJ).
+- STJ → Casa (Eixo): Via S3 (SAFS) › L2 Sul › Via S2 › Alça Via S2 → Eixo (Rodoviária) › Eixo (Via N1) › Praça do Cruzeiro › Av. das Jaqueiras › QRSW 2.
+- Parque (forçada com `planRouteVia`): QRSW 2 › Jaqueiras › Primeira Avenida › Balão da EPIG › anel do Parque › Via S3 (SCS, SAUS, SAFS), e o inverso.
+Trevo Eixo × Eixão: `alca_eixao` (Eixo → Eixão Sul) e `alca_rodo` (Via S2 → Eixo/Via N1, em desnível sob a Via S1).
+Ids que mudaram na fase 2a: `eixo_s1_c` foi dividido em `eixo_s1_c0` (W3 → saída do Eixão) + `eixo_s1_c` (→ Rodoviária);
+`eixo_n1` em `eixo_n1_e` + `eixo_n1`; `eixao_n` em `eixao_n` + `eixao_n2`; `s2_a` em `s2_alca` + `s2_a`; `qrsw2` em `qrsw2` + `qrsw2_e`;
+`jaq_s` em `jaq_s` + `jaq_s2`; `terceira_e` agora é interna (não chega mais à EPIG). Novas: `segunda_w/e`, `quarta_av_s`, `terceira_m`,
+`rua_q1`, `rua_q34`, `rua_q56`, `clsw`.
+
+### Modelos (`src/player/vehicleModels.js`)
+Tudo procedural, cor por vértice + atributo `paint` (1 = lataria/camisa: recebe a cor da instância; 0 = vidro, pneu, luzes).
+- **Jogador:** `buildVehicleModel(VEHICLES[id], quality, blobTexture)` → `{ root, body, wheels (InstancedMesh 4), wheelSlots, brake, reverse,
+  shadow, wheelR, triangles }`. Carroceria "lofted" (capô, para-brisa, colunas, teto, caixas de roda recortadas), vidros em malha
+  própria (Phong com brilho), rodas pneu+aro que giram/esterçam (player.js), luz de freio (`brake.visible`) e de ré (acende sozinha
+  quando o carro anda para trás). Kwid ≈ 2,7 mil tri, Cactus ≈ 3,0 mil tri (com as 4 rodas).
+- **Tráfego:** `buildTrafficModel(kind)` com `kind` ∈ `sedan, hatch, suv, picape, autoescola, onibus, mudanca, moto` →
+  `{ geometry (rodas fixas embutidas), bodyGeometry (sem rodas), wheelGeometry, wheelSlots, wheelR, length, width, height,
+  obb: { hx, hz }, massKg, colors[], triangles }` (moto 600, carros 870–970, ônibus 1.080 tri). Uso:
+  `const m = buildTrafficModel('sedan'); const im = new THREE.InstancedMesh(m.geometry, makeVehicleMaterial(), N); im.setColorAt(i, cor)`.
+  Modelos olham para +Z (rotation.y = heading), base em y = 0; colisão = OBB `length × width`. `TRAFFIC_MODELS[kind]` traz as dimensões.
+- **Pessoas:** `buildPersonModel('pedestre'|'agente', variante)` → `{ geometry, radius, height, shirts[], triangles }` (170–250 tri).
+  Pedestre: a cor da instância pinta a camisa. Agente de trânsito: colete verde-limão com faixas refletivas e boné (cores fixas).
+- `makeVehicleMaterial()` (Phong + máscara de pintura) serve para carros, motos e pessoas instanciados (1 draw call por tipo).
+- Vitrine para conferir: `ctx.world.debugShowcase(x, z)` (usada por `tools/shots.cjs`).
 
 ### Semáforos (`ctx.signals`)
 `getState(signalId, group)` → `'green'|'yellow'|'red'`; `stateForLane(lane)`; `timeToChange(signalId)`;
@@ -243,11 +292,13 @@ Posição/rumo do jogador em `state.player`, destino em `state.trip.destX/Z`, ro
 | `antialias` | MSAA do contexto | **recriar renderer** |
 | `postprocess` | gancho de pós-processamento (`null` no leve) | **recriar renderer** |
 | `materialKind` | `lambert`/`basic`/`standard`(TODO) | **reconstruir mundo** |
-| `shadows` | `none`/`blob`/`shadowmap`(TODO) | **reconstruir mundo** |
+| `shadows` | `none`/`blob`/`shadowmap` (leve = `shadowmap`; o ajuste automático pode cair para blob em tempo real) | **reconstruir mundo** |
+| `shadowMapSize`, `shadowRange` | lado do shadow map (1024) / meia-largura do frustum que segue a câmera (m) | **recriar renderer** |
+| `autoQuality` | `{ enabled, minFps, warmupSec, windowSec, upFps, upHoldSec }` — ver "Ajuste automático" | tempo real |
 | `textureSize`, `anisotropy`, `signTextureWidth` | resolução das texturas de canvas | **reconstruir mundo** |
 | `chunkSize` | chunk de culling | **reconstruir mundo** |
-| `density.{trees,scrub,lamps,buildings,guardrails}` | densidade do cenário | **reconstruir mundo** |
-| `vehicleLOD`, `landmarkLOD` | detalhe (só `low` existe; TODO) | **reconstruir mundo** |
+| `density.{trees,scrub,lamps,buildings,guardrails,furniture}` | densidade do cenário | **reconstruir mundo** |
+| `vehicleLOD`, `landmarkLOD` | `high` no leve (informativo; os modelos atuais são os "high") | **reconstruir mundo** |
 | `cameraFar`, `viewMul` | distância de visão / abertura do zoom | recriar `CameraRig` / tempo real |
 | `maxTrafficVehicles`, `maxPedestrians`, `maxParticles` | tetos para traffic/fx | tempo real (respeitados pelos módulos) |
 | `fxSkidMax` | pool de marcas de pneu (fx.js) | ao (re)criar o módulo |
@@ -256,8 +307,47 @@ Posição/rumo do jogador em `state.player`, destino em `state.trip.destX/Z`, ro
 Hoje a troca de perfil é por `?q=` na URL (recarrega tudo). `hd` está declarado com `implemented: false`.
 
 ### Orçamento de performance (perfil leve)
-Sem sombras dinâmicas (sombra "blob" instanciada), sem pós-processamento, Lambert, InstancedMesh por chunk,
-pixelRatio ≤ 1,5, sem alocação por passo no caminho quente. Cena típica: ~35–45 draw calls, ~60–90 mil triângulos.
+Alvo: Intel UHD 770 a 1080p — até ~350 mil triângulos e ~120 draw calls na câmera de jogo (contando a passada de sombra).
+Um shadow map direcional 1024 (PCF) com frustum de ±48 m que segue o ponto focado; só objetos perto projetam. Sem pós-processamento,
+Lambert (cenário) / Phong (carros), InstancedMesh por chunk de 200 m, pixelRatio ≤ 1,5, sem alocação por passo no caminho quente.
+Medido (SwiftShader, 1280×720, câmera de jogo): ~55–105 draw calls, ~130–270 mil triângulos (ver relatório da fase 2a).
+
+**Ajuste automático** (`ctx.view.autoQuality`, em `render/renderer.js`): mede o FPS depois de `warmupSec`; média de `windowSec` abaixo
+de `minFps` (50) desce um degrau: `0 completo → 1 sem sombra projetada (sombras blob) → 2 resolução reduzida (pixelRatio × 0,75)
+→ 3 cenário reduzido (some capim/arbustos/bancos e a visão encurta 30%)`. Sobe um degrau só após `upHoldSec` acima de `upFps` e
+nunca para um degrau do qual já caiu 2 vezes (histerese). Estado público: `view.autoQuality.{step,label,fps,history}`, espelhado em
+`state.qualityAuto = { step, label, fps }` quando muda (para a UI). `view.autoQuality.set(n)` força um degrau.
+
+## Regras e humor (`src/systems/rules.js`, `src/systems/mood.js`)
+
+Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALANCE`)** e **`systems/rules/balance.js` (`RULES_BALANCE`)**
+(também em `ctx.modules.mood.balance` / `ctx.modules.rules.balance`). Lógica pura e testada: `mood/model.js`, `mood/lines.js`,
+`rules/fines.js`, `rules/score.js`, `rules/result.js`. Toda consulta ao trânsito passa por `rules/traffic-adapter.js` (roda com o stub).
+
+- **Humor:** ansiedade do Davi sobe com pista livre e ele devagar, *atrás de carro lento* (gatilho mais forte; cresce com o tempo e a
+  proximidade), vermelho, pedestre na faixa, abaixo do limite, cronômetro, faixa de ônibus vazia ao lado; desce correndo com pista
+  livre, ultrapassando (`PLAYER_OVERTOOK`) e respirando. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
+  rotatória —, buzina, farol, cola, fina, multa, fruta, raspão) e desce com calma. Pisos: Davi 15 (12 de carona), dono 0 ao volante.
+- **Volante (`player.mods`, só quando o Davi dirige):** ansiedade → `throttleBias` (só andando e sem freio), `steerNoise`, puxão para
+  a esquerda colado num lento (aplicado em `player.phys.steer`, pois `mods` não tem viés de direção); estresse → `steerGain`,
+  `steerDelay`, `brakeMul`, buzina/xingamento automáticos. Fruta (`HAZARD_HIT`): `gripMul`/ruído por ~1 s e um empurrão de rumo.
+- **Ações:** H buzina (−estresse, provoca), R respira (−ansiedade em 2,5 s, tira o pé), X xinga (−20 na hora, +26 de rebote depois,
+  provoca), F pisca o farol (`traffic.flashLead`). No modo carona as ações agem no Davi passageiro.
+- **Carona:** Davi palpita a cada 2,5–5 s (às vezes só gesto, às vezes se contradiz), surta acima de 90 de estresse (xinga pela janela
+  → `traffic.provoke`; rotatória = surto imediato); só os surtos/palpites sobem as barras do dono. **Perigo:** susto/pânico do dono
+  (velocidade, cola, freada, curva, turbo, fina, raspão, sinal furado, fruta); reclamação sobe o estresse do Davi; as duas barras do
+  dono ≥ 97 por 3 s → `'tomouOCarro'`.
+- **Falas:** `EV.SAY` com `gesture` opcional; banco em `mood/lines.js`, cada fala com variante com palavrão e leve
+  (`state.settings.profanity === false` usa a leve); sem repetir em sequência e com intervalo mínimo por personagem/banco.
+- **Multas:** pardal (`speed`, 3 faixas, tolerância 7 km/h/7 %), vermelho (radar `redLight` ou agente vendo a linha de retenção),
+  faixa de pedestre ocupada (sempre), faixa de ônibus (≥ 3 s e só se radar `busLane` ou agente viu; `traffic.revealAgent`). Agentes
+  também multam excesso > 20 % no campo de visão. Sem repetir mesmo código a < 150 m em 15 s. Sem `traffic.radars`, usa os radares
+  declarados no mapa (`net.enforcementSpots` com `s`).
+- **Colisão:** pedestre encerra sempre; ≥ `CONFIG.crashImpactKmh` encerra (`'bateu'`); abaixo disso é raspão (−pontos, +estresse/pânico).
+- **Pontos:** zona de equilíbrio nas barras do Davi (20–55; carona: dono 0–12 e Davi ≤ 60) → 10 pt/s × multiplicador (sobe 0,12/s até
+  4/3/6; base 1/1/1,5); estourar o teto corta o multiplicador pela metade. Fim: bônus de tempo (par = distância/45 km/h), −(pontos CNH×100
+  + R$) por multa, batida mantém 35 %. `state.result.crash = { withWhat, excuse (causa impessoal), repairCost (só Cactus), repairItems,
+  impactKmh, kind, cause, sinistroNo }`; `yearsLost` só no perigo.
 
 ## Interface (src/ui/)
 

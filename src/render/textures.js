@@ -40,12 +40,18 @@ export function makeGroundTexture(S = 256, anisotropy = 4) {
     for (let i = 0; i < n; i++) {
       const x = rng() * 256, y = rng() * 256, r = rMin + rng() * (rMax - rMin), e = 0.6 + rng() * 0.6, rot = rng() * 3;
       g.globalAlpha = alpha * (0.5 + rng() * 0.5);
-      g.fillStyle = colors[Math.floor(rng() * colors.length)];
-      wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * e, rot, 0, Math.PI * 2); g.fill(); });
+      const col = colors[Math.floor(rng() * colors.length)];
+      // mancha com borda esfumada (gradiente radial) — nada de "discos" recortados
+      wrap9((ox, oy) => {
+        g.save(); g.translate(x + ox, y + oy); g.rotate(rot); g.scale(1, e);
+        const gr = g.createRadialGradient(0, 0, 0, 0, 0, r);
+        gr.addColorStop(0, col); gr.addColorStop(0.6, col + 'aa'); gr.addColorStop(1, col + '00');
+        g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill(); g.restore();
+      });
     }
   };
   blot(70, ['#a59659', '#c4b276', '#9b9757', '#b3a465', '#a8a060'], 6, 34, 0.4);
-  blot(34, ['#a8603a', '#b5683d', '#9c5532', '#b77a4a'], 2, 11, 0.45);   // terra vermelha
+  blot(30, ['#a8603a', '#b5683d', '#9c5532', '#b77a4a'], 3, 12, 0.28);   // terra vermelha
   blot(60, ['#8f9450', '#7f8a48', '#76803f', '#93a052'], 2, 8, 0.55);   // tufos esverdeados
   g.globalAlpha = 0.4;
   for (let i = 0; i < 6000; i++) { const v = rng(); g.fillStyle = v < 0.4 ? '#86784a' : v < 0.8 ? '#d6c88c' : '#7d8a45'; g.fillRect(rng() * 256, rng() * 256, 0.6, 1.4 + rng() * 2); }
@@ -74,10 +80,10 @@ export function makeAsphaltTexture(S = 256, anisotropy = 4) {
   }
   // remendos (bordas retas, tom diferente) com contorno de selante escuro
   for (let i = 0; i < 7; i++) {
-    const x = rng() * 256, y = rng() * 256, w = 18 + rng() * 50, h = 10 + rng() * 26, v = (rng() < 0.5 ? 170 : 222) + rng() * 20 | 0;
+    const x = rng() * 256, y = rng() * 256, w = 18 + rng() * 50, h = 10 + rng() * 26, v = (rng() < 0.5 ? 185 : 228) + rng() * 20 | 0;
     wrap9((ox, oy) => {
-      g.globalAlpha = 0.75; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x + ox, y + oy, w, h);
-      g.globalAlpha = 0.55; g.strokeStyle = '#6a6a6a'; g.lineWidth = 0.9; g.strokeRect(x + ox, y + oy, w, h);
+      g.globalAlpha = 0.38; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x + ox, y + oy, w, h);
+      g.globalAlpha = 0.3; g.strokeStyle = '#6a6a6a'; g.lineWidth = 0.7; g.strokeRect(x + ox, y + oy, w, h);
     });
   }
   g.globalAlpha = 1;

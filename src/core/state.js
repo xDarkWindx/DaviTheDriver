@@ -78,6 +78,10 @@ export function createState() {
     //   crash:{ withWhat, excuse (causa impessoal), repairCost, sinistroNo? (opcional; senão a UI sorteia 2..99 por viagem) }|null, yearsLost (modo perigo) }. A UI zera ao voltar ao menu.
     result: null,
 
+    // Trânsito. DONO: systems/traffic.js. seed: null = sorteia a cada viagem; número = fixa (testes/reprodução).
+    // tripSeed = semente usada na viagem atual (radares/agentes/frutas/IA). active/peds = contagens (diagnóstico).
+    traffic: { seed: null, tripSeed: 0, active: 0, peds: 0 },
+
     time: { sim: 0, real: 0, frame: 0 }, // core/loop
   };
 }

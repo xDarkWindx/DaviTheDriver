@@ -115,7 +115,7 @@ function createAutoQuality(view, quality) {
   view.lod = { optional: [], blobs: [], baseFar: null };
   const aq = {
     enabled: !!cfg.enabled, step: 0, label: STEPS[0], fps: 0, steps: STEPS, history: [],
-    _last: 0, _since: 0, _acc: 0, _frames: 0, _upT: 0, _drops: [0, 0, 0, 0],
+    _last: 0, _since: 0, _acc: 0, _frames: 0, _upT: 0, _drops: [0, 0, 0, 0], _farDirty: false, _prevStep: 0,
     /** Força um degrau (debug/UI). */
     set(step) { applyStep(Math.max(0, Math.min(STEPS.length - 1, step | 0))); },
     tick(cam) {
@@ -124,8 +124,9 @@ function createAutoQuality(view, quality) {
       aq._last = now;
       if (!aq.enabled || dt <= 0 || dt > 0.5 || (typeof document !== 'undefined' && document.hidden)) return;
       if (view.lod.baseFar === null) view.lod.baseFar = cam.far;
-      const far = aq.step >= 3 ? view.lod.baseFar * 0.7 : view.lod.baseFar;
-      if (cam.far !== far) { cam.far = far; cam.updateProjectionMatrix(); }
+      if (aq._farDirty) { // só mexe no far quando o degrau 3 entra/sai (não briga com quem ajusta a câmera)
+        cam.far = aq.step >= 3 ? view.lod.baseFar * 0.7 : view.lod.baseFar; cam.updateProjectionMatrix(); aq._farDirty = false;
+      }
       aq._since += dt;
       if (aq._since < (cfg.warmupSec || 2.5)) return;
       aq._acc += dt; aq._frames++;
@@ -153,6 +154,8 @@ function createAutoQuality(view, quality) {
     const pr = Math.min(dpr, quality.pixelRatioMax);
     view.renderer.setPixelRatio(step >= 2 ? Math.max(0.75, pr * 0.75) : pr);
     for (const m of view.lod.optional) m.visible = step < 3;
+    if ((step >= 3) !== (aq._prevStep >= 3)) aq._farDirty = true;
+    aq._prevStep = step;
     try { if (typeof window !== 'undefined' && window.__davi) window.__davi.state.qualityAuto = { step, label: aq.label, fps: aq.fps }; } catch (e) { /* sem estado ainda */ }
   }
   return aq;

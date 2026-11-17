@@ -7,23 +7,40 @@ import { makeOBB, makeCircle } from '../core/collision.js';
 const WHITE = 0xf2f0ea, CONCRETE = 0xd8d3c6, GLASS = 0x3f6f7d, DARKGLASS = 0x2c4650, GREEN_GLASS = 0x4f8a7a;
 
 function torreTV(b) {
-  // base em tripé, torre treliçada afinando, mirante e antena
+  // base em tripé de concreto com o "corpo" central, torre metálica treliçada (contraventamento em X) afinando,
+  // mirante de dois andares e antena vermelha/branca
   for (let i = 0; i < 3; i++) {
     const a = i * Math.PI * 2 / 3;
-    b.box(1.6, 26, 1.6, CONCRETE, Math.cos(a) * 6, 12, Math.sin(a) * 6, -a, 0, 0);
+    b.box(2.2, 27, 2.2, CONCRETE, Math.cos(a) * 7.5, 12.5, Math.sin(a) * 7.5, -a, 0, Math.PI / 2 * 0);
+    b.box(2.0, 2.0, 9, CONCRETE, Math.cos(a) * 4, 25.5, Math.sin(a) * 4, -a + Math.PI / 2);
   }
-  b.cyl(5.5, 7.5, 6, 6, CONCRETE, 0, 24, 0);
-  b.cyl(2.2, 4.8, 40, 4, 0x9a9890, 0, 47, 0, 0, Math.PI / 4, 0);
-  for (let y = 30; y < 66; y += 6) b.cyl(4.2 - (y - 30) * 0.06, 4.4 - (y - 30) * 0.06, 0.5, 4, 0x6e6c66, 0, y, 0, 0, Math.PI / 4, 0);
-  b.cyl(6.5, 5, 3, 8, WHITE, 0, 68, 0);              // mirante
-  b.cyl(6.6, 6.6, 1.2, 8, DARKGLASS, 0, 69.6, 0);
-  b.cyl(1.2, 1.6, 22, 6, 0xb33a2a, 0, 81, 0);         // antena vermelha/branca
-  b.cyl(0.6, 1.0, 10, 6, WHITE, 0, 97, 0);
+  b.cyl(6.2, 8, 7, 12, CONCRETE, 0, 25, 0);
+  b.cyl(6.4, 6.4, 1.6, 12, DARKGLASS, 0, 26.5, 0);
+  const H0 = 29, H1 = 66;
+  for (let k = 0; k < 4; k++) { // montantes
+    const a = Math.PI / 4 + k * Math.PI / 2;
+    const r0 = 5.0, r1 = 2.2, len = Math.hypot(H1 - H0, r0 - r1), tilt = Math.atan2(r0 - r1, H1 - H0);
+    b.box(0.7, len, 0.7, 0x8e8c86, Math.cos(a) * (r0 + r1) / 2, (H0 + H1) / 2, Math.sin(a) * (r0 + r1) / 2, -a + Math.PI / 2, -tilt, 0);
+  }
+  for (let y = H0; y < H1; y += 4.6) {
+    const t = (y - H0) / (H1 - H0), r = 5.0 - 2.8 * t;
+    b.cyl(r * 1.02, r * 1.02, 0.35, 4, 0x6e6c66, 0, y, 0, 0, Math.PI / 4, 0);
+    for (let k = 0; k < 4; k++) { // diagonais em X em cada face
+      const a = k * Math.PI / 2, w = r * 1.41;
+      for (const sgn of [-1, 1]) b.box(0.18, Math.hypot(w, 4.6), 0.18, 0x7a7872, Math.cos(a) * r * 0.72, y + 2.3, Math.sin(a) * r * 0.72, -a, 0, sgn * Math.atan2(w, 4.6));
+    }
+  }
+  b.cyl(7.2, 5.4, 3.2, 16, WHITE, 0, H1 + 2, 0);              // mirante
+  b.cyl(7.3, 7.3, 1.4, 16, DARKGLASS, 0, H1 + 3.9, 0);
+  b.cyl(6.4, 7.3, 1.2, 16, WHITE, 0, H1 + 5.2, 0);
+  b.cyl(1.2, 1.8, 24, 8, 0xb33a2a, 0, H1 + 17.5, 0);           // antena
+  for (let y = H1 + 9; y < H1 + 30; y += 5) b.cyl(1.25, 1.25, 1.6, 8, WHITE, 0, y, 0);
+  b.cyl(0.4, 0.9, 10, 6, WHITE, 0, H1 + 34, 0);
 }
 
 function estadio(b) {
   // anel oval de colunas brancas + cobertura + gramado
-  const rx = 78, rz = 62, N = 44;
+  const rx = 78, rz = 62, N = 88;
   b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x5fa046, 0, 0.3, 0, 0, 0, 0, rx - 14, 0.6, rz - 14); // campo
   b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x9c9a94, 0, 6, 0, 0, 0, 0, rx - 4, 12, rz - 4);      // arquibancada (miolo)
   b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x5fa046, 0, 12.2, 0, 0, 0, 0, rx - 24, 0.4, rz - 24);
@@ -35,31 +52,36 @@ function estadio(b) {
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2, a2 = ((i + 0.5) / N) * Math.PI * 2;
     const x = Math.cos(a2) * (rx - 8), z = Math.sin(a2) * (rz - 8);
-    b.box(12.5, 0.8, 18, 0xe9e7e0, x, 24.4, z, -a2 + Math.PI / 2);
+    b.box(6.6, 0.8, 18, 0xe9e7e0, x, 24.4, z, -a2 + Math.PI / 2);
     void a;
   }
 }
 
 function catedral(b) {
-  // 16 pilares curvos (hiperboloide) aproximados por 2 segmentos inclinados cada + vitral
-  const N = 16, R0 = 16, Rw = 6, H = 32;
+  // 16 pilares em hiperboloide (cada um em 6 segmentos seguindo a curva), vitral azul, espelho d'água e campanário
+  const N = 16, H = 32, R0 = 16, Rw = 5.5, Rt = 9.5, yw = H * 0.72;
+  const rAt = (y) => y < yw ? Rw + (R0 - Rw) * (1 - y / yw) ** 2 : Rw + (Rt - Rw) * ((y - yw) / (H - yw)) ** 1.5;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-    // segmento inferior: de R0 (chão) até Rw (cintura, y=H*0.55)
-    const x0 = ca * R0, z0 = sa * R0, x1 = ca * Rw, z1 = sa * Rw, y1 = H * 0.55;
-    const len1 = Math.hypot(R0 - Rw, y1), tilt1 = Math.atan2(R0 - Rw, y1);
-    b.box(1.3, len1, 1.8, WHITE, (x0 + x1) / 2, y1 / 2, (z0 + z1) / 2, -a + Math.PI / 2, tilt1, 0);
-    const x2 = ca * (Rw + 7), z2 = sa * (Rw + 7);
-    const len2 = Math.hypot(7, H - y1), tilt2 = -Math.atan2(7, H - y1);
-    b.box(1.1, len2, 1.5, WHITE, (x1 + x2) / 2, (y1 + H) / 2, (z1 + z2) / 2, -a + Math.PI / 2, tilt2, 0);
+    const segs = 6;
+    for (let k = 0; k < segs; k++) {
+      const y0 = (k / segs) * H, y1 = ((k + 1) / segs) * H, r0 = rAt(y0), r1 = rAt(y1);
+      const len = Math.hypot(r1 - r0, y1 - y0), tilt = Math.atan2(r1 - r0, y1 - y0);
+      const w = 1.8 - (k / segs) * 0.9;
+      b.box(w, len + 0.2, 1.2, WHITE, ca * (r0 + r1) / 2, (y0 + y1) / 2, sa * (r0 + r1) / 2, -a + Math.PI / 2, tilt, 0);
+    }
   }
-  b.cyl(Rw + 6, R0 - 1, H * 0.55, 16, 0x5f8fb0, 0, H * 0.275, 0);   // vitral azul
-  b.cyl(Rw + 6.5, Rw + 0.5, H * 0.4, 16, 0x6f9fc0, 0, H * 0.55 + H * 0.2, 0);
-  b.cyl(R0 + 3, R0 + 3, 0.6, 24, CONCRETE, 0, 0.3, 0);
-  // campanário
-  b.box(1.2, 18, 1.2, CONCRETE, 26, 9, -6); b.box(1.2, 18, 1.2, CONCRETE, 26, 9, 6);
-  b.box(1.4, 0.8, 13, CONCRETE, 26, 18, 0);
-  // cruz no topo
+  for (let k = 0; k < 4; k++) {                                                   // vitral (cones empilhados seguindo a curva)
+    const y0 = (k / 4) * yw, y1 = ((k + 1) / 4) * yw;
+    b.cyl(rAt(y1) - 0.5, rAt(y0) - 0.5, y1 - y0, 32, k % 2 ? 0x6f9fc4 : 0x5f8fb8, 0, (y0 + y1) / 2, 0);
+  }
+  b.cyl(Rt - 0.6, Rw - 0.4, H - yw, 32, 0x86b2d2, 0, (yw + H) / 2, 0);
+  b.cyl(R0 + 3, R0 + 3, 0.5, 40, CONCRETE, 0, 0.25, 0);
+  b.cyl(R0 + 7, R0 + 7, 0.12, 40, 0x5f8fa8, 0, 0.06, 0);                          // espelho d'água
+  // campanário (4 pilares + travessa) e cruz
+  for (const zz of [-6, 6]) for (const xx of [25, 27]) b.box(0.6, 20, 0.6, CONCRETE, xx, 10, zz);
+  b.box(3, 1, 13, CONCRETE, 26, 19.5, 0);
+  for (const zz of [-3.5, 0, 3.5]) b.cyl(0.9, 1.1, 1.4, 8, 0x8a6a3a, 26, 18, zz);
   b.box(0.5, 7, 0.5, 0xc9a85a, 0, H + 3, 0); b.box(3, 0.5, 0.5, 0xc9a85a, 0, H + 4.5, 0);
 }
 
@@ -93,11 +115,14 @@ function congresso(b) {
   }
   b.box(18, 3, 4.5, 0xe8e6de, 20, 50, 0);
   // Senado: cúpula para baixo (côncava para baixo) | Câmara: cuia para cima
-  const dome = new THREE.SphereGeometry(16, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const dome = new THREE.SphereGeometry(16, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2);
   b.add(dome, WHITE, -30, 6, -14, 0, 0, 0, 1, 0.55, 1);
-  const bowl = new THREE.SphereGeometry(24, 16, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+  const bowl = new THREE.SphereGeometry(24, 32, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
   b.add(bowl, WHITE, -32, 6 + 13, 18, 0, 0, 0, 1, 0.55, 1);
-  b.cyl(24, 24, 0.4, 16, 0xd3d0c6, -32, 19, 18);
+  b.cyl(24, 24, 0.4, 32, 0xd3d0c6, -32, 19, 18);
+  b.cyl(3, 4, 13, 16, WHITE, -32, 12.5, 18);                                   // pé da cuia
+  // rampa de acesso à cobertura
+  b.box(8, 0.8, 50, WHITE, 60, 3, 0, 0, 0.12, 0);
   dome.dispose(); bowl.dispose();
   // espelho d'água
   b.box(60, 0.2, 20, 0x5f8fa8, 50, 0.1, 0);

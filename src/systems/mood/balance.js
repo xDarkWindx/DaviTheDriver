@@ -15,7 +15,7 @@ export const MOOD_BALANCE = {
 
   // ---- ANSIEDADE do Davi ("preciso chegar logo"), pontos/s
   anx: {
-    freeRoadMax: 5.0,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar
+    freeRoadMax: 2.5,        // pista livre (150 m) e ele bem abaixo do que quer, sem pisar
     freeRoadMinGap: 30,      // m: abaixo disso não conta como "pista livre"
     freeRoadFullGap: 150,
     freeRoadThrottleCut: 0.6,// pisar fundo reduz esse ganho em até 60%
@@ -29,13 +29,13 @@ export const MOOD_BALANCE = {
     slowGrowthCap: 25,       // s
     slowProximity: 0.8,      // +80% quando colado (gap -> 0)
     slowDecay: 2.0,          // o "tempo atrás do lento" esvazia 2x mais rápido do que enche
-    redLight: 3.0,           // parado no vermelho
-    crosswalk: 3.5,          // parado na faixa com pedestre
+    redLight: 2.0,           // parado no vermelho
+    crosswalk: 2.5,          // parado na faixa com pedestre
     belowLimit: 1.5,         // andando abaixo de 80% do limite (sem estar travado)
     clockBase: 0.15,         // o cronômetro passando...
     clockPer300s: 0.25,      // ...e pesando mais com o tempo
     clockMax: 0.6,
-    busLaneBeside: 3.0,      // faixa de ônibus vazia do lado e ele parado
+    busLaneBeside: 2.5,      // faixa de ônibus vazia do lado e ele parado
     overtook: 8,             // ultrapassou alguém: -8 (mais o tempo que estava atrás do lento * 0.4)
     overtookPerSlowSec: 0.4,
     overtaken: 3,            // ser ultrapassado também dá a sensação de estar devagar
@@ -57,7 +57,7 @@ export const MOOD_BALANCE = {
     pedSlow: 2.0,            // pontos/s parado esperando pedestre
     busLead: 1.5,            // pontos/s com ônibus na frente
     anxCoupleFrom: 75,       // ansiedade alta puxa o estresse
-    anxCouple: 0.8,
+    anxCouple: 1.2,
     signalRun: 0,            // (Davi não se estressa com o próprio sinal furado)
   },
 
@@ -86,7 +86,7 @@ export const MOOD_BALANCE = {
     steerDelay: 0.05,        // s
     brakeMul: 0.18,          // freio "atrasado": 1 - s*0.18
     pullFrom: 0.25,          // puxa para a esquerda quando colado num lento e a > 0.25
-    pullBase: 0.05, pullAnx: 0.10, // offset de volante (-1..1)
+    pullBase: 0.03, pullAnx: 0.06, // offset de volante (-1..1)
     smoothRate: 2.0,         // 1/s: os efeitos crescem suaves
     autoHornFrom: 0.6, autoHornChance: 0.25, autoHornCd: 5,  // por s, com lead perto
     autoCurseFrom: 0.8, autoCurseCd: 10, autoCurseRelief: -8, autoCurseRebound: 12,

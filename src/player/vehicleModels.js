@@ -11,6 +11,7 @@
 //  • Pessoas (PEOPLE_MODELS): pedestre e agente de trânsito (colete) — buildPersonModel(kind).
 // Convenção: frente para +Z, largura em X, chão em y = 0, dimensões em metros.
 import * as THREE from 'three';
+import { makeMaskedMaterial, LIVE_SHADOW } from '../render/materials.js';
 
 // ================================================================ builder de triângulos
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion();
@@ -63,6 +64,8 @@ class PartBuilder {
     const g = cylGeo(r, r2, w, seg);
     return this.add(g, color, x, y, z, 0, 0, Math.PI / 2, 1, 1, 1, paint);
   }
+  /** Disco voltado para +X (aro, flanco, tampa): só a face, `seg` triângulos. */
+  discX(r, seg, color, x, y, z, paint = 0) { return this.add(discGeo(seg), color, x, y, z, 0, Math.PI / 2, 0, r, r, 1, paint); }
   cylY(r, h, seg, color, x, y, z, paint = 0, r2 = r) { return this.add(cylGeo(r, r2, h, seg), color, x, y, z, 0, 0, 0, 1, 1, 1, paint); }
   cylZ(r, h, seg, color, x, y, z, paint = 0, r2 = r) { return this.add(cylGeo(r, r2, h, seg), color, x, y, z, Math.PI / 2, 0, 0, 1, 1, 1, paint); }
   build() {
@@ -82,11 +85,13 @@ const CBOX = (() => { // prisma octogonal unitário ao longo de Z (seção chanf
   g.rotateY(Math.PI / 8); g.rotateX(Math.PI / 2);
   return g;
 })();
+const _discCache = new Map();
+function discGeo(seg) { let g = _discCache.get(seg); if (!g) { g = new THREE.CircleGeometry(1, seg); _discCache.set(seg, g); } return g; }
 const _cylCache = new Map();
-function cylGeo(r, r2, h, seg) {
-  const k = `${r}|${r2}|${h}|${seg}`;
+function cylGeo(r, r2, h, seg, open = false) {
+  const k = `${r}|${r2}|${h}|${seg}|${open}`;
   let g = _cylCache.get(k);
-  if (!g) { g = new THREE.CylinderGeometry(r, r2, h, seg, 1); _cylCache.set(k, g); }
+  if (!g) { g = new THREE.CylinderGeometry(r, r2, h, seg, 1, open); _cylCache.set(k, g); }
   return g;
 }
 
@@ -151,17 +156,18 @@ function curve(pts) {
   };
 }
 /** Estações: base uniforme + pontos extras nas caixas de roda (recorte suave) e nas quebras do perfil. */
-function stationsFor(L, wheelZ, archR, n, extra = []) {
+function stationsFor(L, wheelZ, archR, n, extra = [], arch = 6) {
   const set = new Set();
   for (let i = 0; i <= n; i++) set.add(+(-L / 2 + (L * i) / n).toFixed(4));
-  for (const zw of wheelZ) for (let i = -6; i <= 6; i++) {
-    const z = zw + (archR * i) / 6;
+  for (const zw of wheelZ) for (let i = -arch; i <= arch; i++) {
+    const z = zw + (archR * i) / arch;
     if (Math.abs(z) < L / 2 - 0.02) set.add(+z.toFixed(4));
   }
   for (const z of extra) if (Math.abs(z) < L / 2) set.add(+z.toFixed(4));
   const arr = [...set].sort((a, b) => a - b);
   const out = [arr[0]];
-  for (let i = 1; i < arr.length; i++) if (arr[i] - out[out.length - 1] > 0.035) out.push(arr[i]); else if (i === arr.length - 1) out[out.length - 1] = arr[i];
+  const minGap = Math.max(0.035, L / 70);
+  for (let i = 1; i < arr.length; i++) if (arr[i] - out[out.length - 1] > minGap) out.push(arr[i]); else if (i === arr.length - 1) out[out.length - 1] = arr[i];
   return out;
 }
 /** Altura da borda inferior com recorte da caixa de roda. */
@@ -177,20 +183,19 @@ function nearArch(z, wheelZ, r) { for (const zw of wheelZ) if (Math.abs(z - zw) 
 
 // ================================================================ rodas
 /** Roda: pneu + flanco + aro (estilo por `rim`). Eixo em X, face externa em +X. */
-function wheelGeo(b, R, W, rim, seg = 16) {
-  const TIRE = 0x1a1a1b, SIDE = 0x232325;
-  b.cylX(R, W, seg, TIRE, 0, 0, 0);
-  b.cylX(R * 0.93, 0.012, seg, SIDE, W / 2 + 0.002, 0, 0);                   // flanco
+function wheelGeo(b, R, W, rim, seg = 14) {
+  const TIRE = 0x1a1a1b, SIDE = 0x252527;
+  b.add(cylGeo(R, R, W, seg, true), TIRE, 0, 0, 0, 0, 0, Math.PI / 2);        // banda de rodagem (tubo aberto)
+  b.discX(R * 0.97, seg, SIDE, W / 2, 0, 0);                                   // flanco
   const rr = R * rim.size;
-  b.cylX(rr, 0.02, seg, rim.base, W / 2 + 0.01, 0, 0);                        // aro
-  b.cylX(rr * 0.98, 0.008, seg, rim.lip || rim.base, W / 2 + 0.022, 0, 0);
+  b.discX(rr, seg, rim.base, W / 2 + 0.008, 0, 0);                             // aro
   const n = rim.spokes;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    if (rim.twin) for (const o of [-0.09, 0.09]) b.box(0.016, rr * 0.92, 0.035, rim.spoke, W / 2 + 0.03, Math.cos(a + o) * rr * 0.46, Math.sin(a + o) * rr * 0.46, 0, -(a + o));
-    else b.box(0.016, rr * 0.9, rim.spokeW || 0.05, rim.spoke, W / 2 + 0.03, Math.cos(a) * rr * 0.45, Math.sin(a) * rr * 0.45, 0, -a);
+    if (rim.twin) b.add(BOX, rim.spoke, W / 2 + 0.018, Math.cos(a) * rr * 0.46, Math.sin(a) * rr * 0.46, a, 0, 0, 0.012, rr * 0.9, 0.09);
+    else b.add(BOX, rim.spoke, W / 2 + 0.018, Math.cos(a) * rr * 0.45, Math.sin(a) * rr * 0.45, a, 0, 0, 0.012, rr * 0.88, rim.spokeW || 0.05);
   }
-  b.cylX(rr * 0.24, 0.03, 8, rim.hub || rim.base, W / 2 + 0.035, 0, 0);       // cubo
+  b.discX(rr * 0.24, 8, rim.hub || rim.base, W / 2 + 0.026, 0, 0);            // cubo
 }
 
 // ================================================================ Renault Kwid (facelift), BRANCO
@@ -206,7 +211,7 @@ function kwidSpec(v) {
   const plan = (z) => { const t = Math.abs(z) / (L / 2); return hw - (t > 0.82 ? 0.11 * ((t - 0.82) / 0.18) ** 2 : 0) - (z > 0 && t > 0.9 ? 0.04 * (t - 0.9) / 0.1 : 0); };
   const spec = {
     glass: K.GLASS,
-    stations: stationsFor(L, wz, archR, 34, [zRW, zRW + 0.1, 0.30, 1.00, 1.70, -0.36, -0.26]),
+    stations: stationsFor(L, wz, archR, 24, [zRW, zRW + 0.1, 0.30, 1.00, 1.70, -0.36, -0.26], 4),
     prof(z) {
       const ws = plan(z), top = yTop(z);
       const roof = z < 0.30, hood = z > 1.0;
@@ -290,7 +295,7 @@ function kwidBody(b, v, g) {
 }
 
 // ================================================================ Citroën C4 Cactus THP, CINZA GRAFITE metálico
-const C = { GRAPHITE: 0x7b828b, GRAPHITE2: 0x6a7179, ROOF: 0x141518, BLACK: 0x151618, TRIM: 0x1b1c1e, GLASS: 0x2a3846, UNDER: 0x101010,
+const C = { GRAPHITE: 0x868d96, GRAPHITE2: 0x737a83, ROOF: 0x141518, BLACK: 0x151618, TRIM: 0x1b1c1e, GLASS: 0x2a3846, UNDER: 0x101010,
   ORANGE: 0xff6a12, RED: 0xc8141e, LENS: 0xf2f4f6, DRL: 0xe6f3ff, CHROME: 0xcdd1d6, PLATE: 0xf2f2ee, BLUE: 0x1f4fa8 };
 
 function cactusSpec(v) {
@@ -301,7 +306,7 @@ function cactusSpec(v) {
   const rearGlass = (z) => z < zR + 0.36;
   const spec = {
     glass: C.GLASS,
-    stations: stationsFor(L, wz, archR, 38, [zR + 0.36, zR + 0.5, 0.32, 1.12, 1.92]),
+    stations: stationsFor(L, wz, archR, 26, [zR + 0.36, zR + 0.5, 0.32, 1.12, 1.92], 4),
     prof(z) {
       const ws = plan(z), top = yTop(z), roof = z < 0.32, hood = z > 1.12;
       const yb = archBottom(z, 0.26, wz, R, archR);
@@ -398,16 +403,9 @@ export function buildBodyGeometry(vehicle) {
   return b.build();
 }
 
-/** Materiais de veículo: Phong com cor por vértice; com `instanced`, a cor da instância só tinge onde paint = 1. */
+/** Materiais de veículo: Phong com cor por vértice; com InstancedMesh, a cor da instância só tinge onde paint = 1. */
 export function makeVehicleMaterial(opts = {}) {
-  const mat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: opts.shininess ?? 38, specular: opts.specular ?? 0x3a3a3a, flatShading: false });
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float paint;')
-      .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.rgb *= instanceColor.rgb;', 'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, paint );'));
-  };
-  mat.customProgramCacheKey = () => 'vehiclePaint';
-  return mat;
+  return makeMaskedMaterial('phong', { shininess: opts.shininess ?? 38, specular: opts.specular ?? 0x3a3a3a });
 }
 export function makeGlassMaterial() {
   return new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 110, specular: 0xb4c2cc, emissive: 0x05080b });
@@ -469,8 +467,10 @@ export function buildVehicleModel(vehicle, quality, blobTexture) {
   let shadow = null;
   if (quality.shadows !== 'none') {
     const sg = new THREE.PlaneGeometry(vehicle.width * 1.75, vehicle.length * 1.32); sg.rotateX(-Math.PI / 2);
-    shadow = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobTexture, transparent: true, opacity: castShadow ? 0.32 : 0.6, depthWrite: false }));
+    shadow = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobTexture, transparent: true, opacity: 0.6, depthWrite: false }));
     shadow.position.set(0.1, 0.1, 0.1); shadow.renderOrder = 2; shadow.name = 'shadow';
+    // com shadow map ativo vira só "oclusão de contato" fraca; se o ajuste automático desligar a sombra, volta a blob
+    shadow.onBeforeRender = () => { shadow.material.opacity = LIVE_SHADOW.map ? 0.3 : 0.6; };
     root.add(shadow);
   }
   const triangles = b.triangles + g.triangles + wb.triangles * 4;
@@ -502,7 +502,7 @@ function genericCar(b, o) {
   const plan = (z) => { const t = Math.abs(z) / (L / 2); return hw - (t > 0.84 ? 0.10 * ((t - 0.84) / 0.16) ** 2 : 0); };
   const spec = {
     glass: -1,
-    stations: stationsFor(L, wz, archR, o.n || 14, pts.map((p) => p[0])),
+    stations: stationsFor(L, wz, archR, o.n || 7, pts.map((p) => p[0]), 2),
     prof(z) {
       const ws = plan(z), top = yTop(z), hood = z > zHood, deck = zDeck !== null && z < zDeck, bed = zBed !== null && z < zBed;
       const yb = archBottom(z, o.clear, wz, R, archR);
@@ -539,9 +539,9 @@ function genericCar(b, o) {
   for (const zw of wz) b.box(W - 0.4, archR, archR * 2, 0x0c0c0c, 0, R + archR * 0.35, zw);
   // faróis, grade, lanternas, retrovisores, placas
   for (const s of [-1, 1]) {
-    b.cbox(0.30, 0.10, 0.04, T.LENS, s * (hw - 0.24), yHood - 0.15, zF - 0.03);
-    b.cbox(0.26, 0.10, 0.04, T.RED, s * (hw - 0.2), (zDeck ? yHood - 0.08 : o.yBelt + 0.06), zR + 0.01);
-    b.cbox(0.14, 0.08, 0.10, o.mirror ?? T.BLACK, s * (hw + 0.06), o.yBelt + 0.08, zHood - 0.05);
+    b.box(0.30, 0.10, 0.04, T.LENS, s * (hw - 0.24), yHood - 0.15, zF - 0.03);
+    b.box(0.26, 0.10, 0.04, T.RED, s * (hw - 0.2), (zDeck ? yHood - 0.08 : o.yBelt + 0.06), zR + 0.01);
+    b.box(0.14, 0.08, 0.10, o.mirror ?? T.BLACK, s * (hw + 0.06), o.yBelt + 0.08, zHood - 0.05);
   }
   b.box(W - 0.75, 0.10, 0.03, T.BLACK, 0, yHood - 0.17, zF - 0.01);
   b.box(0.36, 0.12, 0.02, T.PLATE, 0, o.clear + 0.18, zF + 0.004);
@@ -555,8 +555,9 @@ function genericCar(b, o) {
 
 /** Roda simples para tráfego (8–10 segmentos). */
 function trafficWheel(b, R, W, color = 0x9aa0a6) {
-  b.cylX(R, W, 10, 0x1a1a1b, 0, 0, 0);
-  b.cylX(R * 0.6, 0.02, 8, color, W / 2 + 0.008, 0, 0);
+  b.add(cylGeo(R, R, W, 8, true), 0x1a1a1b, 0, 0, 0, 0, 0, Math.PI / 2);
+  b.discX(R, 8, 0x202022, W / 2, 0, 0);
+  b.discX(R * 0.6, 6, color, W / 2 + 0.006, 0, 0);
 }
 function bakeWheels(b, slots, R, W, rimColor) {
   const wb = new PartBuilder(); trafficWheel(wb, R, W, rimColor);
@@ -570,22 +571,22 @@ function personGeo(b, o) {
   const sk = o.skin, h = o.scale || 1, paintShirt = o.shirt == null;
   const shirt = o.shirt ?? 0xffffff;
   for (const s of [-1, 1]) {
-    b.cbox(0.13, 0.80, 0.15, o.pants, s * 0.1, 0.42, 0);                       // pernas
+    b.box(0.13, 0.80, 0.15, o.pants, s * 0.1, 0.42, 0);                       // pernas
     b.box(0.13, 0.07, 0.24, o.shoes ?? 0x222222, s * 0.1, 0.035, 0.04);          // sapatos
-    b.cbox(0.10, 0.58, 0.11, shirt, s * 0.27, 1.14, 0, 0, 0, s * 0.08, paintShirt ? 1 : 0); // braços
-    b.cbox(0.08, 0.10, 0.08, sk, s * 0.29, 0.80, 0);
+    b.box(0.10, 0.58, 0.11, shirt, s * 0.27, 1.14, 0, 0, 0, s * 0.08, paintShirt ? 1 : 0); // braços
+    b.box(0.08, 0.10, 0.08, sk, s * 0.29, 0.80, 0);
   }
-  b.cbox(0.44, 0.62, 0.24, shirt, 0, 1.13, 0, 0, 0, 0, paintShirt ? 1 : 0);    // tronco
-  b.cbox(0.40, 0.12, 0.22, o.pants, 0, 0.84, 0);
-  b.cylY(0.06, 0.1, 6, sk, 0, 1.48, 0);
-  b.add(new THREE.IcosahedronGeometry(0.13, 1), sk, 0, 1.62, 0.0, 0, 0, 0, 1, 1.12, 1);
+  b.box(0.44, 0.62, 0.24, shirt, 0, 1.13, 0, 0, 0, 0, paintShirt ? 1 : 0);    // tronco
+  b.box(0.40, 0.12, 0.22, o.pants, 0, 0.84, 0);
+  b.box(0.1, 0.1, 0.1, sk, 0, 1.48, 0);
+  b.add(new THREE.IcosahedronGeometry(0.13, 0), sk, 0, 1.62, 0.0, 0, 0, 0, 1, 1.12, 1);
   b.add(new THREE.IcosahedronGeometry(0.135, 0), o.hair, 0, 1.68, -0.02, 0, 0, 0, 1, 0.75, 1.02);
   if (o.vest) {
-    b.cbox(0.47, 0.50, 0.27, o.vest, 0, 1.17, 0);
+    b.box(0.47, 0.50, 0.27, o.vest, 0, 1.17, 0);
     for (const y of [1.04, 1.24]) b.box(0.48, 0.04, 0.28, 0xd8dde2, 0, y, 0);  // faixas refletivas
   }
-  if (o.cap) { b.cylY(0.15, 0.08, 10, o.cap, 0, 1.74, 0); b.box(0.2, 0.02, 0.14, o.cap, 0, 1.71, 0.13); }
-  if (o.bag) b.cbox(0.30, 0.36, 0.14, o.bag, 0, 1.18, -0.19);
+  if (o.cap) { b.cylY(0.15, 0.08, 7, o.cap, 0, 1.74, 0); b.box(0.2, 0.02, 0.14, o.cap, 0, 1.71, 0.13); }
+  if (o.bag) b.box(0.30, 0.36, 0.14, o.bag, 0, 1.18, -0.19);
   if (h !== 1) for (let i = 0; i < b.pos.length; i++) b.pos[i] *= h;
 }
 
@@ -605,7 +606,7 @@ export const TRAFFIC_MODELS = {
     build: (b) => genericCar(b, { L: 4.45, W: 1.82, H: 1.68, wb: 2.7, R: 0.35, clear: 0.28, hood: 0.95, wsLen: 0.70, yHood: 1.10, yBelt: 1.08, cladding: true, rearSlope: 0.1 }) },
   picape: { label: 'Picape', length: 5.3, width: 1.86, height: 1.80, massKg: 1900, wheelR: 0.38, wheelW: 0.24,
     colors: [0xf0f0ee, 0x2a2b2e, 0x8d9399, 0x5b2a1f],
-    build: (b) => genericCar(b, { L: 5.3, W: 1.86, H: 1.80, wb: 3.1, R: 0.38, clear: 0.32, hood: 1.15, wsLen: 0.62, bed: 1.70, yHood: 1.18, yBelt: 1.16, cladding: true, n: 16 }) },
+    build: (b) => genericCar(b, { L: 5.3, W: 1.86, H: 1.80, wb: 3.1, R: 0.38, clear: 0.32, hood: 1.15, wsLen: 0.62, bed: 1.70, yHood: 1.18, yBelt: 1.16, cladding: true, n: 8 }) },
   autoescola: { label: 'Autoescola (hatch com placa no teto)', length: 3.95, width: 1.70, height: 1.48, massKg: 1000, wheelR: 0.30, wheelW: 0.19,
     colors: [0xf4f4f2],
     build: (b) => {
@@ -623,7 +624,7 @@ export const TRAFFIC_MODELS = {
     build: (b) => {
       const L = 12.2, W = 2.5, H = 3.15, hw = W / 2, R = 0.52, wz = [-3.0, 3.55];
       const spec = {
-        glass: -1, stations: stationsFor(L, wz, R + 0.08, 10, [L / 2 - 0.25, -L / 2 + 0.2]),
+        glass: -1, stations: stationsFor(L, wz, R + 0.08, 8, [L / 2 - 0.25, -L / 2 + 0.2], 2),
         prof(z) {
           const yb = archBottom(z, 0.34, wz, R, R + 0.08);
           return { yb, ws: hw - (Math.abs(z) > L / 2 - 0.2 ? 0.05 : 0), yMold: 0.62, yMid: 0.95, yBelt: 1.25, wg: hw - 0.015, yTop: H - (z > L / 2 - 0.25 ? 0.08 : 0), wt: hw - 0.1, ch: 0.1 };
@@ -656,7 +657,7 @@ export const TRAFFIC_MODELS = {
     build: (b) => {
       const L = 7.4, W = 2.3, hw = W / 2, zF = L / 2, R = 0.47, wz = [-2.1, 2.55];
       // cabine (lofted, branca) — sem paint (a cor varia no baú)
-      const cab = { glass: -1, stations: stationsFor(1.9, [0.65 - 0.0], R + 0.08, 8, []).map((z) => z + zF - 0.95),
+      const cab = { glass: -1, stations: stationsFor(1.9, [0.65 - 0.0], R + 0.08, 5, [], 2).map((z) => z + zF - 0.95),
         prof(z) { const zz = z - (zF - 0.95); const yb = archBottom(z, 0.45, [wz[1]], R, R + 0.08);
           const top = zz > 0.55 ? 2.65 - (zz - 0.55) * 0.9 : 2.65;
           return { yb, ws: hw - (zz > 0.85 ? 0.06 : 0), yMold: 0.85, yMid: 1.1, yBelt: 1.45, wg: hw - 0.04, yTop: top, wt: hw - 0.12, ch: 0.1 }; },

@@ -226,11 +226,19 @@ export function buildScenery(sb) {
   const LAWN = 0x93a453, LAWN2 = 0x8a9c4c, PARK = 0x9fa85a;
 
   // --- gramados: canteiro central do Eixo, Esplanada, Parque da Cidade, Parque Urbano do Sudoeste
-  mb.rect(-350, 0, Math.PI / 2, 1100, 33.5, 0.02, LAWN);
-  mb.rect(560, 72, Math.PI / 2, 200, 24, 0.02, LAWN2);
-  mb.rect(560, -72, Math.PI / 2, 200, 24, 0.02, LAWN2);
-  mb.rect(-720, 440, 0, 300, 230, 0.015, PARK);
-  mb.rect(-1130, 560, 0, 60, 70, 0.015, PARK);
+  // gramado com borda suave: duas franjas em tons intermediários entre a grama e o cerrado
+  const GROUNDISH = 0xb7aa72;
+  const mix = (a, b, t) => { const ar = a >> 16 & 255, ag = a >> 8 & 255, ab = a & 255, br = b >> 16 & 255, bg = b >> 8 & 255, bb = b & 255; return (Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t); };
+  const soft = (x, z, h, hl, hw, y, col) => {
+    mb.rect(x, z, h, hl + 5, hw + 5, y - 0.008, mix(col, GROUNDISH, 0.72));
+    mb.rect(x, z, h, hl + 2.5, hw + 2.5, y - 0.004, mix(col, GROUNDISH, 0.4));
+    mb.rect(x, z, h, hl, hw, y, col);
+  };
+  soft(-350, 0, Math.PI / 2, 1100, 33.5, 0.02, LAWN);
+  soft(560, 72, Math.PI / 2, 200, 24, 0.02, LAWN2);
+  soft(560, -72, Math.PI / 2, 200, 24, 0.02, LAWN2);
+  soft(-720, 440, 0, 300, 230, 0.02, PARK);
+  soft(-1130, 560, 0, 60, 70, 0.02, PARK);
   // lago do Parque da Cidade
   mb.disc(-800, 420, 36, 0.03, 0x4f86a0, 28);
   mb.ring(-800, 420, 36, 38, 0.031, 0xcfc8b0, 28);
