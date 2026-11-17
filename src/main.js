@@ -20,6 +20,7 @@ import mood from './systems/mood.js';
 import fx from './systems/fx.js';
 import audio from './systems/audio.js';
 import ui from './ui/ui.js';
+import { createAutopilot } from './debug/autopilot.js';
 
 function boot() {
   const container = document.getElementById('game');
@@ -56,6 +57,10 @@ function boot() {
   onResize();
 
   ctx.loop = startLoop({ step: (dt) => game.step(dt), frame: (dt, a) => game.frame(dt, a), hz: CONFIG.simHz, maxSubSteps: CONFIG.maxSubSteps });
+  // piloto-robô (inerte até ser ligado; ?bot=cuidadoso|normal|apressado[&rota=parque] liga a cada viagem)
+  ctx.autopilot = createAutopilot(ctx);
+  const botProfile = params.get('bot');
+  if (botProfile) events.on(EV.TRIP_START, () => ctx.autopilot.start({ profile: botProfile, corridor: params.get('rota') || 'eixo' }));
   // gancho de depuração/testes (tools/smoke.cjs) e para inspeção no console
   window.__davi = ctx;
   return ctx;

@@ -13,6 +13,7 @@ export class Game {
     /** Módulos plugáveis (traffic, rules, mood, fx, audio, ui). Ordem = ordem de update. */
     this.modules = [];
     this.stepDt = 1 / 60;
+    this.preStep = null;
     const ev = ctx.events;
     ev.on(EV.REQ_START, (p) => this.startTrip(p.routeId, p.mode));
     ev.on(EV.REQ_PAUSE, () => this.pause());
@@ -118,6 +119,7 @@ export class Game {
     if (st.mode === MODE.PAUSED) return;
     ctx.signals.update(dt);
     if (st.mode !== MODE.PLAYING) { ctx.player.update(dt, ctx.input); return; }
+    if (this.preStep) this.preStep(dt); // piloto-robô (src/debug/autopilot.js), só quando ligado
     ctx.input.sample();
     ctx.player.update(dt, ctx.input);
     for (const m of this.modules) if (m.update) m.update(dt, ctx);
