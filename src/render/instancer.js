@@ -112,11 +112,15 @@ export class ChunkedMeshBuilder {
       this.quad(left[i * 2], left[i * 2 + 1], left[i * 2 + 2], left[i * 2 + 3], right[i * 2 + 2], right[i * 2 + 3], right[i * 2], right[i * 2 + 1], y, color);
     }
   }
-  build(scene, material, name = 'ground') {
+  /** uvScale: UV = (x, z) / uvScale — para textura de detalhe (asfalto gasto) em coordenadas de mundo. */
+  build(scene, material, name = 'ground', uvScale = 8) {
     const meshes = [];
     for (const [key, b] of this.buckets) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3));
+      const uv = new Float32Array((b.p.length / 3) * 2);
+      for (let i = 0, j = 0; i < b.p.length; i += 3, j += 2) { uv[j] = b.p[i] / uvScale; uv[j + 1] = b.p[i + 2] / uvScale; }
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       const nrm = new Float32Array(b.p.length);
       for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
       g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));

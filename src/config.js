@@ -8,16 +8,16 @@ export const CONFIG = {
   debug: false,
 
   camera: {
-    elevationDeg: 34,     // inclinação da câmera isométrica
-    azimuthDeg: -40,      // de onde a câmera olha: -45 = do sudoeste (tela "para cima" = nordeste)
-    distance: 400,        // distância (ortográfica: só afeta clipping)
-    baseView: 62,         // altura visível (m) parado
-    viewPerMps: 0.75,     // quanto abre por m/s
-    maxView: 105,
-    lookAheadSec: 0.7,
-    lookAheadMax: 26,
-    followRate: 5.0,      // 1/s (suavização exponencial)
-    zoomRate: 1.6,
+    elevationDeg: 52,     // câmera isométrica ALTA e fechada (gênero arcade retrô)
+    azimuthDeg: -40,      // de onde olha: negativo = do sudoeste (tela "para cima" ≈ nordeste)
+    distance: 300,        // distância (ortográfica: só afeta clipping)
+    baseView: 30,         // altura visível (m) parado => carro ~10% da largura da tela
+    viewPerMps: 0.42,     // quanto abre por m/s
+    maxView: 50,
+    lookAheadSec: 0.55,   // antecipação na direção do movimento
+    lookAheadMax: 14,
+    followRate: 6.0,      // 1/s (suavização exponencial)
+    zoomRate: 1.4,
   },
 
   // a partir desta velocidade de impacto (km/h) o provisório de rules.js encerra com 'bateu'

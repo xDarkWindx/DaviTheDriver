@@ -72,3 +72,46 @@ export function makeSignAtlas(entries) {
   t.anisotropy = 4;
   return { texture: t, uv, aspect };
 }
+
+/**
+ * Textura de detalhe do asfalto (tons de cinza ~0.75..1, multiplica a cor por vértice):
+ * granulado, manchas de óleo, remendos e trincas. Repetível; aplicada em UV de mundo.
+ */
+export function makeAsphaltTexture() {
+  const S = 256, c = canvas(S, S), g = c.getContext('2d');
+  const rng = makeRng(7);
+  g.fillStyle = '#ececec'; g.fillRect(0, 0, S, S);
+  const wrap = (fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
+  // remendos e manchas
+  for (let i = 0; i < 14; i++) {
+    const x = rng() * S, y = rng() * S, w = 20 + rng() * 60, h = 10 + rng() * 40, v = 190 + rng() * 50;
+    g.globalAlpha = 0.5; g.fillStyle = `rgb(${v},${v},${v})`;
+    wrap((ox, oy) => g.fillRect(x + ox, y + oy, w, h));
+  }
+  for (let i = 0; i < 18; i++) {
+    const x = rng() * S, y = rng() * S, r = 4 + rng() * 18, v = 150 + rng() * 60;
+    g.globalAlpha = 0.35; g.fillStyle = `rgb(${v},${v},${v})`;
+    wrap((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.6, rng() * 3, 0, 7); g.fill(); });
+  }
+  // granulado
+  g.globalAlpha = 1;
+  const img = g.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (rng() - 0.5) * 46;
+    d[i] = Math.max(0, Math.min(255, d[i] + n)); d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n)); d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  g.putImageData(img, 0, 0);
+  // trincas
+  g.strokeStyle = 'rgba(90,90,90,0.55)'; g.lineWidth = 1;
+  for (let i = 0; i < 9; i++) {
+    let x = rng() * S, y = rng() * S;
+    g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (rng() - 0.5) * 30; y += (rng() - 0.5) * 30; g.lineTo(x, y); }
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
