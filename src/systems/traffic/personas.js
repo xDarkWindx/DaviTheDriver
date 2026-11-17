@@ -71,9 +71,9 @@ export const MODEL_DIMS = {
  * Urbano (S3/SCS/W3) mais cheio e variado; Eixo/Eixão fluxo rápido; local (Sudoeste, Parque) vazio e lento.
  */
 export const ROAD_TRAFFIC = {
-  eixo: { density: 0.95, mix: { normal: 0.55, apressado: 0.2, moto: 0.1, onibus: 0.06, mudanca: 0.03, autoescola: 0.02, tio: 0.04 } },
+  eixo: { density: 0.8, mix: { normal: 0.55, apressado: 0.2, moto: 0.1, onibus: 0.06, mudanca: 0.03, autoescola: 0.02, tio: 0.04 } },
   eixao: { density: 0.9, mix: { normal: 0.55, apressado: 0.22, moto: 0.1, onibus: 0.04, mudanca: 0.04, autoescola: 0.01, tio: 0.04 } },
-  urban: { density: 1.35, mix: { normal: 0.48, apressado: 0.1, moto: 0.15, onibus: 0.09, autoescola: 0.07, mudanca: 0.04, tio: 0.07 } },
+  urban: { density: 1.05, mix: { normal: 0.48, apressado: 0.1, moto: 0.15, onibus: 0.09, autoescola: 0.07, mudanca: 0.04, tio: 0.07 } },
   arterial: { density: 0.85, mix: { normal: 0.55, apressado: 0.15, moto: 0.1, onibus: 0.04, mudanca: 0.06, autoescola: 0.04, tio: 0.06 } },
   ring: { density: 0.8, mix: { normal: 0.55, apressado: 0.15, moto: 0.1, onibus: 0.04, mudanca: 0.04, autoescola: 0.05, tio: 0.07 } },
   ramp: { density: 0.35, mix: { normal: 0.6, apressado: 0.2, moto: 0.1, mudanca: 0.05, tio: 0.05 } },

@@ -8,11 +8,11 @@
 import { engineAccel } from '../player/physics.js';
 
 export const BOT_PROFILES = {
-  cuidadoso: { speedMul: 0.92, speedAdd: 0, T: 2.0, s0: 4, a: 2.0, b: 2.6, latA: 2.6, yellowDecel: 6, busLane: false,
+  cuidadoso: { speedMul: 0.95, speedAdd: 0, T: 1.8, s0: 3.5, a: 2.2, b: 2.8, latA: 3.4, yellowDecel: 6, busLane: false,
     overtake: 0.7, overtakeFree: 55, breatheAt: 58, hornBlocked: 0, flashBlocked: 0, waitPed: true },
-  normal: { speedMul: 1.0, speedAdd: 2, T: 1.4, s0: 3, a: 2.6, b: 3.2, latA: 3.6, yellowDecel: 4.5, busLane: false,
+  normal: { speedMul: 1.0, speedAdd: 6, T: 1.2, s0: 2.5, a: 3.0, b: 3.4, latA: 4.6, yellowDecel: 4.5, busLane: false,
     overtake: 0.8, overtakeFree: 40, breatheAt: 72, hornBlocked: 8, flashBlocked: 5, waitPed: true },
-  apressado: { speedMul: 1.32, speedAdd: 4, T: 0.75, s0: 1.6, a: 4.0, b: 4.6, latA: 5.2, yellowDecel: 2.2, busLane: true,
+  apressado: { speedMul: 1.35, speedAdd: 6, T: 0.7, s0: 1.5, a: 4.5, b: 5.0, latA: 6.2, yellowDecel: 2.2, busLane: true,
     overtake: 0.95, overtakeFree: 26, breatheAt: 95, hornBlocked: 2.5, flashBlocked: 1.5, waitPed: false },
 };
 
@@ -29,7 +29,7 @@ export function createAutopilot(ctx) {
     replanT: 0, lastLC: -9, t: 0,
     start(opts = {}) {
       this.profile = opts.profile || 'normal'; this.prof = BOT_PROFILES[this.profile] || BOT_PROFILES.normal;
-      this.corridor = opts.corridor || 'eixo'; this.on = true; this.route.length = 0; this.ri = 0; this.track = -1;
+      this.corridor = opts.corridor || 'eixo'; this.on = true; this._viaDone = false; this._offRouteT = 0; this.route.length = 0; this.ri = 0; this.track = -1;
       this.blockedT = 0; this.stuckT = 0; this.reverseT = 0; this.replanT = 0; this.t = 0; this.lastLC = -9;
       this.e.st = this.e.th = this.e.br = 0;
       ctx.game.preStep = (dt) => this.step(dt);
@@ -136,9 +136,19 @@ export function createAutopilot(ctx) {
         if (cur) {
           // faixa a seguir: a atual, salvo troca para a da rota / ultrapassagem
           if (this.track < 0 || cur.laneId !== this.track) {
-            const T = net.lanes[this.track];
+            // segue por progressão: fica na faixa acompanhada enquanto estiver perto dela; no fim, passa à próxima da rota
+            let T = net.lanes[this.track], keep = false;
+            for (let g = 0; T && g < 3; g++) {
+              const sT = net.projectOnLane(T, p.x, p.z);
+              net.sampleLane(T, sT, tmpS);
+              const d = Math.hypot(tmpS.x - p.x, tmpS.z - p.z);
+              if (sT < T.length - 0.3 && d < (T.isConnector ? 4 : 3.2)) { keep = true; break; }
+              if (sT >= T.length - 0.3 && d < 6) { const nid = this._nextLane(T, this._routeIdxOf(T)); if (nid < 0) break; this.track = nid; T = net.lanes[nid]; continue; }
+              break;
+            }
             const same = T && !T.isConnector && !cur.lane.isConnector && T.segId === cur.lane.segId && T.dir === cur.lane.dir;
-            if (!same) this.track = cur.laneId;
+            if (!keep && !same) this.track = cur.laneId;
+            if (keep || same) { idx = this._routeIdxOf(net.lanes[this.track]); if (idx >= 0) this.ri = idx; }
           }
           const T = net.lanes[this.track];
           this.s = net.projectOnLane(T, p.x, p.z);
@@ -152,7 +162,7 @@ export function createAutopilot(ctx) {
       if (P.n < 2) { this._pedals(0, 1); return; }
 
       // --- direção (pure pursuit)
-      const Ld = Math.max(7, Math.min(28, 6 + v * 0.55));
+      const Ld = Math.max(5, Math.min(28, 4 + v * 0.6));
       let k = Math.min(P.n - 1, Math.round(Ld / PATH_DS));
       const tx = P.x[k], tz = P.z[k];
       const dx = tx - ph.x, dz = tz - ph.z;
@@ -172,6 +182,7 @@ export function createAutopilot(ctx) {
       // --- velocidade desejada (limite + curva)
       const tgt = (lim) => Math.max(15, lim * prof.speedMul + prof.speedAdd) / 3.6;
       let v0 = tgt(P.lim[0]);
+      if (this.needLC) v0 *= 0.65; // precisa trocar de faixa para a saída: deixa o fluxo passar e abre brecha
       let aCons = 99;
       const cons = (d, vt) => { // chegar a vt na distância d
         if (vt >= v) return;
@@ -241,6 +252,14 @@ export function createAutopilot(ctx) {
           obstacle(gap, vo, 'carro');
           continue;
         }
+        // cone pelo rumo atual do carro (pega quem está entre o carro e a faixa nova numa troca de faixa)
+        {
+          const fo = ox * fx + oz * fz, lo = ox * fz - oz * fx;
+          let dh2 = o.heading - ph.heading; if (dh2 > Math.PI) dh2 -= 2 * Math.PI; else if (dh2 < -Math.PI) dh2 += 2 * Math.PI;
+          const ext2 = Math.abs(Math.cos(dh2)) * o.width * 0.5 + Math.abs(Math.sin(dh2)) * o.length * 0.5;
+          const al2 = Math.abs(Math.cos(dh2)) * o.length * 0.5 + Math.abs(Math.sin(dh2)) * o.width * 0.5;
+          if (fo > 0 && fo < 10 + v * 1.2 && Math.abs(lo) < myW + ext2 + 0.25) obstacle(fo - veh.length * 0.5 - al2, Math.max(0, o.speed * Math.cos(dh2)), 'cone');
+        }
         // cruzando (rotatória/cruzamento): previsão de 3,2 s
         const adh = Math.abs(dh);
         if (adh < 0.35 || adh > 2.7 || o.speed < 0.8) continue;
@@ -297,11 +316,23 @@ export function createAutopilot(ctx) {
       this._tapRelease();
     },
 
+    /** Velocidade do primeiro veículo à frente na faixa (até `fwd` m), ou -1 se livre. */
+    _laneLeadSpeed(laneId, s, fwd) {
+      const vs = ctx.modules.traffic.vehicles; let best = 1e9, sp = -1;
+      for (let i = 0; i < vs.length; i++) { const v = vs[i]; if (v.laneId !== laneId || !v.w) continue; const d = v.w.s - s; if (d > 0 && d < fwd && d < best) { best = d; sp = v.speed; } }
+      return sp;
+    },
     _chooseLane(T, cur) {
-      const prof = this.prof, R = this.route, D = net.lanes[R[this.ri]];
+      const prof = this.prof, R = this.route;
+      let D = net.lanes[R[this.ri]];
       if (!D || D.isConnector || D.segId !== T.segId || D.dir !== T.dir) return;
       const sib = net.siblingLanes(T), left = T.length - this.s;
-      if (this.t - this.lastLC < 2.5) return;
+      if (D.kind === 'bus' && !prof.busLane) { // a rota passa pela exclusiva: usa a normal ao lado
+        let best = null; for (const id of sib) { const L = net.lanes[id]; if (L.kind !== 'bus' && (!best || Math.abs(L.index - D.index) < Math.abs(best.index - D.index))) best = L; }
+        if (best) D = best;
+      }
+      this.needLC = false;
+      if (this.t - this.lastLC < 3.5) { this.needLC = T.id !== D.id && left < 120; return; }
       const ld = ctx.modules.traffic.leadInfo();
       const v = Math.max(0, st.player.speed);
       const want = Math.max(15, T.limitKmh * prof.speedMul) / 3.6;
@@ -312,6 +343,9 @@ export function createAutopilot(ctx) {
           const L = net.lanes[id];
           if (id === T.id || Math.abs(L.index - T.index) !== 1) continue;
           if (L.kind === 'bus' && !prof.busLane) continue;
+          // só vale a pena se a faixa do lado anda mais rápido que o lento da frente
+          const lsp = this._laneLeadSpeed(id, this.s, 70);
+          if (lsp >= 0 && lsp < ld.speed + 2.5) continue;
           if (this._laneFree(id, this.s, 10, prof.overtakeFree + 20)) { this.track = id; this.lastLC = this.t; return; }
         }
       }
@@ -320,11 +354,12 @@ export function createAutopilot(ctx) {
         const step = D.index > T.index ? 1 : -1;
         let nid = -1; for (const id of sib) if (net.lanes[id].index === T.index + step) nid = id;
         if (nid < 0) return;
-        const urgent = left < 70;
-        const onBus = T.kind === 'bus';
+        const urgent = left < 70 || (T.kind === 'bus' && !prof.busLane);
+        const onBus = T.kind === 'bus' && !prof.busLane;
         const stay = slowLead === false && !onBus && !urgent && T.kind !== 'bus' && this.profile === 'apressado' && left > 200;
         if (stay) return;
         if (this._laneFree(nid, this.s, urgent ? 4 : 9, urgent ? 10 : 22) || left < 25) { this.track = nid; this.lastLC = this.t; }
+        else if (left < 120) this.needLC = true; // tira o pé para achar a brecha
       }
     },
 

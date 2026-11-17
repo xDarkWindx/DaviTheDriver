@@ -16,7 +16,8 @@ import { buildResult } from './rules/result.js';
 import { TrafficAdapter } from './rules/traffic-adapter.js';
 
 const NEAR_SIGNAL = 45, NEAR_CW = 35;
-const PED_IDLE = { waiting: 1, idle: 1, done: 1, waitingToCross: 1, sidewalk: 1 };
+// só quem está NA faixa conta (esperando na calçada ou já saindo dela, 'walking', não)
+const PED_ON_CROSSWALK = { crossing: 1, down: 1 };
 
 export default {
   name: 'rules',
@@ -128,7 +129,7 @@ export default {
       if (!occ) {
         const r = (cw.halfWidth || 8) + RULES_BALANCE.crosswalk.pedRadiusExtra;
         for (const p of peds) {
-          if (p.crosswalkId !== cw.id || PED_IDLE[p.state]) continue;
+          if (p.crosswalkId !== cw.id || !PED_ON_CROSSWALK[p.state]) continue;
           if ((p.x - cw.x) * (p.x - cw.x) + (p.z - cw.z) * (p.z - cw.z) <= r * r) { occ = true; break; }
         }
       }

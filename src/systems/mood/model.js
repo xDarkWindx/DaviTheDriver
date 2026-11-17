@@ -77,6 +77,7 @@ export function addBar(bars, key, v) {
   bars[key] = clamp(bars[key] + v, bars.floor, 100);
 }
 
+const FINE_BANK = { speed: 'fineRadar', redLight: 'fineRed', crosswalk: 'fineCrosswalk', busLane: 'fineBus' };
 const say = (m, bank, prio = 0, gestureOnly = false) => { m.out.says.push({ bank, prio, gestureOnly }); };
 
 function desiredKmh(B, limitKmh) {
@@ -363,7 +364,7 @@ export function moodEvent(m, type, p = {}, inp = {}) {
     case 'fine':
       stressEvt(SX.fine);
       if (perigo) { addBar(dono, 'stress', B.perigo.fine); say(m, 'oFine', 1); }
-      say(m, drv ? (p.by === 'agent' ? 'fineAgent' : 'fineRadar') : 'pFine', 1);
+      say(m, drv ? (p.by === 'agent' ? 'fineAgent' : FINE_BANK[p.code] || 'fineRadar') : 'pFine', 1);
       if (carona) addBar(dono, 'anxiety', B.carona.palpiteDonoAnx);
       return true;
     case 'hazard': {

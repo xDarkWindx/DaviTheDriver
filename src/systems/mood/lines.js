@@ -82,6 +82,17 @@ export const BANKS = {
   fineAgent: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
     'De onde saiu esse agente?!', 'Atrás da árvore?! SÉRIO?!', ['Porra, tava escondido!', 'Poxa, tava escondido!'], 'Ele tava de tocaia!',
   ] },
+  fineRed: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
+    'Tava amarelo! Tava… meio amarelo.', ['Puta merda, a câmera do sinal!', 'Ai, a câmera do sinal!'], 'Foi o flash do sinal?!',
+    'Esse vermelho veio rápido demais.',
+  ] },
+  fineCrosswalk: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
+    'Opa, tinha gente na faixa!', ['Caralho, a faixa! Desculpa!', 'Caramba, a faixa! Desculpa!'], 'Desculpa, moça! Desculpa!',
+    'Brasília não perdoa faixa, né…',
+  ] },
+  fineBus: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, lines: [
+    'Era só um pouquinho na faixa do ônibus…', ['Porra, a faixa exclusiva!', 'Poxa, a faixa exclusiva!'], 'Câmera na faixa do ônibus. Claro.',
+  ] },
   manga: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, gestures: ['maosNaCabeca'], lines: [
     'MANGA! MANGA NA PISTA!', ['Porra de manga!', 'Raios de manga!'], 'Escorregou! Escorregou tudo!', 'Brasília em outubro, né…',
   ] },
