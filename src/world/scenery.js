@@ -327,7 +327,7 @@ export function buildScenery(sb) {
   }
 
   // --- Parque da Cidade (enorme, ao sul do Eixo, entre EPIG e W3)
-  sb.forest(X(-990), 190, X(-460), 800, 380, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
+  sb.forest(X(-990), 190, X(-460), 800, 230, { mangueira: 4, cerrado: 3, ipe_amarelo: 1.5, ipe_rosa: 1, ipe_roxo: 0.6, palmeira: 1, jaqueira: 0.6, arbusto: 2 });
 
   // --- Superquadras Sul (entre W3 e Eixão; entre Eixão e L2; além da L2)
   const superquadra = (x0, z0, x1, z1) => {
