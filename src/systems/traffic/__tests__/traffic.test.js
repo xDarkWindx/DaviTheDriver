@@ -281,6 +281,49 @@ test('viagem inteira seguindo o GPS no meio do trânsito (Casa → STJ e volta)'
   assert.ok(aiFault <= 1, 'IA bateu no jogador ' + aiFault + 'x');
 });
 
+test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA não fica presa no balão', () => {
+  const { sim, events, sig } = makeSim();
+  const cuts = [], cols = [];
+  events.on(EV.CUT_OFF, (p) => cuts.push(p)); events.on(EV.COLLISION, (p) => cols.push(p));
+  const st = net.snapStart(net.starts.stj_norte);              // sai do Estacionamento Norte -> avenida -> Balão da SAFS Q. 2
+  const route = net.planRoute(st.lane.id, st.s, net.laneForZone('casa').targets);
+  const player = makePlayer(st.x, st.z, st.heading);
+  sim.setPlayer(player); sim.reset({ seed: 4242, timeOfDay: 'tarde', route, stjBus: true, stjBusForce: true });
+  const w = net.createWalker(route[0], st.s); w.route = route; w.routeIdx = 0;
+  let sp = 0, bus = null, minGap = 99;
+  const ringIds = new Set(net.roundabouts.filter((r) => r.id === 'R_Q2').flatMap((r) => r.segIds.flatMap((sid) => [...net.segments.get(sid).laneIdsF])));
+  for (let i = 0; i < 60 * 70 && !w.ended; i++) {
+    // cuidadoso: segue o líder, para no vermelho/faixa e dá espaço a QUALQUER veículo no cone à frente (ex.: ônibus entrando)
+    const lane = w.lane; let target = Math.min(lane.limitKmh / 3.6, 9);
+    const L = sim.leadInfo(); if (L) target = Math.min(target, Math.max(0, (L.gap - 4) / 1.6));
+    if (lane.signal && sig.stateForLane(lane) !== 'green' && lane.length - w.s < 40 && lane.length - w.s > 2) target = Math.min(target, Math.max(0, (lane.length - w.s - 4) / 2));
+    const cw = sim.crosswalkAhead(); if (cw && cw.occupied) target = Math.min(target, Math.max(0, (cw.dist - 4) / 1.5));
+    const fx = Math.sin(w.heading), fz = Math.cos(w.heading);
+    for (const v of sim.vehicles) {
+      const dx = v.x - w.x, dz = v.z - w.z, f = dx * fx + dz * fz, l = Math.abs(-dx * fz + dz * fx);
+      if (f > 0 && f < 26 && l < 1.0 + v.length * 0.5) target = Math.min(target, Math.max(0, (f - v.length * 0.5 - 5) / 2));
+      if (v.stjBus) { bus = v; minGap = Math.min(minGap, Math.hypot(dx, dz) - v.length * 0.5); }
+    }
+    sp += Math.max(-7, Math.min(2.5, (target - sp) * 2)) * DT; if (sp < 0) sp = 0;
+    w.advance(sp * DT);
+    const ph = player.phys; ph.x = w.x; ph.z = w.z; ph.heading = w.heading; ph.vx = fx * sp; ph.vz = fz * sp;
+    sig.update(DT); sim.step(DT);
+  }
+  assert.equal(sim.stats.stjBus, 1, 'o evento não disparou');
+  assert.ok(bus && bus.stjBus && bus.persona === 'onibusSTJ', 'sem ônibus do STJ');
+  const busCols = cols.filter((c) => c.persona === 'onibusSTJ');
+  assert.equal(busCols.length, 0, 'o piloto cuidadoso levou o ônibus: ' + JSON.stringify(busCols[0]));
+  // a IA não fica presa no balão depois
+  const far = parkingSpot('local'); player.phys.x = far.x; player.phys.z = far.z; player.phys.vx = player.phys.vz = 0;
+  const stopT = new Map(); let worst = 0;
+  for (let i = 0; i < 60 * 40; i++) {
+    sig.update(DT); sim.step(DT);
+    for (const v of sim.vehicles) { if (!ringIds.has(v.w.lane.id)) continue; const t = v.speed < 0.3 ? (stopT.get(v.id) || 0) + DT : 0; stopT.set(v.id, t); worst = Math.max(worst, t); }
+  }
+  console.log(`       fechada no balão: ${cuts.filter((c) => c.stj).length}x; menor folga até o ônibus ${minGap.toFixed(1)} m; maior parada no balão depois: ${worst.toFixed(1)} s`);
+  assert.ok(worst < 20, 'alguém ficou preso no balão: ' + worst.toFixed(1) + ' s');
+});
+
 test('fiscalização e frutas sorteadas por semente (reprodutível)', () => {
   const { sim } = makeSim(fakeSignals('green'));
   const far = parkingSpot('local'); sim.setPlayer(makePlayer(far.x, far.z)); sim.autoSpawn = false;

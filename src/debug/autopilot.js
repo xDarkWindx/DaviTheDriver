@@ -42,8 +42,11 @@ export function createAutopilot(ctx) {
       if (!r) return false;
       const dest = (ctx.trip._dest || net.laneForZone(ctx.ROUTES[tr.routeId].destZone)).targets;
       let route = null;
-      if (this.corridor === 'parque' && !this._viaDone) {
-        const via = net.routeCorridors.parque && net.routeCorridors.parque[tr.routeId];
+      const tv = ctx.trip.via ? ctx.trip.via.slice(ctx.trip.viaIdx) : [];
+      if ((this.corridor === 'parque' || tv.length) && !this._viaDone) {
+        const pq = this.corridor === 'parque' && net.routeCorridors.parque ? net.routeCorridors.parque[tr.routeId] : [];
+        const tvUse = pq.length && tr.parking === 'norte' ? [] : tv; // pelo Parque a chegada ao Norte vem da Rotatória 1
+        const via = tr.routeId === 'casa-stj' ? pq.concat(tvUse) : tvUse.concat(pq);
         if (via) { try { route = net.planRouteVia(r.laneId, r.s, via, dest, []); } catch (e) { route = null; } }
         this._viaDone = !!route; // depois de planejado uma vez segue a lista (replanos só se sair dela)
       }

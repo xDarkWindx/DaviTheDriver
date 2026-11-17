@@ -36,7 +36,7 @@ export const TUNING = {
   honkEventGap: 3.5,  // s mínimos entre dois HONKED_AT (várias buzinas seguidas = uma irritação)
   spawnQueueMax: 3,   // parados na faixa a partir dos quais não nasce mais ninguém nela
   // evento "ônibus do STJ na rotatória": chance por viagem e peso de cada rotatória do entorno (roundabout.stj = 1..5)
-  stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.45, 3: 0.4, 4: 0.3, 5: 0.8 }, stjBusSwing: 0.2,
+  stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.5, 6: 0.8 }, stjBusSwing: 0.2,
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
 
@@ -300,7 +300,7 @@ export class TrafficSim {
     this._rollHazards(erng);
     this._rollEnforcement(erng);
     const stjOn = opts.stjBus != null ? !!opts.stjBus : erng() < TUNING.stjBusChance;
-    this.stjEvent = { on: stjOn, fired: false, ring: -1, busId: -1, tried: new Set(), rng: erng() };
+    this.stjEvent = { on: stjOn, force: !!opts.stjBusForce, fired: false, ring: -1, busId: -1, tried: new Set(), rng: erng() };
     if (this.player) {
       this._readPlayer();
       if (this.autoSpawn) this._fillInitial();
@@ -1771,7 +1771,7 @@ export class TrafficSim {
     if (!node || E.tried.has(node)) return;
     E.tried.add(node);
     const w = TUNING.stjBusRing[this.rbs[rbi].stj] || 0.4;
-    if (this.rng() > w) return;
+    if (!E.force && this.rng() > w) return;
     const apps = this.ringApproachByNode.get(node); if (!apps) return;
     let lid = -1;
     for (const a of apps) { const L = this.lanes[a]; if (L.length > 40 && (lid < 0 || L.index < this.lanes[lid].index)) lid = a; }

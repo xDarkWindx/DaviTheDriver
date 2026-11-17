@@ -6,6 +6,7 @@ import { samplePts } from './roadNetwork.js';
 
 const GREEN_GLASS_BAND = 0x3f7d6c;
 const RES_COLORS = [0xf3ecdf, 0xefe2cf, 0xe9d8c4, 0xf1d6cf, 0xd9e3e6, 0xe7e0c9, 0xf6f3ec, 0xdfd0e0];
+const PARKED_COLORS = [0xf2f2f0, 0xf2f2f0, 0x9ea3a8, 0x6d7278, 0x24272b, 0x8e1c1c, 0x2a4f8a, 0xc9c3b4, 0x3f5d3a];
 const OFFICE_COLORS = [0xe6e3dc, 0xd9d5cc, 0xc9c6c0, 0xeae6de];
 const OFFICE_GLASS = [0x3f6f7d, 0x2f5866, 0x4f7a6a, 0x58788a, 0x35505e];
 const TREE_COLORS = {
@@ -198,6 +199,38 @@ export class SceneryBuilder {
     }
   }
 
+  /** Um carro parado (2 caixas instanciadas: carroceria + cabine) com colisor 'car'. */
+  parkedCar(x, z, h, color) {
+    this.inst.add('box', x, 0.28, z, h, 1.72, 0.72, 4.05, color);
+    this.inst.add('box', x - Math.sin(h) * 0.25, 1.0, z - Math.cos(h) * 0.25, h, 1.5, 0.55, 2.1, 0x2b3640);
+    const col = makeOBB(x, z, 0.9, 2.05, h); col.kind = 'car'; this.colliders.add(col);
+  }
+  /** Vagas a 90° dos dois lados de um segmento (lado = 1 direita, -1 esquerda), `every` m, ocupação `occ`. */
+  parkedAlong(segId, sides, every, rng, occ = 0.8) {
+    const seg = this.net.getSegment(segId); if (!seg) return;
+    const nA = this.net.getNode(seg.from), nB = this.net.getNode(seg.to), T = { x: 0, z: 0, tx: 0, tz: 0 };
+    for (const side of sides) {
+      const off = (side > 0 ? seg.edgeR : seg.edgeL) + side * 3.0;
+      for (let s = nA.radius + 6; s < seg.length - nB.radius - 6; s += every) {
+        if (rng() > occ) continue;
+        samplePts(seg.pts, seg.cum, s, T);
+        const x = T.x - T.tz * off, z = T.z + T.tx * off;
+        if (this.net.clearance(x, z, 10) < 1.2) continue;
+        const h = Math.atan2(T.tx, T.tz) + Math.PI / 2 + (rng() - 0.5) * 0.06;
+        this.parkedCar(x, z, h, rng.pick(PARKED_COLORS));
+      }
+    }
+  }
+  /** Bolsão de estacionamento: fileiras de carros a 90° com árvores entre elas (área retangular). */
+  parkedLot(x0, z0, x1, z1, rng) {
+    for (let x = x0; x <= x1; x += 13) {
+      for (let z = z0; z <= z1; z += 2.7) {
+        if (rng() < 0.75 && this.net.clearance(x, z, 10) > 2.2) this.parkedCar(x, z, Math.PI / 2, rng.pick(PARKED_COLORS));
+      }
+      if (x + 6.5 <= x1) for (let z = z0 + 4; z <= z1; z += 11) if (this.net.clearance(x + 6.5, z, 10) > 3) this.tree(x + 6.5, z, rng() < 0.5 ? 'mangueira' : 'ipe_amarelo', 0.7);
+    }
+  }
+
   /** Guard-rail contínuo ao longo da borda de um segmento (side 1 = direita, -1 = esquerda). */
   guardrail(segId, side, gap = 6) {
     if (this.dens.guardrails <= 0) return;
@@ -309,7 +342,7 @@ export function buildScenery(sb) {
   setor(-400, 70, -40, 200, 14);    // Setor Comercial Sul (SCS) / Hoteleiro Sul
   setor(-400, 250, -40, 290, 4);
   setor(130, 175, 470, 240, 8);     // SAUS
-  setor(530, 175, 770, 240, 5);
+  // (a quadra entre a avenida, a SAFS Q. 2 e a transversal é o complexo do STJ + Estacionamento Norte: sem torres genéricas)
   setor(-460, -340, -60, -70, 22);  // Setor Comercial/Hoteleiro Norte
   setor(60, -340, 330, -170, 10);
   setor(-560, -700, -60, -380, 18);
@@ -342,8 +375,8 @@ export function buildScenery(sb) {
   // --- fileiras de árvores à beira das vias
   for (const id of ['qrsw2', 'qrsw2_e', 'quarta_av', 'quarta_av_s', 'terceira_w', 'terceira_m', 'terceira_e', 'segunda_w', 'segunda_e', 'eqrsw',
     'rua_q1', 'rua_q34', 'rua_q56', 'clsw', 'primeira_av',
-    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_b2', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
-    's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'l2m_far', 'safs_east'])
+    'w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_n2', 'l2_b', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs',
+    's2_alca', 's2_a', 's2_b', 'safs_n', 'l2m_east', 'l2m_far', 'safs_east', 'l4_sul', 'l4_norte'])
     sb.rowAlong(id, 6.5, 13);
   sb.rowAlong('parque', 5, 9, ['mangueira', 'ipe_amarelo', 'ipe_rosa', 'cerrado', 'mangueira']);
   for (const id of ['epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west', 're_north'])
@@ -354,11 +387,16 @@ export function buildScenery(sb) {
   // --- postes e guard-rails
   for (const id of ['eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 'eixo_s1_d', 'eixo_n1', 'eixo_n1_e']) sb.lampsAlong(id, 42, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s']) sb.lampsAlong(id, 50, [0]);
-  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_b', 'l2_b2', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
+  for (const id of ['w3_n', 'w3_m', 'w3_s', 'l2_n', 'l2_n2', 'l2_b', 'l2_m', 'l2_s', 'epig_n', 'epig_m', 'epig_s', 'jaq_n', 'jaq_m', 'jaq_s', 'jaq_s2', 's2_alca', 's2_a', 's2_b'])
     sb.lampsAlong(id, 46, [0]);
   for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_scs', 'safs_n', 'ent_w', 'ent_e', 'parque']) sb.lampsAlong(id, 36, [1, -1]);
   for (const id of ['eixao_n', 'eixao_n2', 'eixao_m', 'eixao_s', 'epig_n', 'epig_m', 'epig_s', 'epig_far', 'rw_north', 'rw_west']) { sb.guardrail(id, 1); sb.guardrail(id, -1); }
   for (const id of ['tes', 'eixao_ramp', 'alca_eixao', 'alca_rodo']) { sb.guardrail(id, 1, 3); sb.guardrail(id, -1, 3); }
+
+  // --- estacionamentos do STJ: vagas a 90° com carros parados (instanciados; colisor por carro, fora do asfalto)
+  sb.parkedAlong('stj_norte', [1, -1], 3.1, rng, 0.82);
+  sb.parkedAlong('stj_leste', [1, -1], 3.1, rng, 0.7);
+  sb.parkedLot(842, 182, 906, 246, rng);     // miolo arborizado do Estacionamento Leste (fileiras + árvores)
 
   // --- mobiliário urbano nas calçadas (bancos e lixeiras) e arbustos nos canteiros
   for (const id of ['qrsw2', 'qrsw2_e', 'segunda_w', 'terceira_w', 'terceira_m', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'w3_m', 'w3_n', 'ent_e', 'parque', 'jaq_m', 'jaq_s'])

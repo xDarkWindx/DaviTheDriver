@@ -28,9 +28,11 @@ export const CRASH_WITH = {
   building: 'um prédio, surpreendentemente parado', tree: 'um ipê (em flor)', pole: 'um poste',
   guardrail: 'o guard-rail', landmark: 'um monumento tombado pelo patrimônio', busStop: 'um ponto de ônibus',
   wall: 'um muro', water: 'o Lago Paranoá', static: 'um obstáculo fixo',
-  car: 'outro carro', bus: 'um ônibus', moto: 'uma moto', truck: 'um caminhão', vehicle: 'outro carro',
-  pedestrian: 'um pedestre (que levou um susto e está bem)',
+  car: 'um carro estacionado', bus: 'um ônibus', moto: 'uma moto', truck: 'um caminhão', vehicle: 'outro carro',
+  pedestrian: 'um pedestre (que levou um susto e está bem)', busSTJ: 'um ônibus do STJ',
 };
+/** Modelo do trânsito -> chave de CRASH_WITH/CRASH_CAUSE. */
+const VEHICLE_KIND = { onibus: 'bus', moto: 'moto', mudanca: 'truck', sedan: 'vehicle', hatch: 'vehicle', suv: 'vehicle', picape: 'vehicle', autoescola: 'vehicle' };
 
 // Causas impessoais e absurdas (ninguém culpa ninguém).
 export const CRASH_CAUSE = {
@@ -46,8 +48,10 @@ export const CRASH_CAUSE = {
   water: ['O Lago Paranoá estava onde sempre esteve.', 'A hidrografia do Planalto Central.'],
   vehicle: ['Dois carros, um espaço.', 'A física: dois corpos não ocupam o mesmo lugar.', 'Geometria.'],
   bus: ['Um ônibus. Grande. Muito grande.', 'Massa vezes aceleração.'],
+  busSTJ: ['Um ônibus do STJ, na rotatória.'],
   moto: ['Uma moto que estava ali e, de repente, estava aqui.'],
   truck: ['Um caminhão e a terceira lei de Newton.'],
+  car: ['Carro estacionado, exatamente onde estava estacionado.'],
   pedestrian: ['Pedestre na faixa. A faixa é dele.', 'A faixa de pedestre funcionou: tinha um pedestre.'],
   _: ['A física.', 'Inércia. Pura inércia.', 'O asfalto, que estava ali.'],
 };
@@ -129,7 +133,7 @@ export function buildResult(i, B = RULES_BALANCE) {
   if (reason === 'bateu') {
     const c = i.crash || {};
     const b = c.b || 'static';
-    const vkind = b === 'vehicle' ? (c.vehicleKind || c.kind || 'car') : null;
+    const vkind = b === 'vehicle' ? (c.persona === 'onibusSTJ' ? 'busSTJ' : VEHICLE_KIND[c.vehicleKind || c.kind] || 'vehicle') : null;
     const kind = b === 'pedestrian' ? 'pedestrian' : b === 'vehicle' ? vkind : c.kind || 'static';
     const hz = i.lastHazard && i.now != null && i.now - i.lastHazard.t <= B.hazardExcuseWindow ? i.lastHazard.kind : null;
     const withWhat = CRASH_WITH[kind] || (b === 'vehicle' ? CRASH_WITH.vehicle : CRASH_WITH.static);

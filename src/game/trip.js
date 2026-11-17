@@ -39,7 +39,7 @@ export class Trip {
   }
 
   /** Configura a viagem (rota) e retorna a pose de largada {x,z,heading}. */
-  setup(routeId, parking = null) {
+  setup(routeId, parking = null, via = null) {
     const def = ROUTES[routeId];
     if (!def) throw new Error('rota desconhecida: ' + routeId);
     this.def = def;
@@ -56,6 +56,8 @@ export class Trip {
     this.ring.visible = this.beam.visible = true;
     this.arrow.visible = true;
     this._gpsT = 0; this.route.length = 0;
+    // caminho de chegada/saída do STJ (ex.: carona pela Via L4): waypoints que o GPS respeita até passar por eles
+    this.via = via && via.length ? via.slice() : null; this.viaIdx = 0;
     return this.net.snapStart(this.net.starts[this.startId]);
   }
 
@@ -77,7 +79,13 @@ export class Trip {
     let near = net.nearestLane(p.x, p.z, this._near, p.heading, 1.3);
     if (!near || near.dist > 25) near = net.nearestLane(p.x, p.z, this._near);
     if (!near) { tr.guideX = tr.destX; tr.guideZ = tr.destZ; tr.routeDistLeft = tr.distToDest; this._bearing(); return; }
-    const r = net.planRoute(near.laneId, near.s, this._dest.targets, this.route);
+    let r = null;
+    if (this.via) {
+      const seg = near.lane.segId;
+      for (let i = this.viaIdx; i < this.via.length; i++) if (this.via[i] === seg) { this.viaIdx = i + 1; break; }
+      if (this.viaIdx < this.via.length) { try { r = net.planRouteVia(near.laneId, near.s, this.via.slice(this.viaIdx), this._dest.targets, this.route); } catch (e) { r = null; } }
+    }
+    if (!r) r = net.planRoute(near.laneId, near.s, this._dest.targets, this.route);
     if (!r) { tr.guideX = tr.destX; tr.guideZ = tr.destZ; tr.routeDistLeft = tr.distToDest; this._bearing(); return; }
     // ponto GUIDE_AHEAD m à frente na rota
     let left = GUIDE_AHEAD, s = near.s, T = this._T;

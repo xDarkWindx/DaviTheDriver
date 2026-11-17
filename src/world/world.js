@@ -323,7 +323,7 @@ function buildSigns(atlas, camDir, inst, colliders, net) {
     quad([cx - rx * w / 2, y0, cz - rz * w / 2], [cx + rx * w / 2, y0, cz + rz * w / 2], [cx + rx * w / 2, y0 + h, cz + rz * w / 2], [cx - rx * w / 2, y0 + h, cz - rz * w / 2], u, [dx, 0, dz]);
     inst.add('box', cx - dx * 0.05, 0, cz - dz * 0.05, 0, 0.1, y0, 0.1, 0x6d7075);
   }
-  roof('roof_stj', 628, 17.35, 330, 44);
+  roof('roof_stj', 632, 13.15, 241, 40);
   roof('roof_casa', -1390, 3.2 + 18 + 0.65, 166, 20);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

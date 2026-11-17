@@ -14,6 +14,21 @@ export function chooseParking(modeId, seed) {
   return opts[Math.floor(r * opts.length) % opts.length];
 }
 
+/**
+ * Caminho de chegada ao STJ / saída dele (waypoints = segIds para o GPS; null = GPS livre).
+ * Norte (davi/perigo): (a) desce a avenida e entra pela ponta oeste = GPS livre; (b) segue a SAFS Q. 2 e desce pela lateral.
+ * Leste (carona): pela Via L4 Sul e a Rotatória 2, na ida e na volta (caminho inverso).
+ */
+export function chooseArrivalVia(modeId, routeId, parking, seed) {
+  const toStj = routeId === 'casa-stj';
+  if (parking === 'leste') return toStj ? ['l2m_east', 'l4_sul'] : ['l4_sul', 'l2m_east'];
+  if (parking === 'norte' && toStj) {
+    const r = seed != null ? ((((seed >>> 0) ^ 0x9e3779b9) * 2246822519) >>> 0) / 4294967296 : Math.random();
+    return r < 0.5 ? null : ['s2_b', 'stj_lateral'];
+  }
+  return null;
+}
+
 export class Game {
   constructor(ctx) {
     this.ctx = ctx;
@@ -89,7 +104,8 @@ export class Game {
     // estacionamento do STJ: carona = Norte (o caminho do dono); Davi = Entrada Oeste ou Estacionamento Leste (sorteio,
     // reproduzível com state.traffic.seed). opts.parking força ('norte'|'oeste'|'leste').
     tr.parking = opts && opts.parking ? opts.parking : chooseParking(modeId, st.traffic && st.traffic.seed);
-    const pose = ctx.trip.setup(routeId, tr.parking);
+    tr.arrivalVia = opts && opts.via ? opts.via : chooseArrivalVia(modeId, routeId, tr.parking, st.traffic && st.traffic.seed);
+    const pose = ctx.trip.setup(routeId, tr.parking, tr.arrivalVia);
     ctx.player.setVehicle(vehicle.id);
     ctx.player.reset(pose);
     ctx.view.setTimeOfDay(route.timeOfDay);

@@ -129,23 +129,37 @@ function congresso(b) {
 }
 
 function stj(b) {
-  // STJ (SAFS): bloco horizontal branco com colunata de arcos e faixa de vidro escuro + bloco alto atrás
-  b.box(170, 3, 46, CONCRETE, 0, 1.5, 0);                // embasamento
-  b.box(160, 12, 34, WHITE, 0, 9, 0);                    // corpo principal
-  b.box(160.4, 4, 34.4, DARKGLASS, 0, 9.5, 0);           // faixa de vidro
-  for (let i = -15; i <= 15; i++) {                      // colunata frontal (lado norte, rua)
-    b.box(1.2, 14, 1.2, WHITE, i * 5.2, 8, -20);
-    const arc = new THREE.TorusGeometry(2.6, 0.5, 4, 8, Math.PI);
-    b.add(arc, WHITE, i * 5.2 + 2.6, 15, -20);
-    arc.dispose();
+  // Complexo do STJ (SAFS), silhueta aproximada da foto aérea (local +Z = sul): bloco comprido ao norte coberto de
+  // brises (pórticos verticais), dois blocos baixos no meio, o grande prédio branco anguloso ao sul e a cúpula do
+  // auditório a leste. Escala comprimida como o resto do mapa.
+  b.box(186, 0.6, 38, 0xc9c4b6, 0, 0.3, 0);                                   // esplanada/piso do conjunto
+  // bloco norte + brises (fileira de lâminas verticais e travessas por cima)
+  b.box(132, 9, 9, 0xe9e6de, -8, 4.5, -12.5);
+  b.box(132.4, 2.2, 9.4, DARKGLASS, -8, 5.2, -12.5);
+  for (let i = 0; i < 23; i++) {
+    const x = -72 + i * 5.8;
+    b.box(0.9, 12, 3.6, WHITE, x, 6, -16.6);                                   // lâmina (brise)
+    b.box(0.9, 0.9, 10.5, WHITE, x, 12.2, -12.2);                              // pórtico sobre o bloco
   }
-  b.box(165, 1.5, 44, WHITE, 0, 16.5, 0);                // marquise
-  b.box(60, 30, 20, 0xebe8e0, 40, 15, 14);               // torre administrativa
-  for (let y = 4; y < 30; y += 3.4) b.box(60.2, 1.3, 20.2, GLASS, 40, y, 14);
+  b.box(134, 0.9, 1.2, WHITE, -8, 12.2, -17.4);
+  // dois blocos baixos no meio (telhado escuro)
+  b.box(58, 6, 8, 0xd9d4c8, -42, 3, -2); b.box(58.4, 0.6, 8.4, 0x55524c, -42, 6.2, -2);
+  b.box(54, 6, 8, 0xd9d4c8, 22, 3, 0);  b.box(54.4, 0.6, 8.4, 0x55524c, 22, 6.2, 0);
+  // prédio branco anguloso ao sul (três alas em "V" + bloco de vidro a oeste)
+  b.box(64, 13, 13, WHITE, -24, 6.5, 11, 0, 0.18, 0);
+  b.box(60, 13, 13, WHITE, 30, 6.5, 11, 0, -0.22, 0);
+  b.box(22, 13, 24, WHITE, 2, 6.5, 6);
+  b.box(64.4, 2, 13.4, GLASS, -24, 9.5, 11, 0, 0.18, 0);
+  b.box(60.4, 2, 13.4, GLASS, 30, 9.5, 11, 0, -0.22, 0);
+  b.box(24, 16, 16, 0xdedad0, -74, 8, 9);                                      // bloco de vidro (canto sudoeste)
+  for (let y = 2.5; y < 16; y += 3.2) b.box(24.2, 1.4, 16.2, GLASS, -74, y, 9);
+  // cúpula do auditório (leste)
+  b.cyl(10, 10, 4, 18, 0xe4e0d6, 80, 2, -8);
+  b.cyl(10.2, 3, 5, 18, WHITE, 80, 6.5, -8);
   // mastro com bandeira
-  b.box(0.3, 18, 0.3, 0xcccccc, -70, 9, -32);
-  b.box(4, 2.6, 0.1, 0x1f9a3e, -68, 16.4, -32);
-  b.box(1.6, 1.0, 0.12, 0xf2d21a, -68, 16.4, -32);
+  b.box(0.3, 18, 0.3, 0xcccccc, -86, 9, -17);
+  b.box(4, 2.6, 0.1, 0x1f9a3e, -84, 16.4, -17);
+  b.box(1.6, 1.0, 0.12, 0xf2d21a, -84, 16.4, -17);
 }
 
 function casa(b) {
@@ -205,7 +219,7 @@ export function buildLandmarks(scene, colliders, material) {
   place('museu', 'Museu Nacional', 205, 112, 0, museu, [{ x: 0, z: 0, r: 18 }]);
   place('teatro', 'Teatro Nacional', 200, -112, 0, teatro, [{ x: 0, z: 0, hx: 28, hz: 28 }]);
   place('congresso', 'Congresso Nacional', 960, 0, Math.PI / 2, congresso, [{ x: 0, z: 0, hx: 75, hz: 30 }]);
-  place('stj', 'Superior Tribunal de Justiça', 650, 330, 0, stj, [{ x: 0, z: 0, hx: 85, hz: 23 }, { x: 40, z: 14, hx: 30, hz: 10 }]);
+  place('stj', 'Superior Tribunal de Justiça', 650, 230, 0, stj, [{ x: -8, z: -12.5, hx: 67, hz: 6 }, { x: 0, z: 2, hx: 86, hz: 8 }, { x: 0, z: 11, hx: 58, hz: 8 }, { x: -74, z: 9, hx: 12, hz: 8 }, { x: 80, z: -8, r: 10 }]);
   place('memorial', 'Memorial JK', -1130, -110, 0, memorialJK, [{ x: 0, z: 0, hx: 20, hz: 13 }]);
   place('catedralMilitar', 'Catedral Militar Rainha da Paz', -1600, -100, 0, catedralMilitar, [{ x: 0, z: 0, r: 13 }]);
   place('casa', 'QRSW 2 — Sudoeste', -1390, 166, 0, casa, [{ x: 0, z: 0, hx: 24.5, hz: 6.5 }]);

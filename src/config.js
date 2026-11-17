@@ -181,15 +181,15 @@ export const PEOPLE = {
 
 export const MODES = {
   davi: {
-    id: 'davi', label: 'Davi ao volante', vehicle: 'kwid', driver: 'davi', passenger: null, parking: ['oeste', 'leste'],
+    id: 'davi', label: 'Davi ao volante', vehicle: 'kwid', driver: 'davi', passenger: null, parking: ['norte'],
     description: 'Você É o Davi, no Kwid branco. A culpa é sempre dos outros.',
   },
   carona: {
-    id: 'carona', label: 'Davi de carona', vehicle: 'cactus', driver: 'dono', passenger: 'davi', parking: ['norte'],
+    id: 'carona', label: 'Davi de carona', vehicle: 'cactus', driver: 'dono', passenger: 'davi', parking: ['leste'],
     description: 'Você dirige o seu C4 Cactus THP e o Davi vai do lado, palpitando e surtando.',
   },
   perigo: {
-    id: 'perigo', label: 'Perigo: Davi no Cactus', vehicle: 'cactus', driver: 'davi', passenger: 'dono', parking: ['oeste', 'leste'],
+    id: 'perigo', label: 'Perigo: Davi no Cactus', vehicle: 'cactus', driver: 'davi', passenger: 'dono', parking: ['norte'],
     description: 'O dono emprestou o Cactus THP pro Davi. Turbo + ansiedade. O dono vai do lado, apavorado.',
   },
 };

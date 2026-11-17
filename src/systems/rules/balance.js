@@ -59,7 +59,7 @@ export const RULES_BALANCE = {
     perFinePoint: 3, finesCapGrade: 'B', perScrape: 6, timeOver: 40, zoneBonus: 10, perigoPanic: 0.25, caronaOutburst: 6 },
   repair: {
     base: 2500, perKmh: 520,
-    kindMul: { pole: 1.0, building: 1.3, wall: 1.2, tree: 1.1, guardrail: 0.9, landmark: 1.5, busStop: 1.0, water: 3.0, vehicle: 1.2, pedestrian: 0.6 },
+    kindMul: { pole: 1.0, building: 1.3, wall: 1.2, tree: 1.1, guardrail: 0.9, landmark: 1.5, busStop: 1.0, water: 3.0, vehicle: 1.2, pedestrian: 0.6, car: 1.0, busSTJ: 1.6 },
     vehicleKindMul: { bus: 1.6, truck: 1.5, moto: 0.7 },
   },
   years: { base: 0.3, perPanicSec: 0.04, perScrape: 0.5, crash: 2, takeover: 1.5 },

@@ -61,19 +61,20 @@ export const MAP = {
     J_S3b: { x: -200, z: 235 },      // SCS
     J_S3a: { x: 200, z: 260 },       // SAUS
     M_S3: { x: 100, z: 253.75 },     // alça do Eixão entra na Via S3
-    J_S2_L2: { x: 500, z: 150 },
+    // (Via S2 × L2 = "SAFS Quadra 2" × avenida principal virou balão: R_Q2)
     // (L2 × Via S3 virou a Rotatória 1 do STJ: R_STJ1)
     // (L2 × Via L3 virou o balão pequeno do norte do STJ: R_STJN1)
     J_L2a: { x: 500, z: 700 },
     L2_S: { x: 500, z: 1190, type: 'edge' },
     J_S2E: { x: 800, z: 150 },
     // (Via S2/SAFS × Via S3 × Via L4 virou a Rotatória 2 do STJ: R_STJ2)
-    D_STJ: { x: 806, z: 372, type: 'deadend' },   // Estacionamento Leste do STJ (sobe da Rotatória 2)
-    D_STJW: { x: 590, z: 372, type: 'deadend' },  // Entrada Oeste do STJ (da avenida, perto da Rotatória 1)
-    D_STJN: { x: 660, z: 420, type: 'deadend' },  // Estacionamento Norte, atrás do prédio (vem do balão alongado)
-    J_STJW: { x: 500, z: 372 },                   // L2 × entrada oeste do STJ
+    // Quadra do STJ (entre a SAFS Q. 2 = Via S2 ao norte, a avenida = L2 a oeste e a transversal = Via S3 ao sul):
+    J_STJW: { x: 500, z: 196 },                   // avenida (L2) × ponta OESTE do Estacionamento Norte
+    J_STJE: { x: 800, z: 196 },                   // lateral leste × ponta LESTE do Estacionamento Norte
+    D_STJL: { x: 884, z: 178, type: 'deadend' },  // fundo do Estacionamento Leste (laço interno)
+    J_L4: { x: 975, z: 335 },                     // Via L4 Sul × acesso ao STJ (o trevo real foi simplificado)
     D_TSE: { x: 372, z: 352, type: 'deadend' },   // SAFS Quadra 7 (TSE)
-    E_SAFS: { x: 1190, z: 260, type: 'edge' },
+    E_SAFS: { x: 1190, z: 180, type: 'edge' },
     E_L2m: { x: 1190, z: 480, type: 'edge' },
     E_ENT: { x: 1190, z: 700, type: 'edge' },
     RW_N_E: { x: -1500, z: -750, type: 'edge' },
@@ -118,17 +119,21 @@ export const MAP = {
     },
     {
       id: 'R_STJ2', name: 'Rotatória do STJ (Via L4)', x: 800, z: 260, radius: 22, lanes: 2, laneW: 4, limitKmh: 40, stj: 2,
-      entries: { r2_e: 0, r2_w: 180, r2_s: 270 },
+      entries: { r2_e: 0, r2_ne: 50, r2_n: 90, r2_w: 180 },
     },
     // Norte do STJ (no mapa do jogo, ao sul da quadra): balão pequeno onde a Via L3 cruza a avenida (L2) e o
     // balão "alongado" a leste (caminho do TCU), de onde se desce pela lateral até o Estacionamento Norte.
     {
-      id: 'R_STJN1', name: 'Balão da L2 (SAFS)', x: 500, z: 480, radius: 18, lanes: 1, laneW: 4.5, limitKmh: 30, stj: 4,
+      id: 'R_STJN1', name: 'Balão da L2 com a L3', x: 500, z: 480, radius: 18, lanes: 1, laneW: 4.5, limitKmh: 30, stj: 4,
       entries: { rn1_e: 0, rn1_n: 90, rn1_s: 270 },
     },
     {
-      id: 'R_STJN2', name: 'Balão do TCU', x: 880, z: 480, radius: 26, lanes: 2, laneW: 4, limitKmh: 40, stj: 5,
+      id: 'R_STJN2', name: 'Balão da L4 Sul', x: 880, z: 480, radius: 26, lanes: 2, laneW: 4, limitKmh: 40, stj: 5,
       entries: { rn2_e: 0, rn2_n: 90, rn2_w: 180 },
+    },
+    {
+      id: 'R_Q2', name: 'Balão da SAFS Quadra 2', x: 500, z: 150, radius: 18, lanes: 2, laneW: 4, limitKmh: 30, stj: 6,
+      entries: { rq2_e: 0, rq2_w: 180, rq2_s: 270 },
     },
     {
       id: 'R_STJ3', name: 'Rotatória do TSE (SAFS Q. 7)', x: 372, z: 260, radius: 17, lanes: 1, laneW: 4.5, limitKmh: 30, stj: 3,
@@ -201,12 +206,19 @@ export const MAP = {
 
     // --- Via S2 (Rodoviária → SAUS → SAFS)
     { id: 's2_alca', name: 'Via S2 (descida da Rodoviária)', from: 'X_S2', to: 'S2_J', via: [[82, 80]], corner: 26, lanesF: 2, lanesB: 2, median: 2, limitKmh: 60, kind: 'urban', layer: 1 },
-    { id: 's2_a', name: 'Via S2', from: 'S2_J', to: 'J_S2_L2', via: [[170, 150]], corner: 45, lanesF: 2, lanesB: 2, median: 2, limitKmh: 70, kind: 'urban' },
-    { id: 's2_b', name: 'Via S2 (SAUS)', from: 'J_S2_L2', to: 'J_S2E', lanesF: 2, lanesB: 2, median: 2, limitKmh: 60, kind: 'urban' },
+    { id: 's2_a', name: 'Via S2', from: 'S2_J', to: 'rq2_w', via: [[170, 150]], corner: 45, lanesF: 2, lanesB: 2, median: 2, limitKmh: 70, kind: 'urban' },
+    { id: 's2_b', name: 'SAFS Quadra 2 (Via S2)', from: 'rq2_e', to: 'J_S2E', lanesF: 2, lanesB: 2, median: 2, limitKmh: 60, kind: 'urban' },
     // (a antiga Via S2 (SAFS) J_S2E → STJ saiu: o acesso ao STJ é só pela transversal, rotatórias 1 e 2)
     { id: 'safs_n', name: 'Via S2 (Praça dos Três Poderes)', from: 're_s', to: 'J_S2E', lanesF: 2, lanesB: 2, median: 2, limitKmh: 50, kind: 'urban' },
-    { id: 'safs_east', name: 'Via L4 Sul', from: 'r2_e', to: 'E_SAFS', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
-    { id: 'stj_acesso', name: 'Acesso ao STJ', from: 'r2_s', to: 'D_STJ', lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 30, kind: 'local' },
+    // acesso pela Via L4 Sul (trajeto do dono do Cactus): L4 → acesso → Rotatória 2 → Estacionamento Leste
+    { id: 'safs_east', name: 'Acesso Via L4 → STJ', from: 'r2_e', to: 'J_L4', via: [[900, 290]], corner: 40, lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
+    { id: 'l4_sul', name: 'Via L4 Sul', from: 'rn2_n', to: 'J_L4', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'arterial' },
+    { id: 'l4_norte', name: 'Via L4 Sul', from: 'J_L4', to: 'E_SAFS', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'arterial' },
+    // quadra do STJ: lateral leste, Estacionamento Norte (faixa leste–oeste colada ao norte do complexo) e o Leste (laço)
+    { id: 'stj_lateral', name: 'SAFS — lateral do STJ', from: 'J_S2E', to: 'J_STJE', lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 40, kind: 'local' },
+    { id: 'stj_lateral_s', name: 'SAFS — lateral do STJ', from: 'J_STJE', to: 'r2_n', lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 40, kind: 'local' },
+    { id: 'stj_norte', name: 'Estacionamento Norte do STJ', from: 'J_STJW', to: 'J_STJE', lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 30, kind: 'local' },
+    { id: 'stj_leste', name: 'Estacionamento Leste do STJ', from: 'r2_ne', to: 'D_STJL', via: [[868, 222]], corner: 16, lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 30, kind: 'local' },
     { id: 'safs7', name: 'SAFS Quadra 7 (TSE)', from: 'r3_s', to: 'D_TSE', lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 30, kind: 'local' },
 
     // --- Via S3 (SAFS → SAUS → SCS → Pátio Brasil), trecho urbano com semáforos
@@ -236,16 +248,13 @@ export const MAP = {
     { id: 'eixao_s', name: 'Eixão Sul', from: 'T_M', to: 'EX_S', lanesF: 3, lanesB: 3, median: 6, limitKmh: 80, kind: 'eixao', layer: 1 },
 
     // --- L2 Sul
-    { id: 'l2_n', name: 'L2 Sul', from: 'J_S2_L2', to: 'r1_n', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'urban' },
-    { id: 'l2_b', name: 'L2 Sul', from: 'r1_s', to: 'J_STJW', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'urban' },
-    { id: 'l2_b2', name: 'L2 Sul', from: 'J_STJW', to: 'rn1_n', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'urban' },
+    { id: 'l2_n', name: 'L2 Sul (St. de Adm. Federal Sul)', from: 'rq2_s', to: 'J_STJW', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },
+    { id: 'l2_n2', name: 'L2 Sul (St. de Adm. Federal Sul)', from: 'J_STJW', to: 'r1_n', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'urban' },
+    { id: 'l2_b', name: 'L2 Sul', from: 'r1_s', to: 'rn1_n', lanesF: 2, lanesB: 2, median: 3, limitKmh: 70, kind: 'urban' },
     { id: 'l2_m', name: 'L2 Sul', from: 'rn1_s', to: 'J_L2a', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },
     { id: 'l2_s', name: 'L2 Sul', from: 'J_L2a', to: 'L2_S', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },
     { id: 'l2m_east', name: 'Via L3 Sul', from: 'rn1_e', to: 'rn2_w', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
     { id: 'l2m_far', name: 'Via L3 Sul', from: 'rn2_e', to: 'E_L2m', lanesF: 2, lanesB: 2, limitKmh: 50, kind: 'urban' },
-    { id: 'stj_oeste', name: 'Entrada Oeste do STJ', from: 'J_STJW', to: 'D_STJW', lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 30, kind: 'local' },
-    { id: 'stj_norte', name: 'Estacionamento Norte do STJ', from: 'rn2_n', to: 'D_STJN', via: [[880, 420]], corner: 18,
-      lanesF: 1, lanesB: 1, laneW: 3.8, limitKmh: 30, kind: 'local' },
   ],
 
   // Cruzamentos em desnível: 'over' passa por cima de 'under' (sem nó; tráfego não interage).
@@ -258,7 +267,7 @@ export const MAP = {
   ],
 
   // Semáforos (nós). Fases agrupadas por eixo de aproximação automaticamente.
-  signals: ['J_W3N', 'J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_S2_L2', 'J_L2a', 'J_JAQ2', 'J_PRIM'],
+  signals: ['J_W3N', 'J_PB', 'J_W3b', 'J_S3b', 'J_S3a', 'J_L2a', 'J_JAQ2', 'J_PRIM'],
 
   // Faixas de pedestre no meio de quadra (as dos semáforos são automáticas).
   crosswalks: [
@@ -360,16 +369,14 @@ export const MAP = {
   zones: {
     casa: { x: -1390, z: 200, r: 20, label: 'QRSW 2 — Sudoeste' },
     // destino STJ = um dos estacionamentos (state.trip.parking): carona → norte; davi/perigo → oeste ou leste (sorteio)
-    stj: { x: 806, z: 330, r: 18, label: 'STJ — Estacionamento Leste' },      // = stj_leste (compatibilidade)
-    stj_leste: { x: 806, z: 330, r: 18, label: 'STJ — Estacionamento Leste' },
-    stj_oeste: { x: 572, z: 372, r: 16, label: 'STJ — Entrada Oeste' },
-    stj_norte: { x: 700, z: 420, r: 18, label: 'STJ — Estacionamento Norte' },
+    stj: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },      // = stj_norte (compatibilidade)
+    stj_norte: { x: 650, z: 196, r: 18, label: 'STJ — Estacionamento Norte' },
+    stj_leste: { x: 876, z: 200, r: 18, label: 'STJ — Estacionamento Leste' },
   },
   starts: {
     casa: { x: -1360, z: 198, heading: -90 * D2R }, // rumo oeste (sai para a Av. das Jaqueiras)
-    stj: { x: 805, z: 352, heading: 180 * D2R },    // rumo norte, saindo do estacionamento para a Rotatória 2 do STJ
-    stj_leste: { x: 805, z: 352, heading: 180 * D2R },
-    stj_oeste: { x: 582, z: 372, heading: -90 * D2R }, // rumo oeste, sai para a L2 (avenida) e a Rotatória 1
-    stj_norte: { x: 680, z: 420, heading: 90 * D2R },  // rumo leste, sobe ao balão do TCU
+    stj: { x: 700, z: 194, heading: -90 * D2R },       // Estacionamento Norte, rumo oeste (sai pela ponta oeste na avenida)
+    stj_norte: { x: 700, z: 194, heading: -90 * D2R },
+    stj_leste: { x: 880, z: 192, heading: -15 * D2R },  // fundo do Leste, rumo à Rotatória 2
   },
 };

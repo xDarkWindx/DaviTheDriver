@@ -77,14 +77,16 @@ export const REASON_UI = {
 export const CRASH_WITH = {
   building: 'um prédio (que estava no meio do caminho)',
   tree: 'uma árvore (ipê, ainda por cima)',
-  pole: 'um poste que apareceu do nada',
+  pole: 'um poste',
+  car: 'um carro estacionado',
   guardrail: 'um guard-rail',
   landmark: 'um monumento tombado pelo patrimônio',
   busStop: 'um ponto de ônibus',
   wall: 'um muro (sem sinalização)',
   water: 'o Lago Paranoá',
-  vehicle: 'outro carro (que freou do nada)',
-  pedestrian: 'um pedestre (fora da faixa, claro)',
+  vehicle: 'outro carro',
+  bus: 'um ônibus',
+  pedestrian: 'um pedestre (que levou um susto e está bem)',
 };
 export const CRASH_WITH_DEFAULT = 'um obstáculo não identificado';
 
@@ -99,7 +101,8 @@ export const CRASH_EXCUSE = {
   wall: ['Muro. Um clássico.'],
   water: ['O lago estava no nível de sempre.'],
   vehicle: ['Dois carros, um espaço. A matemática não fechou.', 'Uma manga caiu e mudou tudo.'],
-  pedestrian: ['Travessia inesperada. A faixa era logo ali.'],
+  pedestrian: ['Pedestre na faixa. A faixa é dele.'],
+  car: ['Carro estacionado, exatamente onde estava estacionado.'],
   _: ['Uma manga caiu do céu. Ninguém viu de onde.', 'A física, como sempre, venceu.'],
 };
 

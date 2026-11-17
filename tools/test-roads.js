@@ -32,9 +32,9 @@ const toStj = net.laneForZone('stj'), toCasa = net.laneForZone('casa');
 
 test('largadas caem em faixas no sentido certo', () => {
   assert.equal(casa.lane.segId, 'qrsw2');
-  assert.equal(stj.lane.segId, 'stj_acesso');
+  assert.equal(stj.lane.segId, 'stj_norte');
   assert.ok(Math.abs(casa.heading + Math.PI / 2) < 0.2, 'casa rumo oeste');
-  assert.ok(Math.abs(Math.abs(stj.heading) - Math.PI) < 0.25, 'stj rumo norte (sai do estacionamento)');
+  assert.ok(Math.abs(stj.heading + Math.PI / 2) < 0.25, 'stj rumo oeste (sai do Estacionamento Norte para a avenida)');
 });
 
 const names = (r) => net.routeNames(r).join(' > ');
@@ -51,7 +51,7 @@ test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () =>
   const r2 = net.planRoute(stj.lane.id, stj.s, toCasa.targets);
   assert.ok(r2, 'sem rota stj->casa');
   console.log('        stj→casa:', names(r2), `(${net.routeLength(r2, stj.s, toCasa.s).toFixed(0)} m)`);
-  assert.ok(inOrder(segSeq(r2), ['s3_safs', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2']), segSeq(r2).join(','));
+  assert.ok(inOrder(segSeq(r2), ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2']), segSeq(r2).join(','));
   assert.ok(!hasUturn(r2), 'retorno na rota stj->casa');
   // a primeira faixa da rota segue no sentido da largada (seta não aponta para trás)
   for (const [st, r] of [[casa, r1], [stj, r2]]) {
@@ -60,29 +60,32 @@ test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () =>
   }
 });
 
-test('estacionamentos do STJ (norte/oeste/leste): ida e volta sem retorno, pelas rotatórias certas', () => {
+test('estacionamentos do STJ: Norte (pela SAFS Q. 2, 2 variantes) e Leste (pela Via L4 e Rotatória 2), sem retorno', () => {
   const rbOf = (r) => new Set(r.map((id) => { const l = net.lanes[id]; return l.isConnector ? net.getNode(l.nodeId).roundaboutId : l.segId && net.segments.get(l.segId).roundaboutId; }).filter(Boolean));
-  const need = { norte: ['R_STJN1', 'R_STJN2'], oeste: ['R_STJ1'], leste: ['R_STJ1', 'R_STJ2'] };
-  for (const pk of ['norte', 'oeste', 'leste']) {
+  const cases = [
+    ['norte', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n'], ['R_Q2'], 'stj_norte'],              // (a) desce a avenida e entra pela ponta oeste
+    ['norte', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 's2_b', 'stj_lateral'], ['R_Q2'], 'stj_norte'], // (b) segue a SAFS Q. 2 e desce pela lateral
+    ['leste', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_b', 'l2m_east', 'l4_sul'], ['R_STJ2'], 'stj_leste'], // carona: L4 → Rotatória 2
+  ];
+  for (const [pk, via, rbs, lastSeg] of cases) {
     const z = net.laneForZone('stj_' + pk), st = net.snapStart(net.starts['stj_' + pk]);
-    for (const cid of ['eixo', 'parque']) {
-      const ida = net.planRouteVia(casa.lane.id, casa.s, net.routeCorridors[cid]['casa-stj'].filter((x) => x !== 's3_safs' || pk === 'leste'), z.targets);
-      const volta = net.planRouteVia(st.lane.id, st.s, net.routeCorridors[cid]['stj-casa'], toCasa.targets);
-      assert.ok(ida && volta, `${pk}/${cid}: sem rota`);
-      assert.ok(!hasUturn(ida) && !hasUturn(volta), `${pk}/${cid}: retorno`);
-      for (const r of need[pk]) assert.ok(rbOf(ida).has(r) && rbOf(volta).has(r), `${pk}/${cid}: não passa por ${r}`);
-      assert.equal(net.lanes[volta[0]].dir, st.lane.dir, 'largada no sentido da rota');
-      console.log(`        ${pk.padEnd(5)} ${cid.padEnd(6)} ida ${net.routeLength(ida, casa.s).toFixed(0)} m, volta ${net.routeLength(volta, st.s).toFixed(0)} m: ${[...rbOf(ida)].join(' ')}`);
-    }
+    const ida = net.planRouteVia(casa.lane.id, casa.s, via, z.targets);
+    const volta = net.planRoute(st.lane.id, st.s, toCasa.targets);
+    assert.ok(ida && volta, `${pk}: sem rota`);
+    assert.ok(!hasUturn(ida) && !hasUturn(volta), `${pk}: retorno`);
+    for (const r of rbs) assert.ok(rbOf(ida).has(r), `${pk}: não passa por ${r}`);
+    assert.equal(net.lanes[ida[ida.length - 1]].segId, lastSeg);
+    assert.equal(net.lanes[volta[0]].dir, st.lane.dir, 'largada no sentido da rota');
+    console.log(`        ${pk.padEnd(5)} ida ${net.routeLength(ida, casa.s).toFixed(0)} m: ${names(ida).split(' > ').slice(-5).join(' > ')}`);
   }
 });
 
 test('corredores das 2 rotas × 2 sentidos (planRouteVia)', () => {
   const want = {
-    'eixo casa-stj': ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 's3_safs', 'stj_acesso'],
-    'eixo stj-casa': ['stj_acesso', 's3_safs', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2'],
-    'parque casa-stj': ['qrsw2', 'jaq_m', 'jaq_s', 'jaq_s2', 'primeira_av', 'parque', 's3_scs', 's3_mid', 's3_mid_e', 's3_saus_w', 's3_saus', 's3_safs', 'stj_acesso'],
-    'parque stj-casa': ['stj_acesso', 's3_safs', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'parque', 'primeira_av', 'jaq_s2', 'jaq_s', 'jaq_m', 'qrsw2'],
+    'eixo casa-stj': ['qrsw2', 'jaq_n', 'eixo_s1_a', 'eixo_s1_b', 'eixo_s1_c0', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n', 'stj_norte'],
+    'eixo stj-casa': ['stj_norte', 'l2_n', 's2_a', 'alca_rodo', 'eixo_n1', 'jaq_n', 'qrsw2'],
+    'parque casa-stj': ['qrsw2', 'jaq_m', 'jaq_s', 'jaq_s2', 'primeira_av', 'parque', 's3_scs', 's3_mid', 's3_mid_e', 's3_saus_w', 's3_saus', 'l2_n2', 'stj_norte'],
+    'parque stj-casa': ['stj_norte', 'l2_n2', 's3_saus', 's3_saus_w', 's3_mid_e', 's3_mid', 's3_scs', 'parque', 'primeira_av', 'jaq_s2', 'jaq_s', 'jaq_m', 'qrsw2'],
   };
   for (const cid of ['eixo', 'parque']) for (const dirId of ['casa-stj', 'stj-casa']) {
     const [st, to] = dirId === 'casa-stj' ? [casa, toStj] : [stj, toCasa];
@@ -94,7 +97,8 @@ test('corredores das 2 rotas × 2 sentidos (planRouteVia)', () => {
     const seq = segSeq(r).filter((x) => !net.segments.get(x).roundaboutId);
     assert.deepEqual(seq, want[`${cid} ${dirId}`], `${cid} ${dirId}: ${seq.join(',')}`);
     const rbs = new Set(r.map((id) => { const l = net.lanes[id]; return l.isConnector ? net.getNode(l.nodeId).roundaboutId : l.segId && net.segments.get(l.segId).roundaboutId; }).filter(Boolean));
-    assert.ok(rbs.has('R_STJ1') && rbs.has('R_STJ2'), `${cid} ${dirId} passa pelas rotatórias 1 e 2 do STJ: ${[...rbs].join(',')}`);
+    const needRb = cid === 'eixo' ? ['R_Q2'] : ['R_STJ3', 'R_STJ1'];
+    for (const n of needRb) assert.ok(rbs.has(n), `${cid} ${dirId} passa por ${n}: ${[...rbs].join(',')}`);
     assert.equal(net.lanes[r[0]].dir, st.lane.dir, 'largada no sentido da rota');
   }
 });
