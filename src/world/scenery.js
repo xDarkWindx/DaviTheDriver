@@ -203,6 +203,9 @@ export class SceneryBuilder {
   parkedCar(x, z, h, color) {
     this.inst.add('box', x, 0.28, z, h, 1.72, 0.72, 4.05, color);
     this.inst.add('box', x - Math.sin(h) * 0.25, 1.0, z - Math.cos(h) * 0.25, h, 1.5, 0.55, 2.1, 0x2b3640);
+    // rodas (mesmo InstancedMesh 'box': nenhuma draw call a mais): pneus escuros que aparecem abaixo e para fora da lataria
+    const fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);
+    for (const a of [-1.3, 1.3]) for (const l of [-0.79, 0.79]) this.inst.add('box', x + fx * a + rx * l, 0, z + fz * a + rz * l, h, 0.24, 0.58, 0.6, 0x18181a);
     const col = makeOBB(x, z, 0.9, 2.05, h); col.kind = 'car'; this.colliders.add(col);
   }
   /** Vagas a 90° dos dois lados de um segmento (lado = 1 direita, -1 esquerda), `every` m, ocupação `occ`. */
