@@ -43,6 +43,8 @@ export class TrafficAdapter {
 
   /** { id, kind, persona, gap, speed (m/s), closing } | null */
   leadInfo() { const v = this._call('leadInfo'); return v && typeof v === 'object' && Number.isFinite(v.gap) ? v : null; }
+  /** Congestionamento em que o jogador está (objeto) ou null. */
+  inJam() { const v = this._call('inJam'); return v && typeof v === 'object' ? v : null; }
   /** m de pista livre à frente (sem trânsito = 150, a pista ESTÁ livre). */
   freeAhead() { const v = this._call('freeAhead'); return Number.isFinite(v) ? v : 150; }
   rearInfo() { const v = this._call('rearInfo'); return v && typeof v === 'object' ? v : null; }

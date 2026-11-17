@@ -32,6 +32,14 @@ export const BANKS = {
     'VINTE MINUTOS ATRÁS DESSE CARRO!', ['VAI TOMAR NO… PISCA! PISCA E SAI!', 'VAI PLANTAR BATATA! PISCA E SAI!'],
     'AAAAAAAAAAH!',
   ] },
+  jam: { who: D, role: 'driver', tone: 'anx', cd: 4, gestures: ['apontando', 'maosNaCabeca'], lines: [
+    'Não anda!', 'De onde saiu tanto carro?', 'Muda pra esquerda… não, a direita tá andando!', 'Vai, vai, um metro, vai…',
+    'O que tem lá na frente?', 'Bora, gente, é só andar!', 'Essa fila não acaba nunca.', 'Olha a faixa da esquerda andando…',
+  ] },
+  jam2: { who: D, role: 'driver', tone: 'stress', cd: 4, gestures: ['bracoPraFora', 'maosNaCabeca', 'buzinaImaginaria'], lines: [
+    ['NÃO ANDA, PORRA!', 'NÃO ANDA, MEU DEUS!'], 'Cinco minutos parado aqui!', ['Puta que pariu, que trânsito!', 'Nossa senhora, que trânsito!'],
+    'Eu devia ter ido pelo outro caminho!', 'Faixa da direita, faixa da direita, AGORA!', 'Alguém liga pro Detran!',
+  ] },
   freeSlow: { who: D, role: 'driver', tone: 'anx', cd: 6, lines: [
     'Pista livre e a gente aqui…', 'Olha esse vazio na frente. OLHA.', 'Dava pra estar no STJ já.', 'Bora, que tá livre!',
     ['Tá livre, porra, vai!', 'Tá livre, gente, vai!'], 'Nem um carro na frente. Nenhum.',
@@ -56,6 +64,10 @@ export const BANKS = {
   cutOff: { who: D, role: 'driver', tone: 'stress', cd: 2.5, prio: 1, gestures: ['bracoPraFora', 'banana', 'buzinaImaginaria'], lines: [
     'Ô ANIMAL!', 'TÁ CEGO?!', 'SETA! Existe SETA!', ['Filho da puta, me fechou!', 'Filho de uma mãe, me fechou!'],
     ['Porra, olha o retrovisor!', 'Poxa, olha o retrovisor!'], 'Entrou na minha frente sem nem olhar!', 'Que isso, meu filho?!',
+  ] },
+  stjBus: { who: D, role: 'driver', tone: 'stress', cd: 2, prio: 1, gestures: ['maosNaCabeca', 'apontando'], lines: [
+    'O ÔNIBUS DO STJ! NA ROTATÓRIA!', ['Caralho, olha a traseira desse ônibus!', 'Caramba, olha a traseira desse ônibus!'],
+    'Ônibus do tribunal não dá seta pra ninguém?!', 'Ele vai varrer a rotatória inteira!', 'Opa, opa — espaço pro ônibus, espaço!',
   ] },
   cutOffRing: { who: D, role: 'driver', tone: 'stress', cd: 2.5, prio: 1, gestures: ['bracoPraFora', 'banana'], lines: [
     'NA ROTATÓRIA?! QUEM ESTÁ NA ROTATÓRIA TEM A PREFERÊNCIA!', ['CARALHO, A PREFERÊNCIA É MINHA!', 'CARAMBA, A PREFERÊNCIA É MINHA!'],
@@ -178,6 +190,14 @@ export const BANKS = {
     'Vai deixar ele passar assim?!', 'Ele passou a gente! A GENTE!', ['Olha esse filho da… passando!', 'Olha esse sujeito passando!'],
     'Num Cactus! A gente tá num CACTUS!',
   ] },
+  pStjBus: { who: D, role: 'passenger', tone: 'stress', cd: 2, prio: 1, gestures: ['maosNaCabeca', 'apontando'], lines: [
+    'O ônibus do STJ! Freia, freia!', 'Olha a traseira dele! A TRASEIRA!', ['Puta merda, entrou com tudo!', 'Minha nossa, entrou com tudo!'],
+    'Deixa ele ir, deixa ele ir!',
+  ] },
+  pJam: { who: D, role: 'passenger', tone: 'anx', cd: 5, gestures: ['apontando', 'maosNaCabeca'], lines: [
+    'Eu falei pra ir pelo Eixo!', 'Por que você veio por aqui?', 'Pega a da esquerda, a da esquerda!', 'Não anda! Não anda!',
+    'Waze, cadê você?', 'Tinha que ter virado lá atrás!', 'Sobe na calçada… brincadeira. Brincadeira!',
+  ] },
   pCutOff: { who: D, role: 'passenger', tone: 'stress', cd: 2.5, prio: 1, gestures: ['bracoPraFora', 'banana'], lines: [
     'Ô ANIMAL!', 'TÁ CEGO?!', ['Fechou a gente, filho da puta!', 'Fechou a gente, filho de uma mãe!'], 'Buzina! BUZINA NELE!',
   ] },
@@ -237,6 +257,13 @@ export const BANKS = {
   oPanic: { who: O, role: 'passenger', tone: 'panic', cd: 4, gestures: ['maosNaCabeca'], lines: [
     'Ai, meu carrinho…', 'A minha vida…', 'A parcela nem acabou!', 'Eu tenho família, Davi.', 'Por que eu emprestei? Por quê?',
     'Eu só queria ir trabalhar.', 'O seguro cobre isso? Cobre?', 'Devagar, pelo amor de Deus.', 'Meu carro. Meu. Carro.',
+  ] },
+  oStjBus: { who: O, role: 'passenger', tone: 'panic', cd: 2, prio: 1, gestures: ['maosNaCabeca'], lines: [
+    'O ÔNIBUS! Dá espaço, Davi!', 'Freia! É o ônibus do tribunal!', 'Calma, deixa ele passar…',
+  ] },
+  oJam: { who: O, role: 'passenger', tone: 'calm', cd: 12, lines: [
+    'Ufa. Parado eu gosto.', 'Pode ficar nessa fila o quanto quiser, Davi.', 'Finalmente uma velocidade segura.',
+    'Respira. A gente tá parado. Que maravilha.',
   ] },
   oNearMiss: { who: O, role: 'passenger', tone: 'panic', cd: 2, prio: 1, gestures: ['maosNaCabeca'], lines: [
     'AAAAH!', 'FREIA!', 'Passou a um dedo!', 'Eu vi a luz. Eu vi a luz.',

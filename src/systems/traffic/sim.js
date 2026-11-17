@@ -37,6 +37,17 @@ export const TUNING = {
   spawnQueueMax: 3,   // parados na faixa a partir dos quais não nasce mais ninguém nela
   // evento "ônibus do STJ na rotatória": chance por viagem e peso de cada rotatória do entorno (roundabout.stj = 1..5)
   stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.5, 6: 0.8 }, stjBusSwing: 0.2,
+  // CONGESTIONAMENTO (0, 1 ou 2 por viagem): fila densa anda-e-para num trecho da rota (ou da alternativa), causa visível
+  // no fim (carro quebrado / ônibus parado no acostamento, com pisca-alerta). jamChances = P(0), P(1) (resto = 2).
+  jamChances: [0.35, 0.45], jamLen: 95, jamCapKmh: 15, jamSpacing: 7.4, jamFillDist: 320, jamCost: 75,
+  // candidatos [segId, fração do trecho (no sentido da viagem) onde fica a causa, rótulo]; o sentido sai das rotas da viagem
+  // (opts.routeLanes = faixas das 2 rotas, Eixo e Parque); trecho fora das rotas é ignorado.
+  jamSpots: {
+    'casa-stj': [['eixo_s1_c0', 0.8, 'Eixo Monumental, antes da Rodoviária'], ['s3_scs', 0.8, 'Via S3 (SCS)'],
+      ['primeira_av', 0.85, 'chegada ao Balão da EPIG'], ['jaq_n', 0.75, 'Av. das Jaqueiras'], ['s2_a', 0.8, 'Via S2, acesso ao SAFS']],
+    'stj-casa': [['eixo_n1', 0.45, 'Eixo Monumental (Via N1)'], ['s3_scs', 0.8, 'Via S3 (SCS)'],
+      ['primeira_av', 0.6, 'saída do Balão da EPIG'], ['jaq_n', 0.7, 'Av. das Jaqueiras'], ['s2_a', 0.75, 'Via S2, saindo do SAFS']],
+  },
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
 
@@ -101,7 +112,8 @@ class Vehicle {
     this.v0min = 0; this.rbT = 0; this.lastStop = -1;
     this.pullT = 0; this.pullCd = 0; this.queueT = 0; // lento que encosta para a fila passar (trecho sem ultrapassagem)
     this.stjBus = false; this.cutDone = false; this.swing = 0; // ônibus do STJ (evento da rotatória)
-    this.pWaitT = 0; this.pIgnT = 0; // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
+    this.pWaitT = 0; this.pIgnT = 0;
+    this.stalled = false; this.jam = -1;     // causa visível do congestionamento (parado no acostamento) / índice do congestionamento // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
   }
 }
 
@@ -160,6 +172,7 @@ export class TrafficSim {
     this.lead = { id: -1, kind: '', persona: '', gap: 0, speed: 0, closing: 0, v: null };
     this.rear = { id: -1, kind: '', persona: '', gap: 0, speed: 0, closing: 0, v: null };
     this._hasLead = false; this._hasRear = false;
+    this.playerInJam = -1;
     this.cwAhead = { crosswalkId: -1, dist: 0, occupied: false, pedCount: 0, waiting: 0, x: 0, z: 0, signalized: false };
     this._hasCw = false; this._cwEmitted = -1;
     this.pTailT = 0; this.furaoCd = 0; this.dirCd = 0; this.honkGlobalCd = 0;
@@ -223,6 +236,8 @@ export class TrafficSim {
     this.noPassLanes = []; for (let i = 0; i < nL; i++) if (this.laneNoPass[i]) this.noPassLanes.push(i);
     this._buildConflicts();
     this.noPassCd = new Float64Array(nL);
+    this.laneJam = new Int8Array(nL).fill(-1);  // faixa -> índice em this.jams (congestionamento da viagem)
+    this.jams = [];
   }
 
   /** Pontos de conflito entre conectores do mesmo nó que se cruzam (não os que só se juntam ou se separam). */
@@ -299,6 +314,7 @@ export class TrafficSim {
     const erng = makeRng((this.seed * 2654435761) >>> 0 || 7);
     this._rollHazards(erng);
     this._rollEnforcement(erng);
+    this._rollJams(erng, opts);
     const stjOn = opts.stjBus != null ? !!opts.stjBus : erng() < TUNING.stjBusChance;
     this.stjEvent = { on: stjOn, force: !!opts.stjBusForce, fired: false, ring: -1, busId: -1, tried: new Set(), rng: erng() };
     if (this.player) {
@@ -392,7 +408,7 @@ export class TrafficSim {
     this.laneHead.fill(-1); this.entN = 0;
     for (let i = 0; i < this.vehicles.length; i++) {
       const v = this.vehicles[i];
-      if (v.pullT > 0 && v.latOff > 1.4) continue; // encostado no acostamento: a fila passa
+      if ((v.pullT > 0 && v.latOff > 1.4) || v.stalled) continue; // encostado no acostamento: a fila passa
       this._addEnt(v.w.lane.id, v.w.s, v.slot);
       if (v.lcT > 0 && v.lcFrom >= 0 && Math.abs(v.latOff) > 0.3 * this.laneW[v.w.lane.id]) this._addEnt(v.lcFrom, v.w.s + v.lcOffS, v.slot);
     }
@@ -490,11 +506,17 @@ export class TrafficSim {
     if (v.p.maxKmh) s = Math.min(s, v.p.maxKmh / 3.6);
     if (v.v0min) s = Math.max(s, Math.min(v.v0min, lane.limitKmh / 3.6 * 1.45));
     if (v.pullT > 0) return Math.min(s, TUNING.pullKmh / 3.6);
+    if (this.laneJam[lane.id] >= 0 && lane === v.w.lane) { // dentro da fila: onda anda-e-para
+      const J = this.jams[this.laneJam[lane.id]];
+      if (v.w.s > J.s0 - 25 && v.w.s < J.s1) s = Math.min(s, J.cap * (0.25 + 0.75 * Math.max(0, Math.sin(this.time * 0.55 - v.w.s * 0.045))));
+      return Math.max(0.3, s);
+    }
     return Math.max(3, s);
   }
 
   /** Aceleração do veículo (IDM com todos os obstáculos do caminho) e integração. */
   _move(v, dt) {
+    if (v.stalled) { v.speed = 0; v.braking = false; v.blink = 2; v.laneId = v.w.lane.id; return; }
     const lanes = this.lanes, w = v.w, vel = v.speed, halfL = v.length * 0.5;
     v.v0 = this._v0For(v, w.lane);
     const tail = (v.p.tailgater || v.revengeT > 0);
@@ -580,7 +602,7 @@ export class TrafficSim {
       if (ri >= 0 && v.ringGo !== lid) {
         const gapF = base + lane.length - 0.6 - halfL;
         if (gapF > -0.6 && gapF < 30) {
-          const gapT = v.furaoT > 0 ? 0.8 : v.p.gapRing * (1 - 0.35 * v.aggression);
+          const gapT = v.stjBus ? 0.25 : v.furaoT > 0 ? 0.8 : v.p.gapRing * (1 - 0.35 * v.aggression);
           if (!this._ringGapOk(v, ri, this.laneRingPhi[lid], gapT)) {
             const it = this._inter(v, vel, gapF, 0, v.T, 0.5);
             if (it > inter) { inter = it; leadKind = LEAD.RING; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
@@ -680,7 +702,7 @@ export class TrafficSim {
       if (v.pWaitT > 3) {
         const dx = this.px - v.x, dz = this.pz - v.z, sh = Math.sin(v.heading), ch = Math.cos(v.heading);
         const f = dx * sh + dz * ch, l = Math.abs(-dx * ch + dz * sh);
-        if (f < v.length * 0.5 + 1.5 || l > v.width * 0.5 + 0.6) { v.pIgnT = 2; }
+        if (l > (v.width + this.pW) * 0.5 + 0.5 || f < -1) { v.pIgnT = 2; } // só se o jogador está ao lado/atrás, fora da trilha dele
         v.pWaitT = 0;
       }
     } else v.pWaitT = 0;
@@ -690,7 +712,7 @@ export class TrafficSim {
     if (v.reactCd > 0) v.reactCd -= dt;
     if (v.honkBackT > 0) { v.honkBackT -= dt; if (v.honkBackT <= 0) this._honk(v, true); }
     // vigia de "preso para sempre"
-    if (sp < 0.3 && !legit && v.dwellT <= 0 && v.crashT <= 0 && v.startDelay <= 0) {
+    if (sp < 0.3 && !legit && v.dwellT <= 0 && v.crashT <= 0 && v.startDelay <= 0 && this.laneJam[v.w.lane.id] < 0) {
       v.stuckT += dt;
       if (v.stuckT > TUNING.stuckSec) {
         v.stuckT = 0;
@@ -1651,6 +1673,7 @@ export class TrafficSim {
     }
     if (this.stepN % 30 === 15) this._furaoLogic();
     if (this.stepN % 15 === 7) this._stjBusLogic();
+    if (this.stepN % 20 === 3) this._jamLogic();
     this.dirCd -= dt;
     if (this.dirCd <= 0) { this.dirCd = 2; this._directedSpawn(); }
   }
@@ -1677,7 +1700,7 @@ export class TrafficSim {
     if (!this.player) return;
     const D2 = TUNING.despawn * TUNING.despawn;
     for (const v of this.vehicles) {
-      if (!v.active) continue;
+      if (!v.active || v.stalled) continue;
       const dx = v.x - this.px, dz = v.z - this.pz;
       const d2 = dx * dx + dz * dz;
       // longe, ou já ficou para trás de quem está andando (recicla para a frente)
@@ -1758,13 +1781,17 @@ export class TrafficSim {
    */
   _stjBusLogic() {
     const E = this.stjEvent;
-    if (!E || !E.on || E.fired || !this.player || this.pPathN === 0) return;
+    if (!E || !E.on || E.fired || !this.player || this.pPathN === 0 || this.pLaneId < 0) return;
+    // só quando o jogador já está no balão (ou entrando nele): o ônibus aparece na PRÓXIMA entrada, à vista
+    const pl = this.lanes[this.pLaneId];
+    const inRing = this.laneOnRing[pl.id] >= 0 || (this.laneRing[pl.id] >= 0 && pl.length - this.pS < 18);
+    if (!inRing) return;
     let base = -this.pS, node = null, rbi = -1;
     for (let k = 0; k < this.pPathN && base < 110; k++) {
       const lane = this.lanes[this.pPath[k]], ri = this.laneOnRing[lane.id];
       if (ri >= 0 && this.rbs[ri].stj && lane.segId && lane.endNode) {
         const end = base + lane.length;
-        if (end > 22 && end < 90) { node = lane.endNode; rbi = ri; break; }
+        if (end > 24 && end < 60) { node = lane.endNode; rbi = ri; break; }
       }
       base += lane.length;
     }
@@ -1776,7 +1803,7 @@ export class TrafficSim {
     let lid = -1;
     for (const a of apps) { const L = this.lanes[a]; if (L.length > 40 && (lid < 0 || L.index < this.lanes[lid].index)) lid = a; }
     if (lid < 0) return;
-    const lane = this.lanes[lid], s = lane.length - 30;
+    const lane = this.lanes[lid], s = lane.length - 15;
     const o = this.net.sampleLane(lane, s, this._tmpS || (this._tmpS = {}));
     for (const v of this.vehicles) { const dx = v.x - o.x, dz = v.z - o.z; if (dx * dx + dz * dz < 18 * 18) this._despawn(v); }
     this._rebuildLists();
@@ -1785,12 +1812,93 @@ export class TrafficSim {
       for (const v of this.vehicles) { const ex = v.x - this.px, ez = v.z - this.pz, d = ex * ex + ez * ez; if (d > fd) { fd = d; far = v; } }
       if (far) { this._despawn(far); this._rebuildLists(); }
     }
-    const v = this.spawn('onibusSTJ', 'onibus', lid, s, { furao: true, exact: true, speed: 6.5 });
+    const v = this.spawn('onibusSTJ', 'onibus', lid, s, { furao: true, exact: true, speed: 7.5 });
     if (!v) return;
     v.stjBus = true; v.furaoT = 14; v.color = 0; v.blink = -1;
     this._buildBucketsFor(v);
     E.fired = true; E.ring = rbi; E.busId = v.id; E.node = node;
     this.stats.stjBus = (this.stats.stjBus || 0) + 1;
+  }
+  /**
+   * Sorteia 0/1/2 congestionamentos da viagem (TUNING.jamSpots da rota) e marca as faixas. this.jams[] =
+   * { segId, dir, s0, s1, cap (m/s), label, lanes[], x0,z0,x1,z1 (início/fim no mundo), pts[] (para o minimapa), filled, cause }
+   * Também põe custo extra nas faixas (net.laneExtraCost) para o GPS poder sugerir o desvio.
+   */
+  _rollJams(rng, opts) {
+    this.laneJam.fill(-1); this.jams.length = 0;
+    if (this.net.laneExtraCost) this.net.laneExtraCost.fill(0);
+    const spots = TUNING.jamSpots[opts.routeId] || null;
+    if (!spots) return;
+    const r = rng();
+    let n = opts.jams != null ? opts.jams : r < TUNING.jamChances[0] ? 0 : r < TUNING.jamChances[0] + TUNING.jamChances[1] ? 1 : 2;
+    const pool = spots.slice();
+    while (n-- > 0 && pool.length) {
+      const k = opts.jamSpot != null ? Math.min(pool.length - 1, opts.jamSpot) : (rng() * pool.length) | 0;
+      const [segId, frac0, label] = pool.splice(k, 1)[0];
+      const seg = this.net.getSegment(segId); if (!seg) continue;
+      const RL = opts.routeLanes;
+      const onF = RL ? seg.laneIdsF.some((id) => RL.has(id)) : seg.laneIdsF.length > 0, onB = RL ? seg.laneIdsB.some((id) => RL.has(id)) : false;
+      if (!onF && !onB) { n++; continue; }
+      const dir = onF ? 1 : -1, frac = frac0;
+      const ids = (dir > 0 ? seg.laneIdsF : seg.laneIdsB).filter((id) => this.lanes[id].kind !== 'bus');
+      if (!ids.length) continue;
+      const L0 = this.lanes[ids[0]];
+      const s1 = Math.max(TUNING.jamLen + 10, Math.min(L0.length - 8, L0.length * frac)), s0 = Math.max(4, s1 - TUNING.jamLen);
+      const ji = this.jams.length;
+      const J = { segId, dir, s0, s1, cap: TUNING.jamCapKmh / 3.6, label, lanes: ids, rightLane: (dir > 0 ? seg.laneIdsF : seg.laneIdsB)[0], filled: false, cause: rng() < 0.6 ? 'quebrado' : 'onibus', causeV: null, pts: [] };
+      const T = this._tmpS || (this._tmpS = {});
+      for (let s = s0; s <= s1 + 0.01; s += (s1 - s0) / 6) { this.net.sampleLane(L0, s, T); J.pts.push(T.x, T.z); }
+      J.x0 = J.pts[0]; J.z0 = J.pts[1]; J.x1 = J.pts[J.pts.length - 2]; J.z1 = J.pts[J.pts.length - 1];
+      for (const id of ids) { this.laneJam[id] = ji; if (this.net.laneExtraCost) this.net.laneExtraCost[id] = TUNING.jamCost; }
+      J.allLanes = (dir > 0 ? seg.laneIdsF : seg.laneIdsB).slice(); // inclui a de ônibus (para saber se o jogador está no trecho)
+      this.jams.push(J);
+    }
+  }
+  /** Enche a fila quando o jogador se aproxima (uma vez), põe a causa visível e informa se o jogador está nela. */
+  _jamLogic() {
+    this.playerInJam = -1;
+    if (!this.jams.length || !this.player) return;
+    for (let ji = 0; ji < this.jams.length; ji++) {
+      const J = this.jams[ji];
+      const dx = (J.x0 + J.x1) / 2 - this.px, dz = (J.z0 + J.z1) / 2 - this.pz, d2 = dx * dx + dz * dz;
+      if (this.pLaneId >= 0 && J.allLanes.indexOf(this.pLaneId) >= 0 && this.pS > J.s0 - 12 && this.pS < J.s1 + 5) this.playerInJam = ji;
+      if (!J.filled && d2 < TUNING.jamFillDist * TUNING.jamFillDist && d2 > 60 * 60) this._fillJam(J, ji);
+      if (J.filled && d2 > 600 * 600 && J.causeV) { this._despawn(J.causeV); J.causeV = null; }
+    }
+  }
+  _fillJam(J, ji) {
+    J.filled = true;
+    const rng = this.rng;
+    // causa visível: parado no acostamento logo depois do fim da fila, com pisca-alerta
+    const right = this.lanes[J.rightLane];
+    if (this.vehicles.length >= this.maxV) this._freeFar(1);
+    const cv = this.spawn(J.cause === 'onibus' ? 'onibus' : 'normal', J.cause === 'onibus' ? 'onibus' : null, right.id, Math.min(right.length - 2, J.s1 + 6), { exact: true, speed: 0 });
+    if (cv) { cv.stalled = true; cv.jam = ji; cv.latOff = cv.latTarget = this.laneW[right.id] * 0.82; cv.x = cv.w.x - Math.cos(cv.w.heading) * cv.latOff; cv.z = cv.w.z + Math.sin(cv.w.heading) * cv.latOff; cv.px = cv.x; cv.pz = cv.z; cv.blink = 2; J.causeV = cv; }
+    // fila: carros espaçados nas faixas normais do trecho (abre espaço reciclando os mais distantes)
+    const want = Math.floor((J.s1 - J.s0) / TUNING.jamSpacing) * J.lanes.length;
+    this._freeFar(Math.max(0, this.vehicles.length + want - this.maxV));
+    let n = 0;
+    for (const lid of J.lanes) {
+      const lane = this.lanes[lid];
+      for (let s = J.s1 - 3; s > J.s0; s -= TUNING.jamSpacing * (0.85 + rng() * 0.3)) {
+        if (this.vehicles.length >= this.maxV) break;
+        const o = this.net.sampleLane(lane, s, this._tmpS);
+        const dx = o.x - this.px, dz = o.z - this.pz; if (dx * dx + dz * dz < 45 * 45) continue;
+        const pid = rng() < 0.12 ? 'moto' : rng() < 0.5 ? 'normal' : this._pickPersona(this.laneMix[lid] || ROAD_DEFAULT.mix);
+        const v = this.spawn(pid === 'onibus' ? 'normal' : pid, null, lid, s, { exact: true, speed: 0.5 + rng() * 2 });
+        if (v) { v.jam = ji; this._buildBucketsFor(v); n++; }
+      }
+    }
+    this.stats.jamFilled = (this.stats.jamFilled || 0) + n;
+  }
+  /** Recicla os `k` veículos mais distantes do jogador (fora da vista). */
+  _freeFar(k) {
+    for (let i = 0; i < k; i++) {
+      let far = null, fd = 160 * 160;
+      for (const v of this.vehicles) { if (v.stalled || v.stjBus) continue; const ex = v.x - this.px, ez = v.z - this.pz, d = ex * ex + ez * ez; if (d > fd) { fd = d; far = v; } }
+      if (!far) break;
+      this._despawn(far); this._rebuildLists();
+    }
   }
   /** Ônibus comprido na curva: gira para dentro em torno da frente, então a TRASEIRA varre para fora (até ~2 m). */
   _busSwing(v, h) {
@@ -1842,6 +1950,8 @@ export class TrafficSim {
 
   // =============================================================== API de leitura / ações
   leadInfo() { return this._hasLead ? this.lead : null; }
+  /** Congestionamento em que o jogador está (objeto de this.jams) ou null. */
+  inJam() { return this.playerInJam >= 0 ? this.jams[this.playerInJam] : null; }
   rearInfo() { return this._hasRear ? this.rear : null; }
   freeAhead() {
     let f = 150;

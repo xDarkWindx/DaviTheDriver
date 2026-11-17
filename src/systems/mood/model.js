@@ -41,7 +41,7 @@ export function createMoodModel(mode = 'davi', opts = {}) {
     davi: driver.who === 'davi' ? driver : passenger,
     dono: driver.who === 'dono' ? driver : passenger && passenger.who === 'dono' ? passenger : null,
     daviDrives: driver.who === 'davi',
-    t: 0, behindSlow: 0, blocked: false, lastStressEvt: -99, desired: 60,
+    t: 0, behindSlow: 0, blocked: false, jamT: 0, jamLineT: 1.5, lastStressEvt: -99, desired: 60,
     breathe: { anxLeft: 0, stressLeft: 0, rate: 0, srate: 0, footOff: 0, accelMul: 1, throttleBias: 0, maxSpeedMul: 1 },
     rebound: [],
     slip: { t: 0, dur: 0, sev: 0 },
@@ -101,7 +101,9 @@ export function stepMood(m, inp, dt) {
   const free = inp.freeAhead != null ? inp.freeAhead : 150;
   const lead = inp.lead;
   const leadKmh = lead ? lead.speed * 3.6 : 0;
-  const blocked = m.blocked = !!(lead && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
+  const JM = B.jam, jam = !!(inp.jam && speed < JM.minKmh);
+  if (jam) m.jamT += dt; else m.jamT = Math.max(0, m.jamT - JM.decay * dt);
+  const blocked = m.blocked = !jam && !!(lead && lead.gap < AX.slowGap && leadKmh < desired * AX.slowLeadRatio && speed < leadKmh + 15);
   if (blocked) m.behindSlow += dt; else m.behindSlow = Math.max(0, m.behindSlow - AX.slowDecay * dt);
   if (m.behindSlow > m.stats.maxBehindSlow) m.stats.maxBehindSlow = m.behindSlow;
   const f = clamp((free - AX.freeRoadMinGap) / (AX.freeRoadFullGap - AX.freeRoadMinGap), 0, 1);
@@ -126,6 +128,7 @@ export function stepMood(m, inp, dt) {
     const prox = clamp((AX.slowGap - lead.gap) / AX.slowGap, 0, 1);
     ra += (AX.slowBase + AX.slowGrowth * Math.min(m.behindSlow, AX.slowGrowthCap)) * (1 + AX.slowProximity * prox) * (asPass ? B.carona.slowMul : 1);
   }
+  if (jam) ra += (JM.anx + JM.anxGrow * Math.min(m.jamT, JM.cap)) * (asPass ? B.carona.slowMul : 1);
   if (inp.stoppedAtRed) ra += AX.redLight;
   if (inp.crosswalkWait) ra += AX.crosswalk;
   ra += Math.min(AX.clockMax, AX.clockBase + AX.clockPer300s * (inp.elapsed || 0) / 300);
@@ -139,6 +142,7 @@ export function stepMood(m, inp, dt) {
   if (inp.crosswalkWait) rs += SX.pedSlow;
   if (lead && lead.kind === 'bus' && lead.gap < 25) rs += SX.busLead;
   if (davi.anxiety > SX.anxCoupleFrom) rs += SX.anxCouple;
+  if (jam) rs += JM.str + JM.strGrow * Math.min(m.jamT, JM.cap);
 
   addBar(davi, 'anxiety', ra * dt);
   addBar(davi, 'stress', rs * dt);
@@ -195,7 +199,8 @@ function stepCarona(m, inp, dt, c) {
     const [lo, hi] = C.palpiteEvery;
     m.palpiteT = (lo + (hi - lo) * m.rng()) * (1.15 - 0.5 * davi.anxiety / 100);
     let bank = 'pInstr';
-    if (inp.brake > 0.5 && c.speed > 15 && !(inp.lead && inp.lead.gap < 20)) bank = 'pBrake';
+    if (inp.jam && c.speed < m.B.jam.minKmh) bank = m.rng() < 0.5 ? 'pJam' : 'pGo';
+    else if (inp.brake > 0.5 && c.speed > 15 && !(inp.lead && inp.lead.gap < 20)) bank = 'pBrake';
     else if (c.blocked) bank = m.rng() < 0.45 ? 'pGo' : 'pBlocked';
     else if (c.f > 0.4 && c.under > 0.3) bank = 'pFreeSlow';
     else if (c.limit > 0 && c.speed >= 0.95 * c.limit && c.f > 0.5 && m.rng() < 0.4) bank = 'pFast';
@@ -236,6 +241,10 @@ function stepPerigo(m, inp, dt, c) {
   if (turbo) { rs += P.turbo; scared = true; }
   if (dono.anxiety > P.panicFromSusto) rs += P.panicRate;
   if (scared) m.lastSustoT = m.t;
+  if (inp.jam && c.speed < m.B.jam.minKmh) { // fila: o carro quase parado é um alívio para o dono
+    ra -= m.B.jam.donoRelief; rs -= m.B.jam.donoRelief * 0.6;
+    if (m.t - (m.oJamT || -99) > 14) { m.oJamT = m.t; say(m, 'oJam', 0); }
+  }
   if (!scared && m.t - (m.lastSustoT || -99) > P.calmAfter) { ra -= P.anxDecay; rs -= P.stressDecay; }
   addBar(dono, 'anxiety', ra * dt); addBar(dono, 'stress', rs * dt);
   m.stats.panicSecs += Math.max(0, (dono.anxiety + dono.stress) / 2 - 20) / 80 * dt;
@@ -267,7 +276,10 @@ function stepPerigo(m, inp, dt, c) {
 
 function stepDaviDriverLines(m, inp, dt, c) {
   const S = m.B.speech, davi = m.davi, FX = m.B.fx;
-  if (c.blocked) {
+  if (inp.jam && c.speed < m.B.jam.minKmh) {
+    m.jamLineT -= dt;
+    if (m.jamLineT <= 0) { m.jamLineT = m.B.jam.lineEvery; say(m, m.jamT > 15 ? 'jam2' : 'jam', 0, m.rng() < S.gestureChance); }
+  } else if (c.blocked) {
     m.slowLineT -= dt;
     if (m.slowLineT <= 0) {
       let lvl = m.behindSlow < 4 ? 0 : m.behindSlow < 10 ? 1 : m.behindSlow < 16 ? 2 : 3;
@@ -350,8 +362,14 @@ export function moodEvent(m, type, p = {}, inp = {}) {
       return true;
     }
     case 'cutOff': {
-      const ring = !!(inp.inRing || inp.inJunction);
+      const ring = !!(inp.inRing || inp.inJunction || p.ring);
       stressEvt(SX.cutOff * (ring ? SX.cutOffRingMul : 1));
+      if (p.stj) { // ônibus do STJ fechando no balão: fala própria (no carona o surto vem junto)
+        if (perigo) { addBar(dono, 'stress', B.perigo.nearMiss); say(m, 'oStjBus', 1); }
+        if (carona) { davi.stress = 100; m.outburstCd = 0; outburst(m, true); say(m, 'pStjBus', 1); }
+        else say(m, drv ? 'stjBus' : 'pStjBus', 1, m.rng() < 0.15);
+        return true;
+      }
       if (carona && ring) { davi.stress = 100; m.outburstCd = 0; outburst(m, true); }
       else say(m, drv ? (ring ? 'cutOffRing' : 'cutOff') : 'pCutOff', 1, m.rng() < 0.2);
       return true;

@@ -108,6 +108,18 @@ export class Minimap {
       g.strokeStyle = '#102a5c'; g.lineWidth = 7 / k; g.stroke(this.routePath);
       g.strokeStyle = '#38b6ff'; g.lineWidth = 4 / k; g.stroke(this.routePath);
     }
+    // congestionamentos da viagem (vermelho tracejado sobre a via)
+    const jams = this.ctx.modules.traffic && this.ctx.modules.traffic.jams;
+    if (jams && jams.length) {
+      g.lineCap = 'round'; g.setLineDash([9 / k, 6 / k]);
+      for (const J of jams) {
+        g.beginPath();
+        for (let i = 0; i < J.pts.length; i += 2) { if (i) g.lineTo(J.pts[i], J.pts[i + 1]); else g.moveTo(J.pts[i], J.pts[i + 1]); }
+        g.strokeStyle = '#3a0505'; g.lineWidth = 9 / k; g.stroke();
+        g.strokeStyle = '#ff3b2f'; g.lineWidth = 6 / k; g.stroke();
+      }
+      g.setLineDash([]);
+    }
     g.setTransform(1, 0, 0, 1, 0, 0);
     // zonas casa / STJ
     const zones = this.data.zones || {};

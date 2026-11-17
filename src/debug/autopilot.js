@@ -22,7 +22,7 @@ export function createAutopilot(ctx) {
   const net = ctx.net, input = ctx.input, st = ctx.state;
   const P = { x: new Float64Array(PATH_N), z: new Float64Array(PATH_N), h: new Float64Array(PATH_N), lim: new Float64Array(PATH_N),
     lane: new Int32Array(PATH_N), n: 0 };
-  const tmpS = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 }, near = {};
+  const tmpS = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 }, tmpO = { x: 0, z: 0, tx: 0, tz: 0, heading: 0 }, near = {};
   const bot = {
     on: false, prof: BOT_PROFILES.normal, profile: 'normal', corridor: 'eixo',
     route: [], ri: 0, track: -1, s: 0, laneT: 0, e: { st: 0, th: 0, br: 0 }, debug: {}, blockedT: 0, stuckT: 0, reverseT: 0,
@@ -73,9 +73,10 @@ export function createAutopilot(ctx) {
       if (idx >= 0 && idx + 1 < R.length) {
         const want = R[idx + 1];
         if (nx.indexOf(want) >= 0) return want;
-        // faixa paralela à da rota: conector que leva ao mesmo segmento seguinte
-        const W = net.lanes[want], after = idx + 2 < R.length ? net.lanes[R[idx + 2]] : null;
-        for (const id of nx) { const c = net.lanes[id]; if (c.isConnector && W.isConnector && c.toLane != null && after && net.lanes[c.toLane].segId === after.segId) return id; }
+        // faixa paralela à da rota: conector que leva ao mesmo segmento seguinte da rota
+        let tgt = null;
+        for (let k = idx + 1; k < Math.min(R.length, idx + 4); k++) { const L = net.lanes[R[k]]; if (!L.isConnector) { tgt = L.segId; break; } }
+        if (tgt) for (const id of nx) { const c = net.lanes[id]; if (c.isConnector && c.toLane != null && net.lanes[c.toLane].segId === tgt) return id; }
       }
       for (const id of nx) { const t = net.lanes[id].turn; if (t === 'straight' || t === 'merge' || t == null) return id; }
       return nx[0];
@@ -265,13 +266,16 @@ export function createAutopilot(ctx) {
         }
         // cruzando (rotatória/cruzamento): previsão de 3,2 s
         const adh = Math.abs(dh);
-        if (adh < 0.35 || adh > 2.7 || o.speed < 0.8) continue;
+        if ((adh < 0.35 && !(o.w && o.w.lane.isConnector)) || adh > 2.7 || o.speed < 0.8) continue;
         const ovx = Math.sin(o.heading) * o.speed, ovz = Math.cos(o.heading) * o.speed;
         const vm = Math.max(v, 5);
-        for (let t = 0.25; t <= 3.2; t += 0.25) {
+        for (let t = 0.25; t <= 3.5; t += 0.25) {
           const j = Math.min(P.n - 1, Math.round((vm * t) / PATH_DS));
-          const qx = o.x + ovx * t - P.x[j], qz = o.z + ovz * t - P.z[j];
-          if (qx * qx + qz * qz < (myW + ext + 1.4) ** 2) { obstacle(j * PATH_DS - veh.length * 0.5 - 3.5, 0, 'cruza'); break; }
+          // previsão pela FAIXA do outro (curva de balão) enquanto couber nela; senão em linha reta
+          let ox2 = o.x + ovx * t, oz2 = o.z + ovz * t;
+          if (o.w && o.w.s + o.speed * t < o.w.lane.length) { net.sampleLane(o.w.lane, o.w.s + o.speed * t, tmpO); ox2 = tmpO.x; oz2 = tmpO.z; }
+          const qx = ox2 - P.x[j], qz = oz2 - P.z[j];
+          if (qx * qx + qz * qz < (myW + ext + 1.6) ** 2) { obstacle(j * PATH_DS - veh.length * 0.5 - 3.5, 0, 'cruza'); break; }
         }
       }
       const peds = ctx.modules.traffic.pedestrians;

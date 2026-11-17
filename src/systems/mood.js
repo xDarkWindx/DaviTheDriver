@@ -28,7 +28,7 @@ export default {
     this.speaker = new Speaker({ minGap: S.minGap, minGapHigh: S.minGapHigh });
     this.model = createMoodModel('davi');
     this.inp = { speedKmh: 0, limitKmh: 0, throttle: 0, brake: 0, longAccel: 0, latAccel: 0, turbo: 0, inJunction: false, inRing: false,
-      freeAhead: 150, lead: null, stoppedAtRed: false, crosswalkWait: false, busLaneBeside: false, elapsed: 0, radarAhead: false, vehicleId: 'kwid' };
+      freeAhead: 150, lead: null, jam: false, stoppedAtRed: false, crosswalkWait: false, busLaneBeside: false, elapsed: 0, radarAhead: false, vehicleId: 'kwid' };
     this._info = {}; this._chgT = 0; this._last = ''; this._hornEndT = 0; this._yawLeft = 0;
     const ev = ctx.events;
     const live = () => ctx.state.mode === MODE.PLAYING;
@@ -135,6 +135,7 @@ export default {
     }
     inp.freeAhead = T.freeAhead();
     inp.lead = T.leadInfo();
+    inp.jam = !!T.inJam();
     // parado no vermelho
     inp.stoppedAtRed = false; inp.busLaneBeside = false;
     const lane = sp.laneId >= 0 && net && net.getLane ? net.getLane(sp.laneId) : null;

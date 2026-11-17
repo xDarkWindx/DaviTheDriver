@@ -34,7 +34,7 @@ export function createState() {
       guideBearing: 0,          // heading (convenção do jogo) do carro até guide
       destX: 0, destZ: 0, destRadius: 0,
       arrived: false,
-      parking: null,            // STJ: 'norte' | 'leste' (estacionamento de destino/largada; core/game.js)
+      parking: null,            // STJ: 'norte' | 'leste' (sorteado por viagem; destino/largada; core/game.js)
       arrivalVia: null,         // waypoints (segIds) do caminho de chegada/saída do STJ que o GPS segue, ou null
       destLabel: '',            // nome do destino para HUD/minimapa (ex.: 'STJ — Entrada Oeste')
     },
@@ -83,7 +83,8 @@ export function createState() {
 
     // Trânsito. DONO: systems/traffic.js. seed: null = sorteia a cada viagem; número = fixa (testes/reprodução).
     // tripSeed = semente usada na viagem atual (radares/agentes/frutas/IA). active/peds = contagens (diagnóstico).
-    traffic: { seed: null, tripSeed: 0, active: 0, peds: 0 },
+    // jams/jamSpot/stjBus: null = sorteio da viagem; número/bool força (testes). jamList = rótulos sorteados (diagnóstico).
+    traffic: { seed: null, tripSeed: 0, active: 0, peds: 0, jams: null, jamSpot: null, stjBus: null, jamList: [] },
 
     time: { sim: 0, real: 0, frame: 0 }, // core/loop
   };

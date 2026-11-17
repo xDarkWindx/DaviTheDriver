@@ -72,6 +72,9 @@ export default {
     });
     ev.on(EV.TRIP_START, () => {
       this.hud.reset(); this.lastCol = null; rollSinistro(); st.result = null; // resultado antigo nunca vaza para a viagem nova
+      // congestionamentos sorteados: aviso no começo (também marcados em vermelho no minimapa; o GPS pode sugerir desvio)
+      const jams = ctx.modules.traffic && ctx.modules.traffic.jams;
+      if (jams && jams.length) this.hud.toast('warn', 'Trânsito parado', jams.map((j) => j.label).join(' · '), 5, 'jam');
       this.howto.close(); this.options.close();
     });
     ev.on(EV.COLLISION, (c) => { if (c && c.a === 'player') this.lastCol = c; });

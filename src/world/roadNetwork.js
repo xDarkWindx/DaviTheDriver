@@ -272,6 +272,8 @@ export class RoadNetwork {
     // buffers do Dijkstra
     const N = this.lanes.length;
     this._dist = new Float64Array(N); this._prev = new Int32Array(N); this._heap = new MinHeap(N * 4);
+    /** s extras por faixa no planejador (congestionamento da viagem: o GPS pode sugerir desvio). Dono: trânsito. */
+    this.laneExtraCost = new Float32Array(N);
   }
 
   _addSegment(rd, ptsList) {
@@ -885,7 +887,7 @@ export class RoadNetwork {
       const nx = lu.next;
       for (let k = 0; k < nx.length; k++) {
         const v = nx[k], lv = this.lanes[v];
-        const w = lv.length / (lv.limitKmh / 3.6) + (lv.signal ? 7 : 0) + (lv.turn === 'uturn' ? 15 : 0);
+        const w = lv.length / (lv.limitKmh / 3.6) + (lv.signal ? 7 : 0) + (lv.turn === 'uturn' ? 15 : 0) + (this.laneExtraCost ? this.laneExtraCost[v] : 0);
         if (du + w < dist[v]) { dist[v] = du + w; prev[v] = u; heap.push(dist[v], v); }
       }
       // troca de faixa (faixas paralelas adjacentes): custo fixo de 2 s

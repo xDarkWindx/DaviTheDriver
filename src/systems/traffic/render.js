@@ -104,6 +104,41 @@ export class TrafficRenderer {
     this.fruitColors = { manga: [new THREE.Color(0xffb21c), new THREE.Color(0xf5c832), new THREE.Color(0xe8722a)], jaca: [new THREE.Color(0x7f9b2c)],
       splatManga: new THREE.Color(0xe0a12a), splatJaca: new THREE.Color(0xd2c46a) };
     this.time = 0;
+    // ônibus do STJ: pintura própria (cor da instância) + letreiro "STJ" nas duas laterais (1 malha, só visível no evento)
+    this.stjColor = new THREE.Color(0x1d3d7a);
+    this.stjPlate = this._makeStjPlate();
+    this.group.add(this.stjPlate);
+  }
+
+  _makeStjPlate() {
+    const cv = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    let tex = null;
+    if (cv) {
+      cv.width = 256; cv.height = 64;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#f4f2ec'; g.fillRect(0, 0, 256, 64);
+      g.fillStyle = '#c9a227'; g.fillRect(0, 50, 256, 8);
+      g.fillStyle = '#1d3d7a'; g.font = 'bold 46px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('STJ', 128, 28);
+      tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    }
+    const geo = new THREE.BufferGeometry();
+    // dois quadros 4,2 x 1,05 m nas laterais (x = ±1,27), altura 1,9 m; texto legível dos dois lados
+    const L = 2.1, H = 0.4, Y = 1.2, X = 1.272;
+    const pos = [], uv = [], idx = [];
+    for (const side of [1, -1]) {
+      const b = pos.length / 3;
+      const zA = side > 0 ? -L : L, zB = -zA;
+      pos.push(side * X, Y - H, zA, side * X, Y - H, zB, side * X, Y + H, zB, side * X, Y + H, zA);
+      uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0xf4f2ec, side: THREE.DoubleSide }));
+    mesh.name = 'traffic:stjPlate'; mesh.visible = false; mesh.matrixAutoUpdate = false; mesh.frustumCulled = false;
+    return mesh;
   }
 
   _prep(mesh, name) {
@@ -147,6 +182,7 @@ export class TrafficRenderer {
     this.nLamp = 0; this.nBlob = 0;
     // ---------- veículos
     const vs = sim.vehicles;
+    this.stjPlate.visible = false;
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i];
       if (!v.active) continue;
@@ -156,7 +192,11 @@ export class TrafficRenderer {
       const y = (v.w.lane.layer || 0) * 0.09;
       this._set(mesh, n, x, y, z, h);
       const tbl = this.colorTables[v.kind];
-      mesh.setColorAt(n, tbl[v.color % tbl.length]);
+      mesh.setColorAt(n, v.stjBus ? this.stjColor : tbl[v.color % tbl.length]);
+      if (v.stjBus) {
+        _p.set(x, y, z); _q.setFromAxisAngle(_up, h); _s.set(1, 1, 1);
+        this.stjPlate.matrix.compose(_p, _q, _s); this.stjPlate.matrixWorldNeedsUpdate = true; this.stjPlate.visible = true;
+      }
       const L = v.length, W = v.width, half = L * 0.5;
       this._blob(x, y + 0.11, z, h, W * 1.55, L * 1.2);
       const ly = LAMP_Y[v.kind] || 0.86;

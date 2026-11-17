@@ -60,12 +60,12 @@ test('GPS livre: Casa → STJ e STJ → Casa saem pelo Eixo, sem retorno', () =>
   }
 });
 
-test('estacionamentos do STJ: Norte (pela SAFS Q. 2, 2 variantes) e Leste (pela Via L4 e Rotatória 2), sem retorno', () => {
+test('estacionamentos do STJ: Norte (pela SAFS Q. 2, 2 variantes) e Leste (pela Rotatória 2), sem retorno', () => {
   const rbOf = (r) => new Set(r.map((id) => { const l = net.lanes[id]; return l.isConnector ? net.getNode(l.nodeId).roundaboutId : l.segId && net.segments.get(l.segId).roundaboutId; }).filter(Boolean));
   const cases = [
     ['norte', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_n'], ['R_Q2'], 'stj_norte'],              // (a) desce a avenida e entra pela ponta oeste
     ['norte', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 's2_b', 'stj_lateral'], ['R_Q2'], 'stj_norte'], // (b) segue a SAFS Q. 2 e desce pela lateral
-    ['leste', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a', 'l2_b', 'l2m_east', 'l4_sul'], ['R_STJ2'], 'stj_leste'], // carona: L4 → Rotatória 2
+    ['leste', ['jaq_n', 'eixo_s1_c', 's2_alca', 's2_a'], ['R_STJ2'], 'stj_leste'],                      // Leste: entra pela Rotatória 2
   ];
   for (const [pk, via, rbs, lastSeg] of cases) {
     const z = net.laneForZone('stj_' + pk), st = net.snapStart(net.starts['stj_' + pk]);

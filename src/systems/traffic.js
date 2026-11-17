@@ -10,6 +10,8 @@
 //   hazards[]     { id, kind:'manga'|'jaca', x, z, r, active, squashed }
 //   radars[]      { id, type:'speed'|'redLight'|'busLane', x, z, heading, range, limitKmh, segId, dir, laneIds, laneS, poleX, poleZ, signalId, group }
 //   agents[]      { id, x, z, heading, range, revealed, segId, dir, laneIds, s0, s1, roadX, roadZ, cover }
+//   jams[]        congestionamentos da viagem (0–2): { segId, dir, s0, s1, label, pts (x,z… p/ minimapa), cause:'quebrado'|'onibus' }
+//   inJam() -> jam | null (o jogador está na fila)
 //   leadInfo() -> { id, kind, persona, gap, speed, closing } | null      rearInfo() -> idem (closing = quanto o de trás se aproxima)
 //   freeAhead() -> m (≤150)     neighbors(radius) -> vehicles[] (array reutilizado)
 //   crosswalkAhead() -> { crosswalkId, dist, occupied, pedCount, waiting, x, z, signalized } | null
@@ -32,7 +34,7 @@ const _aud = { idx: new Int32Array(6), d: new Float64Array(6) };
 
 const api = {
   name: 'traffic',
-  vehicles: [], pedestrians: [], hazards: [], radars: [], agents: [],
+  vehicles: [], pedestrians: [], hazards: [], radars: [], agents: [], jams: [],
 
   init(ctx) {
     C = ctx;
@@ -57,7 +59,19 @@ const api = {
     const seed = st.traffic.seed != null ? (st.traffic.seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0) || 1;
     st.traffic.tripSeed = seed;
     sim.setPlayer(ctx.player);
-    sim.reset({ seed, timeOfDay: trip.timeOfDay, route: ctx.trip.route });
+    // faixas das duas rotas da viagem (Eixo = GPS livre; Parque = corredor): onde os congestionamentos podem cair
+    const routeLanes = new Set();
+    try {
+      const net = ctx.net, p = ctx.player.phys, near = net.nearestLane(p.x, p.z, {}, p.heading, 1.2), dest = ctx.trip._dest && ctx.trip._dest.targets;
+      if (near && dest) {
+        for (const id of net.planRoute(near.laneId, near.s, dest, []) || []) routeLanes.add(id);
+        const via = net.routeCorridors.parque && net.routeCorridors.parque[trip.routeId];
+        if (via) for (const id of net.planRouteVia(near.laneId, near.s, via, dest, []) || []) routeLanes.add(id);
+        for (const id of [...routeLanes]) { const l = net.getLane(id); if (!l.isConnector) for (const sid of net.siblingLanes(l)) routeLanes.add(sid); }
+      }
+    } catch (e) { /* sem rotas: congestionamento cai em qualquer sentido */ }
+    sim.reset({ seed, timeOfDay: trip.timeOfDay, route: ctx.trip.route, routeId: trip.routeId, routeLanes, jams: st.traffic.jams, jamSpot: st.traffic.jamSpot, stjBus: st.traffic.stjBus });
+    api.jams = sim.jams; st.traffic.jamList = sim.jams.map((j) => j.label);
     perf.avg = 0; perf.max = 0; perf.n = 0;
   },
 
@@ -96,6 +110,8 @@ const api = {
 
   // ---------------------------------------------------------------- consultas
   leadInfo() { return sim ? sim.leadInfo() : null; },
+  /** Congestionamento em que o jogador está agora ({ label, segId, ... }) ou null. */
+  inJam() { return sim ? sim.inJam() : null; },
   rearInfo() { return sim ? sim.rearInfo() : null; },
   freeAhead() { return sim ? sim.freeAhead() : 150; },
   neighbors(radius = 30) { return sim ? sim.neighbors(radius) : []; },

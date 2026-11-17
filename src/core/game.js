@@ -17,11 +17,10 @@ export function chooseParking(modeId, seed) {
 /**
  * Caminho de chegada ao STJ / saída dele (waypoints = segIds para o GPS; null = GPS livre).
  * Norte (davi/perigo): (a) desce a avenida e entra pela ponta oeste = GPS livre; (b) segue a SAFS Q. 2 e desce pela lateral.
- * Leste (carona): pela Via L4 Sul e a Rotatória 2, na ida e na volta (caminho inverso).
+ * Leste: GPS livre (pela avenida/transversal até a Rotatória 2, ou pela lateral). A Via L4 existe, mas o GPS não a escolhe.
  */
 export function chooseArrivalVia(modeId, routeId, parking, seed) {
   const toStj = routeId === 'casa-stj';
-  if (parking === 'leste') return toStj ? ['l2m_east', 'l4_sul'] : ['l4_sul', 'l2m_east'];
   if (parking === 'norte' && toStj) {
     const r = seed != null ? ((((seed >>> 0) ^ 0x9e3779b9) * 2246822519) >>> 0) / 4294967296 : Math.random();
     return r < 0.5 ? null : ['s2_b', 'stj_lateral'];
