@@ -1,12 +1,28 @@
 # Davi, the Driver
 
-Jogo de direção isométrico (three.js/WebGL) ambientado numa Brasília estilizada. Davi é ansioso, estressado,
-agressivo, dirige um Renault Kwid branco e já bateu 4 vezes no ano — *a culpa é sempre dos outros*.
-Objetivo: ir da **QRSW 2 — Sudoeste** (casa) ao **STJ** (SAFS) ou o inverso, sem bater, sem multa, no menor tempo.
+Jogo de direção isométrico (three.js/WebGL) ambientado numa Brasília estilizada. Pegue o volante e leve o Davi
+da **QRSW 2 — Sudoeste** (casa) até o **STJ** (SAFS), ou o caminho inverso: sem bater, sem multa e no menor tempo
+possível, equilibrando as barras de **ansiedade** e **estresse** pelo caminho (respirar fundo ajuda!).
+
+> Uma brincadeira entre amigos, sem fins comerciais.
+
+## Modos de jogo
+
+| Modo | Como é |
+|---|---|
+| **Sendo o Davi** | você dirige o Renault Kwid branco do Davi |
+| **Dando carona pro Davi** | você dirige o seu C4 Cactus THP cinza, com o Davi de passageiro |
+| **PERIGO** | o Davi dirige o seu Cactus emprestado. Cuidado com o carro alheio! |
+
+**Rotas:** Casa → STJ (manhã) e STJ → Casa (fim de tarde). Há duas rotas principais no mapa, ambas nos dois
+sentidos: **Eixo Monumental** (rápida, com pardais) e **Via S3 + Parque da Cidade** (lenta, com semáforos e faixa
+de ônibus). A seta amarela segue o GPS (rota mais rápida).
 
 ## Como jogar
 
-Abra `index.html` com duplo clique (funciona em `file://`) ou sirva a pasta com qualquer servidor estático.
+Abra **`DaviTheDriver.html`** com duplo clique: é um arquivo único, funciona sem internet e dá para mandar por
+WhatsApp ou e-mail. (`index.html` também funciona com duplo clique, desde que a pasta `dist/` esteja ao lado.)
+No celular, use a tela na horizontal: aparecem botões de toque.
 
 | Tecla | Ação |
 |---|---|
@@ -14,24 +30,31 @@ Abra `index.html` com duplo clique (funciona em `file://`) ou sirva a pasta com 
 | S / ↓ | frear / ré |
 | A D / ← → | direção |
 | Espaço | freio de mão |
-| H | buzinar · R respirar fundo · X xingar · F piscar o farol (cada uma com recarga; ver *Regras e humor*) |
+| H | buzinar |
+| R | respirar fundo |
+| X | xingar |
+| F | piscar o farol |
 | P / Esc | pausa |
 
-**Modos:** `davi` (Davi no Kwid), `carona` (você dirige seu C4 Cactus THP, Davi de passageiro),
-`perigo` (o dono emprestou o Cactus para o Davi). **Rotas:** Casa → STJ (manhã) e STJ → Casa (fim de tarde).
-Duas rotas principais no mapa, ambas nos dois sentidos: **Eixo Monumental** (rápida, pardais) e
-**Via S3 + Parque da Cidade** (lenta, semáforos, faixa de ônibus). A seta amarela segue o GPS (rota mais rápida).
+H, R, X e F têm tempo de recarga (detalhes em *Regras e humor*).
 
-Qualidade gráfica: `index.html?q=leve` (padrão). `?q=hd` está declarado mas cai para `leve` (TODO).
+**Requisitos:** qualquer navegador moderno com WebGL. Roda bem em GPU integrada (testado pensando em Intel UHD 770);
+a qualidade gráfica se ajusta sozinha ao desempenho. Para forçar: `index.html?q=leve` (padrão; `?q=hd` ainda cai para `leve`).
 
-## Build e ferramentas
+### Trocar a foto do menu
+
+Coloque uma imagem quadrada (de preferência pixel art) em `assets/davi.png` e rode `npm run build:single`: a foto é
+embutida em `DaviTheDriver.html` e aparece na moldura do menu. Sem o arquivo, o menu mostra um avatar desenhado.
+Ao abrir `index.html` (sem o arquivo único) a foto é lida de `assets/davi.png`.
+
+## Build e testes
 
 ```bash
 npm install          # esbuild + three (devDependencies; three é empacotado no bundle)
-npm run build        # src/ -> dist/game.js (IIFE único, minificado). dist/ ENTRA no git.
-npm run watch        # rebuild contínuo (não minificado, sourcemap inline)
-npm test             # testes da malha viária em Node puro (tools/test-roads.js)
-node --test 'src/systems/{mood,rules}/__tests__/*.test.js'   # testes de humor/regras/pontuação (Node puro, trânsito falso)
+npm run build        # src/ -> dist/game.js (IIFE minificado) e DaviTheDriver.html (arquivo único). Ambos ENTRAM no git.
+npm run build:single # só o arquivo único DaviTheDriver.html (CSS + JS + foto embutidos; sem rede)
+npm run watch        # rebuild contínuo de dist/game.js (não minificado, sourcemap inline)
+npm test             # malha viária + humor/regras + trânsito, tudo em Node puro
 npm run smoke        # Playwright: abre via file://, joga os 3 modos, mede draw calls, screenshots em .shots/
 node tools/smoke.cjs /tmp/minha-pasta   # idem, salvando screenshots em outra pasta (verificações por passos de simulação, não relógio)
 node tools/shots.cjs /tmp/pasta [filtro] # vistas de inspeção (mapa, bairros, marcos, carros, tráfego) + draw calls/triângulos
@@ -39,6 +62,14 @@ node tools/tune-cars.js                 # mede 0-100, retomada, final e frenagem
 ```
 
 Sem CDN, sem downloads em runtime: texturas são geradas em canvas e toda geometria é procedural.
+Lembre de rodar `npm run build` antes de commitar mudanças em `src/`, para `dist/` e `DaviTheDriver.html` não ficarem defasados.
+
+### Publicar no GitHub Pages
+
+O repositório já está pronto (`index.html` na raiz, caminhos relativos, `.nojekyll`). Para ativar: **Settings → Pages →
+Build and deployment → Source: "Deploy from a branch" → Branch: `main` (ou o branch desejado), pasta `/ (root)` → Save**.
+O jogo fica em `https://<usuario>.github.io/<repositório>/`. O repositório precisa ser público, ou a conta precisa
+ter plano que ofereça Pages para repositórios privados.
 
 ## Arquitetura
 
