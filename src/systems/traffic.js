@@ -98,6 +98,9 @@ const api = {
 
   frame(dt, alpha, ctx) {
     const playing = ctx.state.mode === 'PLAYING';
+    // degrau mais baixo do ajuste automático (cenário reduzido) também reduz o pool do trânsito
+    const aq = ctx.view && ctx.view.autoQuality;
+    sim.poolCap = aq && aq.step >= 3 ? Math.round(sim.maxV * 0.6) : 0;
     const sp = ctx.state.player;
     const t0 = performance.now();
     rnd.sync(sim, playing ? alpha : 1, ctx.state.mode === 'PAUSED' ? 0 : dt, sp.x, sp.z, ctx.net);

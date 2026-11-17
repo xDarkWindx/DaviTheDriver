@@ -226,8 +226,8 @@ export const MAP = {
     { id: 's3_saus', name: 'Via S3 (SAFS)', from: 'r1_w', to: 'r3_e', lanesF: 2, lanesB: 2, limitKmh: 60, kind: 'urban' },
     { id: 's3_saus_w', name: 'Via S3 (SAUS)', from: 'r3_w', to: 'J_S3a', lanesF: 2, lanesB: 2, limitKmh: 60, kind: 'urban' },
     { id: 's3_mid_e', name: 'Via S3', from: 'J_S3a', to: 'M_S3', lanesF: 2, lanesB: 2, limitKmh: 60, kind: 'urban' },
-    { id: 's3_mid', name: 'Via S3', from: 'M_S3', to: 'J_S3b', lanesF: 2, lanesB: 2, limitKmh: 60, kind: 'urban', layer: 0, busLane: 0 },
-    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 2, lanesB: 2, limitKmh: 60, kind: 'urban', busLane: 0 },
+    { id: 's3_mid', name: 'Via S3', from: 'M_S3', to: 'J_S3b', lanesF: 3, lanesB: 3, limitKmh: 60, kind: 'urban', layer: 0, busLane: 0 },
+    { id: 's3_scs', name: 'Via S3 (Setor Comercial Sul)', from: 'J_S3b', to: 'J_PB', lanesF: 3, lanesB: 3, limitKmh: 60, kind: 'urban', busLane: 0 },
 
     // --- W3 Sul
     { id: 'w3_n', name: 'W3 Sul', from: 'J_W3N', to: 'J_PB', lanesF: 2, lanesB: 2, median: 3, limitKmh: 60, kind: 'urban' },

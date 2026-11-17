@@ -325,9 +325,10 @@
     .tbtn.gas { background: rgba(46,160,90,.75); }
     .tbtn.brake { background: rgba(190,50,50,.75); }
     .t-right-cluster .small { grid-column: 1 / -1; height: 2.4em; }
-    .t-acts { position: absolute; right: 1em; top: 19em; display: flex; flex-direction: column; gap: .4em; }
+    .t-acts { position: absolute; right: 1em; bottom: 18em; display: flex; flex-direction: row; gap: .5em; }
+    .t-acts .tbtn.small { min-width: 2.8em; height: 2.6em; }
     .tbtn.small { padding: .4em .8em; font-size: .8em; }
-    .t-pause { position: absolute; left: 50%; top: .6em; margin-left: -1.5em; width: 3em; }
+    .t-pause { position: absolute; left: 50%; bottom: 1em; margin-left: -1.5em; width: 3em; height: 2.6em; }
     .is-touch .bl-card { bottom: 8em; }
     .is-touch .speedo { bottom: 10.5em; }
     .is-touch .acts { display: none; }
@@ -343,9 +344,23 @@
     }
     /* telas baixas (celular em paisagem): menu rola em vez de cortar */
     @media (max-height: 520px) { .menu { align-items: flex-start; } }
+    /* celular em paisagem (≈ 667×375 a 932×430): letra um pouco menor e só o essencial do menu, sem cortar */
+    @media (max-height: 460px) {
+      #ui-layer { font-size: max(9px, min(1.25vw, 2.45vh)); }
+      .card-desc, .photo figcaption { display: none; }
+      .slogan { margin-bottom: .3em; }
+    }
+    /* retrato no celular: pede para girar */
+    #rotate-hint { display: none; }
+    @media (orientation: portrait) and (max-width: 600px) {
+      #rotate-hint { display: flex; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; flex-direction: column;
+        gap: 1em; background: #1b1230; color: #fff4d6; font: 700 20px/1.3 "Segoe UI", system-ui, sans-serif; text-align: center; padding: 2em; }
+      #rotate-hint b { font-size: 56px; display: block; transform: rotate(90deg); }
+    }
   </style>
 </head>
 <body>
+  <div id="rotate-hint"><b>📱</b>Gire o celular para jogar<br><small>(o jogo é na horizontal)</small></div>
   <div id="game"></div>
   <div id="fx-layer"></div>
   <div id="ui-layer"></div>

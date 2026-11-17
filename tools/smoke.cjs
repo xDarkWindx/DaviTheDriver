@@ -121,24 +121,47 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   const fps = await page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else res(n / ((performance.now() - t0) / 1000)); }; requestAnimationFrame(f); }));
   console.log(`FPS headless (SwiftShader, só referência): ${fps.toFixed(1)}`);
 
-  // 4) Percurso automático pela rota do GPS até a chegada (sim síncrona), checa 'chegou'
+  // 4) Percurso automático (teleporte ao longo da rota) com TRÂNSITO DETERMINÍSTICO (state.traffic.seed fixo):
+  //    2 rotas (Eixo = GPS livre; Parque = corredor) × 2 sentidos, valida GPS + chegada em cada uma.
   const auto = await page.evaluate(() => {
-    const c = window.__davi; c.game.startTrip('casa-stj', 'davi');
-    const net = c.net, st = c.state; const w = net.createWalker(st.player.laneId >= 0 ? st.player.laneId : 0, 0);
-    // teleporta o carro ao longo da rota sugerida, a 15 m/s, para validar GPS + chegada
-    let route = []; let guard = 0;
-    const near = net.nearestLane(st.player.x, st.player.z, {}, st.player.heading);
-    route = net.planRoute(near.laneId, near.s, net.laneForZone('stj').targets, []);
-    w.lane = net.getLane(route[0]); w.s = near.s; w.route = route; w.routeIdx = 0;
-    while (st.mode === 'PLAYING' && guard++ < 20000) {
-      w.advance(0.25);
-      c.player.phys.x = w.x; c.player.phys.z = w.z; c.player.phys.heading = w.heading; c.player.phys.vx = 0; c.player.phys.vz = 0;
-      c.game.step(1 / 60);
+    const c = window.__davi, net = c.net, st = c.state, out = {};
+    st.traffic.seed = 4242;
+    for (const routeId of ['casa-stj', 'stj-casa']) for (const corr of ['eixo', 'parque']) {
+      c.game.startTrip(routeId, 'davi');
+      const near = net.nearestLane(st.player.x, st.player.z, {}, st.player.heading);
+      const dest = c.trip._dest.targets;
+      const route = corr === 'eixo' ? net.planRoute(near.laneId, near.s, dest, [])
+        : net.planRouteVia(near.laneId, near.s, net.routeCorridors.parque[routeId], dest, []);
+      const w = net.createWalker(route[0], near.s); w.route = route; w.routeIdx = 0;
+      let guard = 0;
+      while (st.mode === 'PLAYING' && guard++ < 30000) {
+        w.advance(0.25);
+        const p = c.player.phys; p.x = w.x; p.z = w.z; p.heading = w.heading; p.vx = 0; p.vz = 0;
+        c.game.step(1 / 60);
+      }
+      out[routeId + '/' + corr] = { mode: st.mode, reason: st.finishReason, simTime: +st.trip.elapsed.toFixed(1), parking: st.trip.parking };
+      if (st.mode === 'PLAYING') c.game.finish('desistiu');
     }
-    return { mode: st.mode, reason: st.finishReason, simTime: st.trip.elapsed, steps: guard };
+    st.traffic.seed = null;
+    return out;
   });
-  console.log('rota automática:', JSON.stringify(auto));
-  results.push({ mode: 'auto-chegada', ok: auto.mode === 'FINISHED' && auto.reason === 'chegou' });
+  console.log('rotas automáticas (teleporte, trânsito com semente fixa):', JSON.stringify(auto));
+  results.push({ mode: 'auto-chegada-4-rotas', ok: Object.values(auto).every((r) => r.reason === 'chegou') });
+
+  // 4a) Piloto-robô de verdade (teclas virtuais, física real, trânsito real com semente fixa): Davi, Casa → STJ pelo Eixo
+  const bot = await page.evaluate(() => {
+    const c = window.__davi, st = c.state;
+    st.traffic.seed = 11;
+    c.game.startTrip('casa-stj', 'davi'); c.autopilot.start({ profile: 'normal', corridor: 'eixo' });
+    for (let i = 0; i < 1200 && st.mode === 'PLAYING'; i++) c.game.advance(0.5);
+    c.autopilot.stop();
+    const r = { reason: st.finishReason || st.mode, time: +st.trip.elapsed.toFixed(1), fines: st.fines.length, grade: st.result && st.result.grade };
+    if (st.mode === 'PLAYING') c.game.finish('desistiu');
+    st.traffic.seed = null;
+    return r;
+  });
+  console.log('piloto-robô (normal, Eixo, semente 11):', JSON.stringify(bot));
+  results.push({ mode: 'piloto-robo-chega', ok: bot.reason === 'chegou' });
 
   // 4b) ajuste automático de qualidade: no SwiftShader (~10 FPS) ele DEVE ter descido degraus sozinho.
   const aq = await page.evaluate(() => { const a = window.__davi.view.autoQuality; return { step: a.step, label: a.label, fps: +a.fps.toFixed(1), history: a.history, mirror: window.__davi.state.qualityAuto || null }; });

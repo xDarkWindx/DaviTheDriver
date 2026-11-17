@@ -32,6 +32,10 @@ const SIGN_ENTRIES = [
   { key: 'esplanada', text: 'ESPLANADA', sub: 'dos Ministérios', bg: '#1f6b3a', fg: '#ffffff', w: 300, h: 110 },
   { key: 'rodo', text: 'RODOVIÁRIA', sub: 'Plano Piloto', bg: '#1f6b3a', fg: '#ffffff', w: 300, h: 110 },
   { key: 'bus', text: 'ÔNIBUS', bg: 'rgba(0,0,0,0)', fg: '#f3ead8', w: 300, h: 90, noBorder: true },
+  { key: 'so', text: 'SÓ', bg: 'rgba(0,0,0,0)', fg: '#f3ead8', w: 160, h: 90, noBorder: true },
+  { key: 'p:Via S1', text: 'Via S1', bg: 'rgba(0,0,0,0)', fg: '#ebe6da', w: 260, h: 90, noBorder: true },
+  { key: 'p:Via N1', text: 'Via N1', bg: 'rgba(0,0,0,0)', fg: '#ebe6da', w: 260, h: 90, noBorder: true },
+  ...[60, 70, 80].map((v) => ({ key: 'p:' + v, text: String(v), bg: 'rgba(0,0,0,0)', fg: '#ebe6da', w: 140, h: 90, noBorder: true })),
   { key: 'busstop', text: 'PONTO', sub: 'ônibus', bg: '#1d4f8f', fg: '#ffffff', w: 160, h: 110 },
   { key: 'roof_stj', text: 'STJ', sub: 'SUPERIOR TRIBUNAL DE JUSTIÇA', bg: '#f4f2ec', fg: '#1d3d7a', w: 520, h: 150 },
   { key: 'roof_casa', text: 'QRSW 2', sub: 'SUDOESTE', bg: '#f3e9d7', fg: '#b4322a', w: 360, h: 120 },
@@ -331,8 +335,28 @@ function buildSigns(atlas, camDir, inst, colliders, net) {
       const flip = T.tx * rx + T.tz * rz < 0 ? -1 : 1; // sempre legível da câmera
       const tx = T.tx * flip, tz = T.tz * flip;
       const ex = tx * len / 2, ez = tz * len / 2, ux = tz * wid / 2, uz = -tx * wid / 2;
-      const u = atlas.uv.bus;
+      const u = atlas.uv[((s - 20) / 45) % 2 === 1 ? 'so' : 'bus'];
       quad([T.x - ex - ux, y, T.z - ez - uz], [T.x + ex - ux, y, T.z + ez - uz], [T.x + ex + ux, y, T.z + ez + uz], [T.x - ex + ux, y, T.z - ez + uz], u, [0, 1, 0]);
+    }
+  }
+  // Eixo Monumental: "Via S1"/"Via N1" pintado no asfalto a intervalos e o limite ("70", "80"...) em cada faixa antes
+  // dos semáforos (como na via real). Texto deitado ao longo da faixa, legível de quem vem.
+  const paint = (key, T, len, wid, y) => {
+    const u = atlas.uv[key]; if (!u) return;
+    const flip = T.tx * rx + T.tz * rz < 0 ? -1 : 1, tx = T.tx * flip, tz = T.tz * flip;
+    const ex = tx * len / 2, ez = tz * len / 2, ux = tz * wid / 2, uz = -tx * wid / 2;
+    quad([T.x - ex - ux, y, T.z - ez - uz], [T.x + ex - ux, y, T.z + ez - uz], [T.x + ex + ux, y, T.z + ez + uz], [T.x - ex + ux, y, T.z - ez + uz], u, [0, 1, 0]);
+  };
+  for (const lane of net.lanes) {
+    if (lane.isConnector || !lane.segId) continue;
+    const seg = net.getSegment(lane.segId); if (seg.kind !== 'eixo') continue;
+    const y = seg.layer * 0.09 + 0.085, n = seg.laneIdsF.length;
+    const name = /N1/.test(seg.name) ? 'p:Via N1' : /S1/.test(seg.name) ? 'p:Via S1' : null;
+    if (name && lane.kind !== 'bus' && lane.index === Math.floor(n / 2)) {
+      for (let s = 60; s < lane.length - 40; s += 170) { samplePts(lane.pts, lane.cum, s, T); paint(name, T, 5.6, seg.laneW * 0.62, y); }
+    }
+    if (lane.signal && lane.kind !== 'bus' && lane.length > 60) {
+      samplePts(lane.pts, lane.cum, lane.length - 26, T); paint('p:' + Math.min(80, Math.max(60, lane.limitKmh)), T, 2.6, seg.laneW * 0.5, y);
     }
   }
   // placas dos pontos de ônibus

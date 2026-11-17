@@ -1,5 +1,5 @@
 // BANCO DE FALAS (pt-BR) + "Speaker" (sorteio sem repetição e limite de frequência). Puro (sem DOM/three).
-// Tom: o jogo MOSTRA, não ROTULA — reações à SITUAÇÃO de trânsito; ninguém se descreve, ninguém culpa ninguém
+// Tom: o jogo MOSTRA, não ROTULA — reações à SITUAÇÃO de trânsito; ninguém se descreve, ninguém aponta responsável
 // por batida, nada contra grupos, nada de ameaça. Cada fala é 'texto' (igual nas duas variantes) ou
 // ['com palavrão', 'versão leve'] — state.settings.profanity === false usa a leve.
 //

@@ -204,7 +204,8 @@ export function createAutopilot(ctx) {
       }
       // --- obstáculos
       let obsGap = 1e9, obsV = 0, legit = false;
-      const obstacle = (gap, vo, why) => { if (gap < obsGap) { obsGap = gap; obsV = vo; this.debug.why = why; } };
+      let obsDh = 0;
+      const obstacle = (gap, vo, why, dh = 0) => { if (gap < obsGap) { obsGap = gap; obsV = vo; this.debug.why = why; obsDh = dh; } };
       // semáforos e faixas de pedestre ao longo do caminho
       {
         let lane = net.lanes[this.track], s = this.s, base = -s, idx = this._routeIdxOf(lane), guard = 0;
@@ -253,7 +254,7 @@ export function createAutopilot(ctx) {
           const along = Math.abs(Math.cos(dh)) * o.length * 0.5 + Math.abs(Math.sin(dh)) * o.width * 0.5;
           const gap = bi * PATH_DS - veh.length * 0.5 - along;
           const vo = Math.max(0, o.speed * Math.cos(dh));
-          obstacle(gap, vo, 'carro');
+          obstacle(gap, vo, 'carro', Math.abs(dh));
           continue;
         }
         // cone pelo rumo atual do carro (pega quem está entre o carro e a faixa nova numa troca de faixa)
@@ -306,11 +307,16 @@ export function createAutopilot(ctx) {
       acc = Math.min(acc, aCons < 99 ? aCons * 1.15 : 99);
       this.debug.acc = acc; this.debug.gap = obsGap; this.debug.v0 = v0;
       // impasse com quem está de lado (cone/cruza) parado há > 5 s: avança devagar ignorando esses (como um jogador faria)
-      if (v < 0.4 && (this.debug.why === 'cone' || this.debug.why === 'cruza') && obsV < 0.3) this.sideWaitT = (this.sideWaitT || 0) + dt; else this.sideWaitT = 0;
+      const crossing = this.debug.why === 'cone' || this.debug.why === 'cruza' || (this.debug.why === 'carro' && obsDh > 0.5);
+      if (v < 0.4 && crossing && obsV < 0.3 && !legit) this.sideWaitT = (this.sideWaitT || 0) + dt; else this.sideWaitT = 0;
       if (this.sideWaitT > 5) { this.sideWaitT = 0; this.creepT = 1.5; }
-      if (this.creepT > 0) { this.creepT -= dt; if (this.debug.why !== 'pedestre' && this.debug.why !== 'faixa') acc = Math.max(acc, 0.8); }
+      if (this.creepT > 0) {
+        this.creepT -= dt;
+        let pedNear = false; for (const o of peds) { const ex = o.x - ph.x, ez = o.z - ph.z; if (o.state !== 'gone' && ex * ex + ez * ez < 14 * 14) { pedNear = true; break; } }
+        if (!pedNear && this.debug.why !== 'pedestre' && this.debug.why !== 'faixa') acc = Math.max(acc, 0.8);
+      }
       // preso (sem motivo): ré curta
-      if (v < 0.5 && !legit && ((obsGap > 8 && acc > 0.3) || (obsGap < 0.5 && obsV < 0.3))) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
+      if (v < 0.5 && !legit && obsGap > 8 && acc > 0.3) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
       if (this.stuckT > 6) { this.reverseT = 1.6; this.stuckT = 0; }
       if (this.reverseT > 0) { this.reverseT -= dt; this._steer(-u * 0.5); this._pedals(0, 1); return; }
       // pedais
@@ -352,7 +358,8 @@ export function createAutopilot(ctx) {
         if (best) D = best;
       }
       this.needLC = false;
-      if (this.t - this.lastLC < 3.5) { this.needLC = T.id !== D.id && left < 120; return; }
+      const vNow = Math.max(0, st.player.speed), prep = Math.max(120, vNow * 9);
+      if (this.t - this.lastLC < 3.5) { this.needLC = T.id !== D.id && left < prep; return; }
       const ld = ctx.modules.traffic.leadInfo();
       const v = Math.max(0, st.player.speed);
       const want = Math.max(15, T.limitKmh * prof.speedMul) / 3.6;
@@ -374,12 +381,12 @@ export function createAutopilot(ctx) {
         const step = D.index > T.index ? 1 : -1;
         let nid = -1; for (const id of sib) if (net.lanes[id].index === T.index + step) nid = id;
         if (nid < 0) return;
-        const urgent = left < 70 || (T.kind === 'bus' && !prof.busLane && D.kind !== 'bus');
+        const urgent = left < Math.max(70, vNow * 5.5) || (T.kind === 'bus' && !prof.busLane && D.kind !== 'bus');
         const onBus = T.kind === 'bus' && !prof.busLane && D.kind !== 'bus';
         const stay = slowLead === false && !onBus && !urgent && T.kind !== 'bus' && this.profile === 'apressado' && left > 200;
         if (stay) return;
         if (this._laneFree(nid, this.s, urgent ? 4 : 9, urgent ? 10 : 22) || left < 25) { this.track = nid; this.lastLC = this.t; }
-        else if (left < 120) this.needLC = true; // tira o pé para achar a brecha
+        else if (left < prep) this.needLC = true; // tira o pé para achar a brecha
       }
     },
 

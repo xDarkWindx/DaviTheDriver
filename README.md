@@ -16,7 +16,10 @@ possível, equilibrando as barras de **ansiedade** e **estresse** pelo caminho (
 
 **Rotas:** Casa → STJ (manhã) e STJ → Casa (fim de tarde). Há duas rotas principais no mapa, ambas nos dois
 sentidos: **Eixo Monumental** (rápida, com pardais) e **Via S3 + Parque da Cidade** (lenta, com semáforos e faixa
-de ônibus). A seta amarela segue o GPS (rota mais rápida).
+de ônibus). A seta amarela segue o GPS (rota mais rápida). Chegada ao STJ por um dos dois estacionamentos (sorteado na
+viagem): **Norte** (faixa comprida colada ao prédio, pela SAFS Quadra 2 e a avenida, ou pela lateral leste) ou **Leste** (o bolsão
+arborizado, pela Rotatória 2). Às vezes há **congestionamento** no caminho (vermelho no minimapa) e, perto do STJ, o
+**ônibus do STJ** pode entrar no balão na sua frente.
 
 ## Como jogar
 
@@ -36,7 +39,8 @@ No celular, use a tela na horizontal: aparecem botões de toque.
 | F | piscar o farol |
 | P / Esc | pausa |
 
-H, R, X e F têm tempo de recarga (detalhes em *Regras e humor*).
+H, R, X e F têm tempo de recarga (detalhes em *Regras e humor*). No celular os mesmos quatro aparecem como botões acima do
+velocímetro; em retrato o jogo pede para girar o aparelho.
 
 **Requisitos:** qualquer navegador moderno com WebGL. Roda bem em GPU integrada (testado pensando em Intel UHD 770);
 a qualidade gráfica se ajusta sozinha ao desempenho. Para forçar: `index.html?q=leve` (padrão; `?q=hd` ainda cai para `leve`).
@@ -59,7 +63,15 @@ npm run smoke        # Playwright: abre via file://, joga os 3 modos, mede draw 
 node tools/smoke.cjs /tmp/minha-pasta   # idem, salvando screenshots em outra pasta (verificações por passos de simulação, não relógio)
 node tools/shots.cjs /tmp/pasta [filtro] # vistas de inspeção (mapa, bairros, marcos, carros, tráfego) + draw calls/triângulos
 node tools/tune-cars.js                 # mede 0-100, retomada, final e frenagem de cada carro
+index.html?bot=normal[&rota=parque]     # piloto-robô dirige sozinho (cuidadoso | normal | apressado), para assistir/depurar
 ```
+
+**Piloto-robô** (`src/debug/autopilot.js`, inerte até ser ligado; `ctx.autopilot.start({ profile, corridor })`): dirige só pelos
+controles reais (`input.setVirtual` com modulação sigma-delta), com a física real e os efeitos de humor no volante; segue a rota
+(GPS ou corredor do Parque), troca de faixa para cumprir a rota, respeita limite/curva/semáforo/faixa de pedestre, freia pelo que
+está no caminho (corredor + previsão pela faixa do outro em balões) e usa H/R/F como um jogador. Perfis: `cuidadoso`, `normal`,
+`apressado` (corre 35% acima, cola, ultrapassa, usa faixa de ônibus, passa no amarelo). Usado no `smoke` e no playtest em lote
+(avança a simulação com `game.advance`, sem depender do FPS).
 
 Sem CDN, sem downloads em runtime: texturas são geradas em canvas e toda geometria é procedural.
 Lembre de rodar `npm run build` antes de commitar mudanças em `src/`, para `dist/` e `DaviTheDriver.html` não ficarem defasados.
@@ -263,11 +275,19 @@ Funções puras exportadas: `samplePts`, `offsetPolyline`, `smoothPolyline`. Tes
   (`parque`, 1+1 faixas), rotatórias com fluxo (Cruzeiro, Três Poderes, Quarta/Terceira/Segunda Avenida, EPIG), semáforos com faixa
   de pedestre na Via S3/SCS/SAUS, faixas de ônibus ao lado de faixa normal (Eixo Via S1, `s3_mid`, `s3_scs`).
 
-**Topologia (pós fase 2a).** O Sudoeste só se liga ao resto da cidade pela Av. das Jaqueiras (e a Primeira Avenida, que vai ao
-Balão da EPIG); EQRSW e Comércio Local são sem saída (senão o GPS cortava caminho). Rotas que o GPS devolve:
-- Casa → STJ (Eixo): QRSW 2 › Av. das Jaqueiras › Praça do Cruzeiro › Eixo (Via S1) › descida da Rodoviária (Via S2) › Via S2 › L2 Sul › Via S3 (SAFS — STJ).
-- STJ → Casa (Eixo): Via S3 (SAFS) › L2 Sul › Via S2 › Alça Via S2 → Eixo (Rodoviária) › Eixo (Via N1) › Praça do Cruzeiro › Av. das Jaqueiras › QRSW 2.
-- Parque (forçada com `planRouteVia`): QRSW 2 › Jaqueiras › Primeira Avenida › Balão da EPIG › anel do Parque › Via S3 (SCS, SAUS, SAFS), e o inverso.
+**Topologia (fase 3).** O Sudoeste só se liga ao resto da cidade pela Av. das Jaqueiras (e a Primeira Avenida, que vai ao
+Balão da EPIG); EQRSW e Comércio Local são sem saída (senão o GPS cortava caminho). O Eixo Monumental (Vias S1/N1) tem 5 faixas
+por sentido (4 + ônibus à direita, linha branca contínua, "ÔNIBUS"/"SÓ" e "Via S1"/"Via N1" pintados no chão, limite pintado antes
+dos semáforos). **Entorno do STJ** (mapa real comprimido): a quadra fica entre a **SAFS Quadra 2** (Via S2) ao norte, a avenida
+(L2 / St. de Adm. Federal Sul) a oeste e a transversal (Via S3) ao sul. Balões: **SAFS Q. 2 × avenida** (`R_Q2`), **Rotatória 1**
+(`R_STJ1`, avenida × transversal, com ponto de ônibus), **Rotatória 2** (`R_STJ2`, canto leste: Estacionamento Leste, lateral e
+acesso à Via L4), **Rotatória 3** (`R_STJ3`, perto do TSE), e dois ao sul (`R_STJN1` L2 × L3, `R_STJN2` na Via L4 — dirigíveis,
+fora das rotas do GPS). Estacionamentos: `stj_norte` (zona `stj_norte`/`stj`) e `stj_leste` (laço; zona `stj_leste`), com
+carros parados instanciados. Rotas que o GPS devolve (testadas em `tools/test-roads.js`):
+- Casa → STJ Norte (Eixo): QRSW 2 › Jaqueiras › Praça do Cruzeiro › Eixo (Via S1) › descida da Rodoviária › Via S2 › Balão da SAFS Q. 2 › avenida › Estacionamento Norte (ponta oeste). Variante: SAFS Q. 2 › lateral leste › ponta leste.
+- Casa → STJ Leste: … › Eixo (Esplanada) › Três Poderes › Via S2 › lateral do STJ › Rotatória 2 › Estacionamento Leste (ou pela avenida › Rotatória 1 › transversal › Rotatória 2).
+- Volta: do mesmo estacionamento, pelo caminho inverso (Eixo pela Via N1 / alça da Rodoviária).
+- Parque (corredor `planRouteVia`): QRSW 2 › Jaqueiras › Primeira Avenida › Balão da EPIG › anel do Parque › Via S3 (SCS, SAUS) › Rotatória 3 › Rotatória 1 › STJ, e o inverso.
 Trevo Eixo × Eixão: `alca_eixao` (Eixo → Eixão Sul) e `alca_rodo` (Via S2 → Eixo/Via N1, em desnível sob a Via S1).
 Ids que mudaram na fase 2a: `eixo_s1_c` foi dividido em `eixo_s1_c0` (W3 → saída do Eixão) + `eixo_s1_c` (→ Rodoviária);
 `eixo_n1` em `eixo_n1_e` + `eixo_n1`; `eixao_n` em `eixao_n` + `eixao_n2`; `s2_a` em `s2_alca` + `s2_a`; `qrsw2` em `qrsw2` + `qrsw2_e`;
@@ -315,6 +335,10 @@ Ortográfica isométrica alta (`CONFIG.camera`). Ganchos: `shake(amount, duratio
 ### Viagem (`ctx.trip`)
 GPS recalcula a cada 0,5 s (`state.trip.guideX/Z`, `routeDistLeft`, `trip.route` = laneIds); seta 3D sobre o carro;
 anel + coluna de luz no destino. Chegada = entrar no raio da zona → `ARRIVED` + `finish('chegou')`.
+Estacionamento do STJ por viagem: `state.trip.parking` (`'norte'|'leste'`, sorteado por `chooseParking` em `core/game.js` — com
+`state.traffic.seed` fixo é reproduzível; `REQ_START`/`startTrip(route, mode, { parking, via })` forçam) e `state.trip.arrivalVia`
+(waypoints que o GPS respeita, `planRouteVia`, até passar por eles). O destino aparece no HUD (`state.trip.destLabel`) e no minimapa.
+O GPS soma `net.laneExtraCost` (custo extra por faixa, escrito pelo trânsito no congestionamento) e por isso pode sugerir desvio.
 
 ### Minimapa
 `ctx.world.getMinimapData()` → `{ bounds, roads: [{id, name, kind, width, oneWay, pts: Float32Array}], roundabouts, landmarks, zones, signals }`.
@@ -348,9 +372,18 @@ Um shadow map direcional 1024 (PCF) com frustum de ±48 m que segue o ponto foca
 Lambert (cenário) / Phong (carros), InstancedMesh por chunk de 200 m, pixelRatio ≤ 1,5, sem alocação por passo no caminho quente.
 Medido (SwiftShader, 1280×720, câmera de jogo): ~55–105 draw calls, ~130–270 mil triângulos (ver relatório da fase 2a).
 
+Medido na fase 3 (SwiftShader 1280×720, câmera de jogo, sombra projetada ligada, pool de trânsito cheio = 56): Sudoeste 100–104
+draw calls / 290–298 mil tri; SCS 114–122 / 282–313 mil; Eixo 64–65 / 176–177 mil; STJ 83–89 / 163–188 mil; Jaqueiras 83–90 /
+281–297 mil (o segundo número é com o zoom máximo de alta velocidade). Simulação por passo de 1/60 s ≈ 0,8 ms (trânsito ~0,5,
+jogador ~0,13, GPS ~0,12 em média com picos a cada 0,5 s, humor ~0,05, regras ~0,01). Os carros do trânsito usam sombra blob:
+com eles projetando no shadow map o SCS passava de 350 mil triângulos (`SHADOW_TRAFFIC` em `traffic/render.js`).
+Prédios/marcos/caixas entre a câmera e o carro ficam pontilhados ("screen-door", `OCCLUSION` em `render/materials.js`): o jogador nunca
+some atrás de prédio.
+
 **Ajuste automático** (`ctx.view.autoQuality`, em `render/renderer.js`): mede o FPS depois de `warmupSec`; média de `windowSec` abaixo
 de `minFps` (50) desce um degrau: `0 completo → 1 sem sombra projetada (sombras blob) → 2 resolução reduzida (pixelRatio × 0,75)
-→ 3 cenário reduzido (some capim/arbustos/bancos e a visão encurta 30%)`. Sobe um degrau só após `upHoldSec` acima de `upFps` e
+→ 3 cenário reduzido (some capim/arbustos/bancos, a visão encurta 30% e o pool do trânsito cai para 60%)`. O degrau atual aparece
+em Opções. Sobe um degrau só após `upHoldSec` acima de `upFps` e
 nunca para um degrau do qual já caiu 2 vezes (histerese). Estado público: `view.autoQuality.{step,label,fps,history}`, espelhado em
 `state.qualityAuto = { step, label, fps }` quando muda (para a UI). `view.autoQuality.set(n)` força um degrau.
 
@@ -364,6 +397,14 @@ Toda constante de balanceamento está em **`systems/mood/balance.js` (`MOOD_BALA
   proximidade), vermelho, pedestre na faixa, abaixo do limite, cronômetro, faixa de ônibus vazia ao lado; desce correndo com pista
   livre, ultrapassando (`PLAYER_OVERTOOK`) e respirando. Estresse sobe com eventos do trânsito (ultrapassado, fechado — x1,7 em
   rotatória —, buzina, farol, cola, fina, multa, fruta, raspão) e desce com calma. Pisos: Davi 15 (12 de carona), dono 0 ao volante.
+  Os alívios "naturais" (correr com pista livre, calma) param no **repouso** (`anx.rest` 26, `str.rest` 22): só respirar desce até o
+  piso, então as barras não colam no piso sozinhas. **Congestionamento** (`MOOD_BALANCE.jam`): parado na fila sobe ansiedade E
+  estresse juntos, crescendo com o tempo (substitui o "atrás de lento" enquanto durar); no carona o Davi reclama da rota; no perigo é
+  quase um alívio para o dono. **Ônibus do STJ** fechando no balão: fala própria (e surto imediato do Davi passageiro no carona).
+  Falas de multa por tipo (pardal, câmera do sinal, faixa de pedestre, faixa de ônibus, agente).
+- **Faixa de ônibus para converter:** usar a exclusiva nos últimos `busLane.turnZone` (90) m antes de uma conversão à direita não
+  conta (CTB); só multa o trânsito NA faixa (≥ 3 s, visto por radar `busLane` ou agente).
+- **Faixa de pedestre ocupada** = alguém atravessando NA faixa (`crossing`/`down`); quem espera na calçada ou já saiu dela não conta.
 - **Volante (`player.mods`, só quando o Davi dirige):** ansiedade → `throttleBias` (só andando e sem freio), `steerNoise`, puxão para
   a esquerda colado num lento (aplicado em `player.phys.steer`, pois `mods` não tem viés de direção); estresse → `steerGain`,
   `steerDelay`, `brakeMul`, buzina/xingamento automáticos. Fruta (`HAZARD_HIT`): `gripMul`/ruído por ~1 s e um empurrão de rumo.
@@ -391,6 +432,26 @@ Lógica pura em `systems/traffic/sim.js` (sem three.js), elenco em `traffic/pers
 Testes em Node: **`node src/systems/traffic/__tests__/traffic.test.js`** (`MINUTOS=10` para o teste longo; `VERBOSE=1` detalha).
 Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de via, faixas, conectores, balões, pontos, `fruitSpots`...).
 
+- **Traços de motorista** (independentes da persona; `TUNING.traits` em `traffic/sim.js`, da pesquisa autodeclarada de motoristas
+  brasileiros): `speeder` 59% (anda 5–25% acima do limite; os demais no limite ou abaixo; apressado/motoboy sempre), `onPhone` 38%
+  (demora 1–3 s a mais no verde, velocidade irregular, oscila na faixa, reage mais tarde), `noYield` 27% (não para para quem ESPERA
+  na faixa sem semáforo — quem já atravessa, todos respeitam; a IA nunca atropela), `noSignal` 23% (sem seta em troca de faixa,
+  curva e balão). Contagem em `sim.stats.traits`.
+- **Congestionamento** (0, 1 ou 2 por viagem; `TUNING.jamSpots/jamChances`): fila anda-e-para (≤ 18 km/h em onda) de ~70 m num trecho
+  das rotas da viagem (Eixo antes da Rodoviária, S3/SCS, chegada/saída do Balão da EPIG, Jaqueiras, Via S2), com causa visível no fim
+  (carro quebrado ou ônibus parado no acostamento com pisca-alerta), enchida quando o jogador se aproxima. Avisado num toast na largada,
+  marcado em vermelho no minimapa e com custo extra no GPS (que pode sugerir desvio). Não engavetamento: a fila escoa; não nasce carro
+  em faixa já com 3+ parados. API: `traffic.jams[]`, `traffic.inJam()`; `state.traffic.jams`/`jamSpot` forçam (testes).
+- **Ônibus do STJ** (`_stjBusLogic`, ~42% das viagens, no máx. 1): quando o jogador circula numa das rotatórias do entorno do STJ, um
+  ônibus institucional (azul, "STJ" na lateral, persona `onibusSTJ`, com seta em 80% das vezes) aparece na próxima entrada, à vista,
+  e entra sem esperar brecha; a traseira varre para fora na curva (`_busSwing`). `CUT_OFF` com `ring: true, stj: true`; `NEAR_MISS`
+  se passou raspando; `COLLISION` pela regra normal (boletim: "Um ônibus do STJ, na rotatória."). Teste: 5 sementes, piloto cuidadoso
+  nunca bate e ninguém fica preso no balão.
+- **Lento em trecho sem ultrapassagem** (anel do Parque): com fila colada atrás por 12–22 s (ou se pedirem passagem com farol/buzina),
+  encosta no acostamento por ~7 s e a fila passa (ninguém fica atrás do mesmo lento a rota toda).
+- **Faixa de pedestre sem semáforo:** depois que esvazia, 7 s de "vez dos carros" (ninguém começa a atravessar; quem já está junto
+  entra nos primeiros 2,5 s) — evita fila eterna no SCS.
+- **Menu vivo:** no menu o trânsito roda em volta da Esplanada (jogador "fantasma" no gramado).
 - **IA:** cada veículo é um `LaneWalker` com um caminho curto já sorteado (`path`). Longitudinal = IDM (seguimento suave) contra todos
   os obstáculos do caminho: veículo/jogador à frente (baldes por faixa), linha de parada no vermelho/amarelo (antes da faixa de pedestre
   colada no semáforo), faixa de pedestre com gente atravessando ou sinalizando, entrada de balão sem brecha (quem circula tem a vez;
@@ -407,7 +468,7 @@ Nada de id/nome/coordenada de via no código: tudo sai de `ctx.net` (tipos de vi
   balão, de vez em quando alguém "fura" e entra na frente; metade da reposição nasce na via do jogador (à frente ou atrás, fora da vista).
 - **Spawn/despawn:** pool fixo `quality.maxTrafficVehicles` / `maxPedestrians`; nasce a 135–330 m do jogador (fora da vista), some a
   > 385 m (ou > 250 m e já para trás de quem anda). Na largada pode nascer a partir de 26 m.
-- **Reação ao jogador:** `provoke(amount, radius)` → agressividade sobe por `temper`; > 0,55 vira revanche (buzina de volta, cola,
+- **Reação ao jogador:** `provoke(amount, radius)` → irritação sobe por `temper`; > 0,55 vira revanche (buzina de volta, cola,
   ultrapassa e fecha, freada de birra). Buzina do jogador (`EV.HORN`, este módulo escuta) e `flashLead()` / cola do jogador no da
   frente por ~2,5 s → sorteio ponderado por persona: `yield` (sai da faixa), `brake` (freia de birra) ou `ignore`. A irritação geral
   (`provoke`) é chamada pelo humor, não por este módulo.

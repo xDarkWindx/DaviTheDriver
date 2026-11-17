@@ -52,7 +52,7 @@ export const QUALITY = {
     },
     vehicleLOD: 'high',          // M  'low' | 'high' — carros com carroceria modelada (~2-3 mil tri)
     landmarkLOD: 'high',         // M  'low' | 'high'
-    maxTrafficVehicles: 40,      // -  teto p/ systems/traffic.js
+    maxTrafficVehicles: 56,      // -  teto p/ systems/traffic.js (o degrau 3 do ajuste automático usa 60% disso)
     maxPedestrians: 24,          // -  teto p/ systems/traffic.js
     maxParticles: 300,           // -  teto p/ systems/fx.js
     fxSkidMax: 160,              // -  pool de marcas de pneu (quads instanciados) — systems/fx.js
@@ -175,14 +175,14 @@ export const VEHICLES = {
 // Os efeitos no volante (player.mods) vêm do humor do DRIVER.
 // ---------------------------------------------------------------------------
 export const PEOPLE = {
-  davi: { id: 'davi', name: 'Davi', temperament: 'ansioso' },   // ansioso, estressado, agressivo
-  dono: { id: 'dono', name: 'Dono do Cactus', temperament: 'calmo' },
+  davi: { id: 'davi', name: 'Davi' },
+  dono: { id: 'dono', name: 'Dono do Cactus' },
 };
 
 export const MODES = {
   davi: {
     id: 'davi', label: 'Davi ao volante', vehicle: 'kwid', driver: 'davi', passenger: null, parking: ['norte', 'leste'],
-    description: 'Você É o Davi, no Kwid branco. A culpa é sempre dos outros.',
+    description: 'Você é o Davi, no Kwid branco, de casa (Sudoeste) ao STJ ou de volta.',
   },
   carona: {
     id: 'carona', label: 'Davi de carona', vehicle: 'cactus', driver: 'dono', passenger: 'davi', parking: ['norte', 'leste'],

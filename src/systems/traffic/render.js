@@ -4,6 +4,9 @@
 import * as THREE from 'three';
 import { TRAFFIC_MODELS, buildTrafficModel, buildPersonModel, makeVehicleMaterial, PartBuilder } from '../../player/vehicleModels.js';
 import { LIVE_SHADOW } from '../../render/materials.js';
+// Carros projetando sombra no shadow map: o pool inteiro entra na passada de sombra (instâncias sem culling), ~+50–100 mil
+// triângulos com a frota cheia. Medido: estoura o orçamento do perfil leve no SCS/Sudoeste => desligado (sombra blob).
+export const SHADOW_TRAFFIC = false;
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 const _c = new THREE.Color(), _up = new THREE.Vector3(0, 1, 0);
@@ -134,6 +137,11 @@ export class TrafficRenderer {
       uv.push(0, 0, 1, 0, 1, 1, 0, 1);
       idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
     }
+    // letreiro grande no TETO (o que a câmera isométrica vê): "STJ" ao longo do ônibus
+    { const b = pos.length / 3, RY = 3.22, RL = 4.2, RW = 1.05;
+      pos.push(-RW, RY, -RL, -RW, RY, RL, RW, RY, RL, RW, RY, -RL);
+      uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3); }
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     geo.setIndex(idx);
@@ -186,7 +194,7 @@ export class TrafficRenderer {
     this.stjPlate.visible = false;
     // sombra: com shadow map ligado os carros projetam sombra de verdade (igual ao resto do mundo); no degrau sem
     // sombra projetada (ajuste automático) voltam as sombras blob
-    const live = LIVE_SHADOW.map;
+    const live = LIVE_SHADOW.map && SHADOW_TRAFFIC;
     if (live !== this._liveShadow) {
       this._liveShadow = live;
       for (const k in this.vmesh) this.vmesh[k].castShadow = live;

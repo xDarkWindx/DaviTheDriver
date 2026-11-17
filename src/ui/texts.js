@@ -92,7 +92,7 @@ export const CRASH_WITH = {
 };
 export const CRASH_WITH_DEFAULT = 'um obstáculo não identificado';
 
-// Causas apuradas: absurdas e impessoais (ninguém culpa ninguém).
+// Causas apuradas: absurdas e impessoais (sem apontar responsável).
 export const CRASH_EXCUSE = {
   building: ['O prédio estava exatamente onde a planta mandava.', 'Lei da física: dois corpos não ocupam o mesmo lugar.'],
   tree: ['Uma árvore de ipê, em plena floração. Houve distração estética.', 'Cerrado: a árvore já estava lá antes da rua.'],

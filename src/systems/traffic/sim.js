@@ -18,14 +18,14 @@ const wrap = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - M
 const rr = (rng, v) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * rng() : v);
 
 export const TUNING = {
-  spawnMin: 135,       // m do jogador: spawn fora da vista da câmera (visão máx. ~ 80 m de meia-diagonal)
-  spawnMax: 330,
-  despawn: 385,
+  spawnMin: 105,       // m do jogador: spawn fora da vista da câmera (vista máx. ~78 m de largura => meia-diagonal ~50 m)
+  spawnMax: 270,       // janela de spawn perto da vista: o pool fica onde a câmera vê (densidade NA TELA, não no mapa)
+  despawn: 310,
   initMin: 26,         // na largada pode nascer dentro da vista (mas não em cima do jogador)
   lookMax: 130,        // horizonte do IDM (m)
   pathMax: 12,
   thinkEvery: 15,      // passos entre decisões de cada veículo (fatias: 1/15 da frota por passo)
-  todDensity: { manha: 0.65, tarde: 0.8 },
+  todDensity: { manha: 0.7, tarde: 0.85 },
   stuckSec: 25,        // parado sem motivo legítimo => "fantasma" por 3 s (ou some, se longe)
   pedRate: { urban: 0.07, eixo: 0.035, eixao: 0.02, arterial: 0.04, local: 0.05, ring: 0.02, ramp: 0 },
   maxJoggers: 4,
@@ -39,7 +39,7 @@ export const TUNING = {
   stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.5, 6: 0.8 }, stjBusSwing: 0.2,
   // CONGESTIONAMENTO (0, 1 ou 2 por viagem): fila densa anda-e-para num trecho da rota (ou da alternativa), causa visível
   // no fim (carro quebrado / ônibus parado no acostamento, com pisca-alerta). jamChances = P(0), P(1) (resto = 2).
-  jamChances: [0.35, 0.45], jamLen: 70, jamCapKmh: 18, jamSpacing: 7.4, jamFillDist: 320, jamCost: 75,
+  jamChances: [0.55, 0.35], jamLen: 70, jamCapKmh: 18, jamSpacing: 7.4, jamFillDist: 320, jamCost: 35,
   // candidatos [segId, fração do trecho (no sentido da viagem) onde fica a causa, rótulo]; o sentido sai das rotas da viagem
   // (opts.routeLanes = faixas das 2 rotas, Eixo e Parque); trecho fora das rotas é ignorado.
   jamSpots: {
@@ -330,7 +330,7 @@ export class TrafficSim {
     this._rebuildLists();
   }
 
-  get targetCount() { return Math.floor(this.maxV * (TUNING.todDensity[this.timeOfDay] ?? 1)); }
+  get targetCount() { return Math.floor(Math.min(this.maxV, this.poolCap || this.maxV) * (TUNING.todDensity[this.timeOfDay] ?? 1)); }
 
   step(dt) {
     this.time += dt; this.stepN++;
@@ -1072,7 +1072,7 @@ export class TrafficSim {
             const impactKmh = -vn * 3.6;
             if (v.collCd <= 0 && impactKmh > 3) {
               v.collCd = 1.0;
-              // culpa (heurística): bateu na traseira de quem ia à frente = jogador; foi atingido por trás,
+              // responsabilidade (heurística): bateu na traseira de quem ia à frente = jogador; foi atingido por trás,
               // ou o outro trocava de faixa / furou a rotatória = outro.
               const aiAhead = rel > 0 && adh < 1.0 && Math.abs(lat) < (Wp + v.width) * 0.5 + 0.3;
               const aiBehind = rel < 0 && adh < 1.0 && Math.abs(lat) < (Wp + v.width) * 0.5 + 0.3;

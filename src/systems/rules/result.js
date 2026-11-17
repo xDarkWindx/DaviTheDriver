@@ -34,7 +34,7 @@ export const CRASH_WITH = {
 /** Modelo do trânsito -> chave de CRASH_WITH/CRASH_CAUSE. */
 const VEHICLE_KIND = { onibus: 'bus', moto: 'moto', mudanca: 'truck', sedan: 'vehicle', hatch: 'vehicle', suv: 'vehicle', picape: 'vehicle', autoescola: 'vehicle' };
 
-// Causas impessoais e absurdas (ninguém culpa ninguém).
+// Causas impessoais e absurdas (sem apontar responsável).
 export const CRASH_CAUSE = {
   manga: ['Uma manga.', 'O asfalto estava liso de manga.', 'Física + manga madura.', 'Outubro em Brasília: chove manga.'],
   jaca: ['Uma jaca. Inteira.', 'A jaca.', 'Uma jaca madura e a lei da inércia.'],
