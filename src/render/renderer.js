@@ -5,13 +5,13 @@ import * as THREE from 'three';
 export const TIME_OF_DAY = {
   manha: {
     sky: 0x9cc8ec, hemiSky: 0xdfeeff, hemiGround: 0xb59a6a, hemiIntensity: 1.45,
-    sun: 0xfff3dc, sunIntensity: 1.9, sunDir: [0.55, 1.0, -0.65],
+    sun: 0xfff3dc, sunIntensity: 1.9, sunDir: [0.55, 1.0, 0.45],
     groundTint: 0xffffff,
   },
   tarde: {
-    sky: 0xf2a066, hemiSky: 0xffd2a8, hemiGround: 0x8a5a48, hemiIntensity: 1.2,
-    sun: 0xffa060, sunIntensity: 2.1, sunDir: [-0.9, 0.55, -0.35],
-    groundTint: 0xffd9b8,
+    sky: 0xf2a066, hemiSky: 0xffe2c4, hemiGround: 0x9a6a58, hemiIntensity: 1.5,
+    sun: 0xffb070, sunIntensity: 2.0, sunDir: [-0.9, 0.6, 0.25],
+    groundTint: 0xffe6cc,
   },
 };
 

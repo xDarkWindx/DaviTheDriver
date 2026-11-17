@@ -44,8 +44,8 @@ export function makeGroundTexture(S = 256, anisotropy = 4) {
       wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * e, rot, 0, Math.PI * 2); g.fill(); });
     }
   };
-  blot(40, ['#a59659', '#c4b276', '#9b9757', '#b3a465'], 10, 40, 0.5);
-  blot(12, ['#a8603a', '#b5683d', '#9c5532'], 6, 24, 0.6);   // terra vermelha
+  blot(60, ['#a59659', '#c4b276', '#9b9757', '#b3a465'], 6, 30, 0.4);
+  blot(28, ['#a8603a', '#b5683d', '#9c5532'], 2, 9, 0.45);   // terra vermelha
   blot(40, ['#8f9450', '#7f8a48', '#76803f'], 2, 7, 0.55);   // tufos esverdeados
   g.globalAlpha = 0.35;
   for (let i = 0; i < 2200; i++) { g.fillStyle = rng() < 0.5 ? '#86784a' : '#d6c88c'; g.fillRect(rng() * 256, rng() * 256, 0.8, 2.2); }
@@ -68,13 +68,13 @@ export function makeAsphaltTexture(S = 256, anisotropy = 4) {
     wrap9((ox, oy) => g.fillRect(x + ox, y + oy, w, h));
   }
   for (let i = 0; i < 18; i++) {
-    const x = rng() * 256, y = rng() * 256, r = 4 + rng() * 18, v = 140 + rng() * 60 | 0, rot = rng() * 3;
-    g.globalAlpha = 0.35; g.fillStyle = `rgb(${v},${v},${v})`;
+    const x = rng() * 256, y = rng() * 256, r = 4 + rng() * 18, v = 160 + rng() * 60 | 0, rot = rng() * 3;
+    g.globalAlpha = 0.22; g.fillStyle = `rgb(${v},${v},${v})`;
     wrap9((ox, oy) => { g.beginPath(); g.ellipse(x + ox, y + oy, r, r * 0.6, rot, 0, 7); g.fill(); });
   }
   g.globalAlpha = 1;
-  g.strokeStyle = 'rgba(80,80,80,0.6)'; g.lineWidth = 0.9;
-  for (let i = 0; i < 10; i++) {
+  g.strokeStyle = 'rgba(110,110,110,0.35)'; g.lineWidth = 0.7;
+  for (let i = 0; i < 5; i++) {
     let x = rng() * 256, y = rng() * 256;
     g.beginPath(); g.moveTo(x, y);
     for (let k = 0; k < 6; k++) { x += (rng() - 0.5) * 30; y += (rng() - 0.5) * 30; g.lineTo(x, y); }

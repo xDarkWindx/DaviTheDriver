@@ -58,14 +58,14 @@ function kwidWheel(b, r, w) {
 // ----------------------------------------------------------------- Citroën C4 Cactus THP, cinza grafite
 function cactusBody(b, v) {
   const L = v.length, W = v.width, H = v.height;
-  const GRAY = 0x6d7279, ROOF = 0x111214, ORANGE = 0xff6a1a, z0 = -L / 2, z1 = L / 2;
+  const GRAY = 0x8f959d, ROOF = 0x111214, ORANGE = 0xff6a1a, z0 = -L / 2, z1 = L / 2;
   const yb = 0.34, yBelt = 0.98;
   b.box(W - 0.06, yBelt - yb, L - 0.22, GRAY, 0, (yb + yBelt) / 2, 0);
   b.box(W - 0.10, 0.10, 1.05, GRAY, 0, yBelt + 0.02, z1 - 0.62, 0, -0.07);   // capô longo
   // "cabine flutuante" preta: colunas e vidros escuros + teto preto, barras de teto
   const cz0 = z0 + 0.18, cz1 = z1 - 1.18, cl = cz1 - cz0, cm = (cz0 + cz1) / 2;
-  b.box(W - 0.18, H - 0.08 - yBelt, cl, 0x14171a, 0, (yBelt + H - 0.08) / 2, cm);
-  b.box(W - 0.16, 0.08, cl - 0.08, ROOF, 0, H - 0.04, cm);
+  b.box(W - 0.30, H - 0.08 - yBelt, cl, 0x14171a, 0, (yBelt + H - 0.08) / 2, cm);
+  b.box(W - 0.30, 0.08, cl - 0.08, ROOF, 0, H - 0.04, cm);
   b.box(W - 0.22, 0.46, 0.06, GLASS, 0, yBelt + 0.26, cz1 + 0.13, 0, -0.62);    // para-brisa
   for (const s of [-1, 1]) {
     b.box(0.06, 0.07, cl - 0.1, 0x0c0c0d, s * (W / 2 - 0.22), H + 0.05, cm);  // barras de teto

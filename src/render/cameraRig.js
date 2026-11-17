@@ -20,7 +20,8 @@ export class CameraRig {
     this.tx = 0; this.tz = 0;        // alvo suavizado
     this.lookX = 0; this.lookZ = 0;  // antecipação suavizada
     this._shakeAmt = 0; this._shakeT = 0; this._shakeDur = 0; this._time = 0;
-    this.mode = 'follow';            // 'follow' | 'orbit' (menu)
+    this.mode = 'follow';            // 'follow' | 'orbit' (menu) | 'free' (posição/zoom fixos: lookAt())
+    this.freeView = 120;
     this._orbitAngle = 0;
     this.camera.up.set(0, 1, 0);
   }
@@ -33,6 +34,9 @@ export class CameraRig {
       this._shakeAmt = amount; this._shakeDur = duration; this._shakeT = 0;
     }
   }
+
+  /** Modo livre: centraliza em (x,z) com altura visível `view` m (debug, cutscenes, telas). */
+  lookAt(x, z, view = 120) { this.mode = 'free'; this.tx = x; this.tz = z; this.freeView = view; }
 
   /** Teleporta (sem suavização). */
   snap(x, z) { this.tx = x; this.tz = z; this.lookX = 0; this.lookZ = 0; this.view = this.cfg.baseView; }
@@ -50,7 +54,9 @@ export class CameraRig {
   update(dt, x, z, vx, vz) {
     const c = this.cfg;
     this._time += dt;
-    if (this.mode === 'orbit') {
+    if (this.mode === 'free') {
+      this.view = this.freeView; this.lookX = 0; this.lookZ = 0;
+    } else if (this.mode === 'orbit') {
       // passeio lento pelo mapa no menu
       this._orbitAngle += dt * 0.05;
       this.tx = x + Math.cos(this._orbitAngle) * 40; this.tz = z + Math.sin(this._orbitAngle) * 40;

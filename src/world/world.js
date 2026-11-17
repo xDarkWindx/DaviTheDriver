@@ -40,7 +40,8 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const chunk = quality.chunkSize;
   const colliders = new StaticColliders(32);
   const inst = new ChunkedInstancer(scene, chunk);
-  const mb = new ChunkedMeshBuilder(chunk);
+  const mb = new ChunkedMeshBuilder(chunk);       // asfalto + marcações (com textura de desgaste)
+  const plain = new ChunkedMeshBuilder(chunk);    // gramados, calçadas, canteiros (cor lisa)
 
   // ---------- materiais
   const lambertVC = makeMaterial(quality, { vertexColors: true });
@@ -76,10 +77,10 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   // ---------- vias (asfalto com textura de detalhe em UV de mundo)
   const aTex = makeAsphaltTexture(quality.textureSize, quality.anisotropy);
   const roadMat = makeMaterial(quality, { vertexColors: true, map: aTex });
-  buildRoadMeshes(net, mb, inst);
+  buildRoadMeshes(net, mb, inst, plain);
 
   // ---------- cenário
-  const sb = new SceneryBuilder({ net, inst, mb, colliders, quality, rng });
+  const sb = new SceneryBuilder({ net, inst, mb: plain, colliders, quality, rng });
   // colisores dos marcos primeiro (cenário evita sobrepor)
   const landmarkMat = makeMaterial(quality, { vertexColors: true });
   const landmarks = buildLandmarks(scene, colliders, landmarkMat);
@@ -105,7 +106,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const signMesh = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: atlas.texture }));
   signMesh.name = 'signs'; signMesh.matrixAutoUpdate = false; scene.add(signMesh);
 
-  const groundMeshes = mb.build(scene, roadMat, 'roads', 8);
+  const groundMeshes = [...mb.build(scene, roadMat, 'roads', 12), ...plain.build(scene, lambertVC, 'lawns', 12)];
   const instMeshes = inst.build();
 
   return {

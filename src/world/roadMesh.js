@@ -43,7 +43,7 @@ function dashes(mb, line, off, y, color, dash = 3, gap = 6, halfW = 0.08) {
 /**
  * Constrói a malha das vias. `mb` = ChunkedMeshBuilder; `inst` = ChunkedInstancer (para guarda-corpos 3D).
  */
-export function buildRoadMeshes(net, mb, inst) {
+export function buildRoadMeshes(net, mb, inst, plain = mb) {
   const C = ROAD_COLORS;
   for (const seg of net.segments.values()) {
     const ly = layerY(seg.layer);
@@ -56,21 +56,21 @@ export function buildRoadMeshes(net, mb, inst) {
     if (!seg.oneWay && seg.median > 0) {
       band(mb, full.pts, seg.median / 2 - 0.01, seg.edgeR, ly + Y.asphalt, asph);
       band(mb, full.pts, seg.edgeL, -seg.median / 2 + 0.01, ly + Y.asphalt, asph);
-      band(mb, trimmed.pts, -seg.median / 2, seg.median / 2, ly + Y.median, seg.median > 4 ? C.median : C.curb);
+      band(plain, trimmed.pts, -seg.median / 2, seg.median / 2, ly + Y.median, seg.median > 4 ? C.median : C.curb);
       if (seg.median > 4) {
-        band(mb, trimmed.pts, -seg.median / 2, -seg.median / 2 + 0.3, ly + Y.median + 0.004, C.curb);
-        band(mb, trimmed.pts, seg.median / 2 - 0.3, seg.median / 2, ly + Y.median + 0.004, C.curb);
+        band(plain, trimmed.pts, -seg.median / 2, -seg.median / 2 + 0.3, ly + Y.median + 0.004, C.curb);
+        band(plain, trimmed.pts, seg.median / 2 - 0.3, seg.median / 2, ly + Y.median + 0.004, C.curb);
       }
     } else {
       band(mb, full.pts, seg.edgeL, seg.edgeR, ly + Y.asphalt, asph);
     }
     // calçadas
     if (seg.kind === 'urban' || seg.kind === 'local') {
-      band(mb, trimmed.pts, seg.edgeR, seg.edgeR + 2.6, ly + Y.sidewalk, C.sidewalk);
-      band(mb, trimmed.pts, seg.edgeL - 2.6, seg.edgeL, ly + Y.sidewalk, C.sidewalk);
+      band(plain, trimmed.pts, seg.edgeR, seg.edgeR + 2.6, ly + Y.sidewalk, C.sidewalk);
+      band(plain, trimmed.pts, seg.edgeL - 2.6, seg.edgeL, ly + Y.sidewalk, C.sidewalk);
     } else if (!isRing) { // acostamento claro estreito
-      band(mb, trimmed.pts, seg.edgeR, seg.edgeR + 0.6, ly + Y.sidewalk, C.curb);
-      band(mb, trimmed.pts, seg.edgeL - 0.6, seg.edgeL, ly + Y.sidewalk, C.curb);
+      band(plain, trimmed.pts, seg.edgeR, seg.edgeR + 0.6, ly + Y.sidewalk, C.curb);
+      band(plain, trimmed.pts, seg.edgeL - 0.6, seg.edgeL, ly + Y.sidewalk, C.curb);
     }
     // marcações
     const my = ly + Y.marking;
@@ -105,8 +105,8 @@ export function buildRoadMeshes(net, mb, inst) {
   }
   // rotatórias: ilha central
   for (const r of net.roundabouts) {
-    mb.disc(r.x, r.z, r.islandRadius, Y.median + 0.01, C.island, 36);
-    mb.ring(r.x, r.z, r.islandRadius - 0.2, r.islandRadius + 0.4, Y.median + 0.012, C.curb, 48);
+    plain.disc(r.x, r.z, r.islandRadius, Y.median + 0.01, C.island, 36);
+    plain.ring(r.x, r.z, r.islandRadius - 0.2, r.islandRadius + 0.4, Y.median + 0.012, C.curb, 48);
   }
 
   // linhas de retenção nos semáforos

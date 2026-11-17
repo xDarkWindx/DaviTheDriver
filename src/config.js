@@ -10,9 +10,9 @@ export const CONFIG = {
     elevationDeg: 52,     // câmera isométrica ALTA e fechada (gênero arcade retrô)
     azimuthDeg: -40,      // de onde olha: negativo = do sudoeste (tela "para cima" ≈ nordeste)
     distance: 300,        // distância (ortográfica: só afeta clipping)
-    baseView: 30,         // altura visível (m) parado => carro ~10% da largura da tela
-    viewPerMps: 0.42,     // quanto abre por m/s
-    maxView: 50,
+    baseView: 23,         // altura visível (m) parado => carro ~10% da largura da tela
+    viewPerMps: 0.45,     // quanto abre por m/s
+    maxView: 44,
     lookAheadSec: 0.55,   // antecipação na direção do movimento
     lookAheadMax: 14,
     followRate: 6.0,      // 1/s (suavização exponencial)
@@ -75,10 +75,11 @@ export function resolveQuality(id) {
 // Tabela de VEÍCULOS do jogador. Nada de "if (vehicle === ...)" espalhado:
 // player.js / vehicleModels.js leem só desta tabela. Parâmetros nomeados p/ balanceamento.
 //
-// Aceleração do motor em m/s²:
-//   a(v) = engineAccel * max(0, 1 - (v/maxSpeed)^accelCurve) * (1 + turboBoost*spool)
-//   accelCurve baixo => perde força cedo (retomada fraca). spool sobe de 0→1 depois de
-//   turboLag s com acelerador > 0.6 (taxa turboSpoolRate/s) e cai quando solta.
+// Aceleração do motor em m/s² (player/physics.js):
+//   a(v) = engineAccel * torqueAt(km/h, torqueCurve) * (1 + turboBoost*spool)
+//   torqueCurve = [[km/h, multiplicador], ...] (interpolação linear) — é a "curva de torque".
+//   spool (turbo) sobe 0→1 depois de turboLag s com acelerador > 0.6 (taxa turboSpoolRate/s).
+//   maxSpeed é teto duro. Medir com:  node tools/tune-cars.js
 // Instabilidade (Kwid): acima de unstableFromKmh a aderência cai até (1-highSpeedGripLoss) e
 //   frenagem forte/curva rápida adicionam guinada aleatória proporcional a `instability`.
 // ---------------------------------------------------------------------------
@@ -99,13 +100,13 @@ export const VEHICLES = {
     massKg: 783,              // p/ colisões entre veículos (agente de trânsito)
     maxSpeed: 43.3,           // m/s (156 km/h)
     maxReverse: 6,
-    engineAccel: 4.6,         // m/s² saindo da imobilidade
-    accelCurve: 0.85,         // <1: força despenca cedo -> retomada acima de 60 km/h é fraca
+    engineAccel: 4.35,         // m/s² no pico da curva de torque
+    torqueCurve: [[0, 0.75], [30, 1.0], [55, 0.92], [70, 0.62], [100, 0.36], [130, 0.24], [156, 0.14], [175, 0]],
     turboBoost: 0, turboLag: 0, turboSpoolRate: 0,
     brakeDecel: 10.5,
     handbrakeDecel: 4.5,
-    rolling: 0.35,            // m/s² resistência de rolagem
-    drag: 0.0011,             // * v²
+    rolling: 0.12,            // m/s² resistência de rolagem
+    drag: 0.0002,             // * v²
     maxSteerLow: 0.64,        // rad (baixa velocidade)
     maxSteerHigh: 0.10,       // rad (alta velocidade)
     steerRate: 7.5,           // resposta do volante (1/s)
@@ -133,15 +134,15 @@ export const VEHICLES = {
     massKg: 1165,
     maxSpeed: 58.9,           // m/s (212 km/h) = +36% sobre o Kwid
     maxReverse: 6.5,
-    engineAccel: 6.4,
-    accelCurve: 1.9,          // mantém força até alto
+    engineAccel: 3.1, 
+    torqueCurve: [[0, 0.95], [15, 1.0], [100, 0.92], [150, 0.62], [190, 0.38], [212, 0.22], [235, 0]],
     turboBoost: 0.75,         // +75% de força com turbo cheio ("coice")
     turboLag: 0.35,           // s até começar a encher
     turboSpoolRate: 2.6,      // 1/s
     brakeDecel: 14.5,
     handbrakeDecel: 5,
-    rolling: 0.3,
-    drag: 0.0010,
+    rolling: 0.12,
+    drag: 0.0002,
     maxSteerLow: 0.58,
     maxSteerHigh: 0.085,
     steerRate: 8.5,

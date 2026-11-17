@@ -14,7 +14,7 @@ const TREE_COLORS = {
   ipe_branco: [0xf6f2ec, 0xeee9e2],
   ipe_roxo: [0x9c5ac8, 0xa66ad0],
   cerrado: [0x6f7d3a, 0x7c8a40, 0x667433, 0x84914a],
-  mangueira: [0x3f6b2e, 0x4a7834, 0x365f28],
+  mangueira: [0x4f7d36, 0x5b8a3c, 0x46742f],
 };
 
 export class SceneryBuilder {
@@ -146,6 +146,20 @@ export class SceneryBuilder {
     }
   }
 
+  /** Fileira de árvores ao longo de uma via (offset m além da borda), dá sensação de velocidade. */
+  rowAlong(segId, offset = 7, step = 14, kinds = ['ipe_amarelo', 'ipe_rosa', 'mangueira'], sides = [1, -1]) {
+    const seg = this.net.getSegment(segId), T = { x: 0, z: 0, tx: 0, tz: 0 };
+    step /= Math.max(0.2, this.dens.trees);
+    for (let s = 8; s < seg.length - 8; s += step) {
+      samplePts(seg.pts, seg.cum, s, T);
+      for (const side of sides) {
+        const off = side > 0 ? seg.edgeR + offset : seg.edgeL - offset;
+        const j = (this.rng() - 0.5) * 3;
+        this.tree(T.x - T.tz * (off + j * side), T.z + T.tx * (off + j * side), this.rng.pick(kinds), 0.9 + this.rng() * 0.3, 3);
+      }
+    }
+  }
+
   /** Guard-rail contínuo ao longo da borda de um segmento (side 1 = direita, -1 = esquerda). */
   guardrail(segId, side, gap = 6) {
     if (this.dens.guardrails <= 0) return;
@@ -176,8 +190,8 @@ export function buildScenery(sb) {
   // --- gramados: canteiro do Eixo e Esplanada; Parque da Cidade
   mb.rect(-100, 0, Math.PI / 2, 840, 33.5, 0.02, LAWN);
   mb.rect(820, 0, 0, 3, 3, 0.02, LAWN);
-  mb.rect(560, 85, Math.PI / 2, 200, 38, 0.02, LAWN2);
-  mb.rect(560, -85, Math.PI / 2, 200, 38, 0.02, LAWN2);
+  mb.rect(560, 72, Math.PI / 2, 200, 24, 0.02, LAWN2);
+  mb.rect(560, -72, Math.PI / 2, 200, 24, 0.02, LAWN2);
   mb.rect(-920, 210, Math.PI / 2, 260, 100, 0.015, 0xa3a85a);
   // lago do Parque da Cidade
   mb.disc(-880, 235, 32, 0.03, 0x4f86a0, 28);
@@ -238,7 +252,7 @@ export function buildScenery(sb) {
   // --- Esplanada dos Ministérios: duas fileiras de blocos idênticos (eixo longo N-S)
   for (let i = 0; i < 8; i++) {
     const x = 380 + i * 46;
-    for (const zz of [92, -92]) sb.building(x, zz, 15, 64, 0, { floors: 10, floorH: 3.4, color: 0xe4e2da, bandColor: GREEN_GLASS_BAND, roof: 0xcbc6b8, minClear: 3 });
+    for (const zz of [122, -122]) sb.building(x, zz, 15, 64, 0, { floors: 10, floorH: 3.4, color: 0xe4e2da, bandColor: GREEN_GLASS_BAND, roof: 0xcbc6b8, minClear: 3 });
   }
   // SAFS: outros prédios federais
   setor(860, 300, 1150, 420, 6);
@@ -262,6 +276,14 @@ export function buildScenery(sb) {
   // capim do cerrado (tufos baixos) — sensação de velocidade à beira da pista
   sb.scrub(B.minX, B.minZ, B.maxX, B.maxZ, 2600);
   sb.scrub(-1250, 0, 0, 400, 500);
+
+  // --- fileiras de árvores à beira das vias
+  for (const id of ['sud_local', 'est_parque', 'w3_n', 'w3_m1', 'w3_m2', 'w3_s', 'l2_n', 'l2_m', 'l2_s', 'ent_w', 'ent_e', 'ent_far', 'via_safs', 'safs_n', 'l2m_east', 'safs_east'])
+    sb.rowAlong(id, 6.5, 13);
+  for (const id of ['epig', 'rsw_south', 'rw_north', 'rw_west', 're_north'])
+    sb.rowAlong(id, 9, 16, ['cerrado', 'cerrado', 'ipe_amarelo', 'ipe_roxo']);
+  for (const id of ['eixao_n', 'eixao_m', 'eixao_s']) sb.rowAlong(id, 10, 15, ['mangueira', 'ipe_rosa', 'ipe_amarelo', 'cerrado']);
+  for (const id of ['eixo_sul_a', 'eixo_norte']) sb.rowAlong(id, 9, 22, ['ipe_amarelo', 'ipe_rosa', 'ipe_branco', 'cerrado']);
 
   // --- postes e guard-rails
   for (const id of ['eixo_sul_a', 'eixo_sul_b', 'eixo_sul_c', 'eixo_norte']) sb.lampsAlong(id, 42, [1, -1]);
