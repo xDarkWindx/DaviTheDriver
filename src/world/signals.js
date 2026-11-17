@@ -60,6 +60,18 @@ export class SignalController {
   stateForLane(lane) { return lane.signal ? this.getState(lane.signal.signalId, lane.signal.group) : null; }
   /** Segundos até a próxima troca de fase do semáforo. */
   timeToChange(signalId) { const s = this.sigs[signalId]; return s.phases[s.phase][2] - s.t; }
+  /** s até o grupo `group` ficar verde (0 se já está verde). */
+  timeToGreen(signalId, group) {
+    const s = this.sigs[signalId], n = s.phases.length;
+    let ph = s.phase, t = s.phases[ph][2] - s.t;
+    if (s.phases[ph][0] === 'g' && s.phases[ph][1] === group) return 0;
+    for (let k = 1; k < n; k++) {
+      ph = (ph + 1) % n;
+      if (s.phases[ph][0] === 'g' && s.phases[ph][1] === group) return t;
+      t += s.phases[ph][2];
+    }
+    return t;
+  }
   /** Pedestres podem atravessar a via do grupo `group`? (grupo no vermelho e sem amarelo em curso) */
   isPedWalk(signalId, group) {
     const s = this.sigs[signalId];
