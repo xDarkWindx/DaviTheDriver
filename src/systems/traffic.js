@@ -53,7 +53,19 @@ const api = {
     ctx.events.on(ctx.EV.HORN, () => { if (ctx.state.mode === 'PLAYING') sim.playerHorn(); });
   },
 
+  /** Menu: trânsito vivo atrás do menu (jogador "fantasma" no gramado da Esplanada, onde a câmera passeia). */
+  menuStart(ctx, x = 420, z = 0) {
+    if (!sim) return;
+    const proxy = this._menuProxy || (this._menuProxy = { phys: { x, z, heading: 0, vx: 0, vz: 0, speed: 0 }, vehicle: { length: 0.1, width: 0.1, massKg: 1 } });
+    proxy.phys.x = x; proxy.phys.z = z;
+    sim.setPlayer(proxy);
+    sim.reset({ seed: 2024, timeOfDay: 'manha', route: null, jams: 0, stjBus: false });
+    this.menuOn = true;
+  },
+  menuUpdate(dt) { if (sim && this.menuOn) sim.step(dt); },
+
   reset(ctx, trip) {
+    this.menuOn = false;
     const st = ctx.state;
     if (!st.traffic) st.traffic = { seed: null, tripSeed: 0, active: 0, peds: 0 };
     const seed = st.traffic.seed != null ? (st.traffic.seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0) || 1;

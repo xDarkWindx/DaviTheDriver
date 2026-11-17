@@ -59,13 +59,13 @@ function wheelPos(pm, vehicle, side, out) {
 const _w = { x: 0, z: 0, sh: 0, ch: 0 };
 
 function sparks(x, z, nx, nz, impactKmh) {
-  const n = Math.round(clamp(impactKmh / 3, 5, 24));
+  const n = Math.round(clamp(impactKmh / 1.6, 10, 42));
   for (let i = 0; i < n; i++) {
     const sp = rnd(2, 6 + impactKmh * 0.06);
     S.parts.spawn(x, rnd(0.2, 0.8), z, nx * sp + rnd(-2.5, 2.5), rnd(1.5, 4.5), nz * sp + rnd(-2.5, 2.5),
-      rnd(0.25, 0.55), 0.7, 0.2, 1, rnd(0.7, 0.95), rnd(0.2, 0.45), 1, 0.4, 14);
+      rnd(0.3, 0.7), 1.1, 0.35, 1, rnd(0.75, 0.98), rnd(0.25, 0.5), 1, 0.4, 14);
   }
-  const m = Math.round(clamp(impactKmh / 8, 2, 6));
+  const m = Math.round(clamp(impactKmh / 5, 3, 10));
   for (let i = 0; i < m; i++) {
     S.parts.spawn(x + rnd(-0.4, 0.4), rnd(0.4, 1), z + rnd(-0.4, 0.4), nx * rnd(0.5, 2) + rnd(-0.6, 0.6), rnd(0.4, 1.4), nz * rnd(0.5, 2) + rnd(-0.6, 0.6),
       rnd(0.6, 1.1), 0.9, 2.8, 0.55, 0.53, 0.5, 0.45, 2.2, 0);
@@ -74,7 +74,7 @@ function sparks(x, z, nx, nz, impactKmh) {
 
 function dustBurst(x, z, n) {
   for (let i = 0; i < n; i++) S.parts.spawn(x + rnd(-0.5, 0.5), rnd(0.1, 0.4), z + rnd(-0.5, 0.5), rnd(-1.5, 1.5), rnd(0.3, 1.2), rnd(-1.5, 1.5),
-    rnd(0.7, 1.2), 0.8, 2.8, 0.66, 0.34, 0.2, 0.5, 2.2, 0);
+    rnd(0.9, 1.6), 1.0, 4.2, 0.72, 0.38, 0.22, 0.8, 2.0, 0);
 }
 
 function emitDrive(dt) {
@@ -107,13 +107,13 @@ function emitDrive(dt) {
   } else { S.skidAcc[0] = S.skidAcc[1] = 0.9; }
   // poeira fora da pista
   if (sp.offroad && kmh > 5) {
-    S.dustAcc += dt * (12 + kmh * 0.7);
+    S.dustAcc += dt * (28 + kmh * 1.5);
     while (S.dustAcc >= 1) {
       S.dustAcc -= 1;
       wheelPos(pm, v, Math.random() < 0.5 ? -1 : 1, _w);
       S.parts.spawn(_w.x + rnd(-0.2, 0.2), rnd(0.1, 0.3), _w.z + rnd(-0.2, 0.2),
         -sp.vx * 0.12 + rnd(-0.9, 0.9), rnd(0.3, 1.0), -sp.vz * 0.12 + rnd(-0.9, 0.9),
-        rnd(0.8, 1.4), 0.9, 3.4 + kmh * 0.02, 0.68, 0.34, 0.2, 0.75, 1.8, 0);
+        rnd(1.0, 1.8), 1.1, 4.6 + kmh * 0.03, 0.72, 0.38, 0.22, 0.9, 1.6, 0);
     }
   }
   // sopro do turbo (Cactus): alívio do acelerador com turbo cheio
@@ -166,7 +166,7 @@ export default {
       if (p && p.by === 'agent') { doFlash(0.18, '#7ab0ff', 5); doShake(0.08, 0.2); return; }
       doFlash(0.95, '#ffffff', 2.4); doShake(0.1, 0.18);
     });
-    on(EV.OFFROAD, (p) => { if (p.on && S.ctx.state.player.speedKmh > 6) dustBurst(p.x, p.z, 7); });
+    on(EV.OFFROAD, (p) => { if (p.on && S.ctx.state.player.speedKmh > 6) dustBurst(p.x, p.z, 16); });
     on(EV.MOOD_PEAK, (p) => {
       const who = p && p.who;
       if (who === 'dono') { doFlash(0.3, '#8a7bff', 4); doShake(0.15, 0.25); return; }

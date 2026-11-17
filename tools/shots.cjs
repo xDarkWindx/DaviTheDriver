@@ -83,7 +83,7 @@ const VIEWS = [
   }
   // câmera de jogo (follow) em pontos típicos
   for (const [name, x, z, h, route] of [['jogo-sudoeste', -1360, 198, -Math.PI / 2, 'casa-stj'], ['jogo-eixo', -600, 43, Math.PI / 2, 'casa-stj'],
-    ['jogo-jaqueiras', -1494, 330, Math.PI, 'casa-stj'], ['jogo-scs', -300, 216, -1.45, 'stj-casa'], ['jogo-stj', 720, 258, -Math.PI / 2, 'stj-casa']]) {
+    ['jogo-jaqueiras', -1494, 330, Math.PI, 'casa-stj'], ['jogo-scs', -300, 216, -1.45, 'stj-casa'], ['jogo-scs-2', -150, 238, 1.65, 'casa-stj'], ['jogo-stj', 720, 258, -Math.PI / 2, 'stj-casa']]) {
     if (FILTER && !name.includes(FILTER)) continue;
     await page.evaluate(([x, z, h, r]) => {
       const c = window.__davi; c.game.startTrip(r, r === 'casa-stj' ? 'davi' : 'carona'); const p = c.player.phys;

@@ -46,7 +46,7 @@ export const MOOD_BALANCE = {
 
   // ---- CONGESTIONAMENTO (traffic.inJam): sobe ANSIEDADE e ESTRESSE juntos, crescendo com o tempo parado na fila
   // (substitui o "atrás de lento" enquanto durar). Perigo: para o dono é quase um alívio.
-  jam: { minKmh: 15, anx: 1.0, anxGrow: 0.1, str: 0.8, strGrow: 0.09, cap: 25, decay: 2, lineEvery: 4.5, palpiteMul: 0.6,
+  jam: { minKmh: 15, anx: 0.6, anxGrow: 0.06, str: 0.5, strGrow: 0.05, cap: 25, decay: 2, lineEvery: 4.5, palpiteMul: 0.6,
     donoRelief: 3.0 },
 
   // ---- ESTRESSE do Davi ("olha esse animal")

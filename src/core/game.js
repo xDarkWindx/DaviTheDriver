@@ -3,6 +3,7 @@
 import { EV } from './events.js';
 import { MODE } from './state.js';
 import { MODES, ROUTES, VEHICLES } from '../config.js';
+import { OCCLUSION } from '../render/materials.js';
 
 const MENU_ORBIT = { x: 420, z: 30 }; // passeio da câmera no menu (Esplanada)
 
@@ -80,6 +81,9 @@ export class Game {
     cameraRig.mode = 'orbit';
     cameraRig.snap(MENU_ORBIT.x, MENU_ORBIT.z);
     view.setTimeOfDay('manha');
+    // trânsito vivo atrás do menu (barato: a simulação do trânsito custa ~0,1 ms por passo)
+    const tr = this.ctx.modules.traffic;
+    if (tr && tr.menuStart) tr.menuStart(this.ctx, MENU_ORBIT.x, 0);
   }
 
   /**
@@ -144,7 +148,11 @@ export class Game {
     st.time.sim += dt;
     if (st.mode === MODE.PAUSED) return;
     ctx.signals.update(dt);
-    if (st.mode !== MODE.PLAYING) { ctx.player.update(dt, ctx.input); return; }
+    if (st.mode !== MODE.PLAYING) {
+      ctx.player.update(dt, ctx.input);
+      if (st.mode === MODE.MENU && ctx.modules.traffic && ctx.modules.traffic.menuUpdate) ctx.modules.traffic.menuUpdate(dt);
+      return;
+    }
     if (this.preStep) this.preStep(dt); // piloto-robô (src/debug/autopilot.js), só quando ligado
     ctx.input.sample();
     ctx.player.update(dt, ctx.input);
@@ -168,6 +176,10 @@ export class Game {
     ctx.trip.frame(dt, r.x, r.z);
     ctx.signals.frame();
     for (const m of this.modules) if (m.frame) m.frame(dt, alpha, ctx);
+    // prédios/marcos à frente do carro (lado da câmera) ficam pontilhados: o jogador nunca some atrás deles
+    const playing = st.mode === MODE.PLAYING || st.mode === MODE.PAUSED || st.mode === MODE.FINISHED;
+    OCCLUSION.uOn.value = playing ? 1 : 0;
+    if (playing) { OCCLUSION.uFocus.value.set(r.x, 1.2, r.z); OCCLUSION.uCamDir.value.copy(ctx.cameraRig.dir).normalize(); }
     ctx.view.renderer.render(ctx.view.scene, ctx.cameraRig.camera);
   }
 

@@ -44,7 +44,7 @@ export default {
     if (!['casa-stj', 'stj-casa'].includes(this.sel.route)) this.sel.route = 'casa-stj';
 
     this.howto = buildHowTo(layer);
-    this.options = buildOptions(layer, st.settings, this.applySetting);
+    this.options = buildOptions(layer, st.settings, this.applySetting, st);
     this.modals = [this.howto, this.options];
     const start = (routeId, mode) => ev.emit(EV.REQ_START, { routeId, mode });
     this.menu = new Menu(layer, ctx, this.sel, { start, howto: () => this.howto.open(), options: () => { this.options.sync(); this.options.open(); } });
@@ -97,6 +97,7 @@ export default {
     ev.on(EV.HORN, () => this.hud.flash('horn'));
     ev.on(EV.BREATHE, () => this.hud.flash('breathe'));
     ev.on(EV.CURSE, () => this.hud.flash('curse'));
+    if (EV.FLASH) ev.on(EV.FLASH, () => this.hud.flash('flash'));
 
     this.show();
   },

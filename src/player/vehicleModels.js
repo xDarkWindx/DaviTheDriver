@@ -205,22 +205,25 @@ const K = { WHITE: 0xf3f4f1, BLACK: 0x161718, TRIM: 0x1e1f21, GLASS: 0x26333f, U
 function kwidSpec(v) {
   const L = v.length, W = v.width, H = v.height, R = 0.29, archR = 0.375, wz = [-v.wheelbase / 2, v.wheelbase / 2];
   const zR = -L / 2, zF = L / 2;
-  const zRW = zR + 0.30; // fim do vidro traseiro inclinado (hatch)
-  const yTop = curve([[zR, 1.12], [zRW, H - 0.035], [zRW + 0.1, H], [0.30, H - 0.01], [1.00, 0.985], [1.70, 0.885], [zF, 0.80]]);
+  // hatch CURTO: traseira quase vertical logo atrás da roda, teto que cai um pouco para trás, capô curto e para-brisa
+  // bem inclinado; duas janelas laterais com coluna C larga na cor da carroceria (sem "cara de perua")
+  const zRW = zR + 0.22; // fim do vidro traseiro (quase vertical)
+  const yTop = curve([[zR, 1.08], [zR + 0.10, H - 0.10], [zRW, H - 0.05], [zR + 0.55, H - 0.015], [-0.20, H], [0.18, H - 0.01], [0.95, 1.0], [1.55, 0.885], [zF, 0.79]]);
+  const zC = zR + 0.66; // fim da janela traseira (começo da coluna C)
   const hw = W / 2;
   const plan = (z) => { const t = Math.abs(z) / (L / 2); return hw - (t > 0.82 ? 0.11 * ((t - 0.82) / 0.18) ** 2 : 0) - (z > 0 && t > 0.9 ? 0.04 * (t - 0.9) / 0.1 : 0); };
   const spec = {
     glass: K.GLASS,
-    stations: stationsFor(L, wz, archR, 24, [zRW, zRW + 0.1, 0.30, 1.00, 1.70, -0.36, -0.26], 4),
+    stations: stationsFor(L, wz, archR, 24, [zRW, zR + 0.55, zC, 0.18, 0.95, 1.55, -0.36, -0.26], 4),
     prof(z) {
       const ws = plan(z), top = yTop(z);
-      const roof = z < 0.30, hood = z > 1.0;
+      const roof = z < 0.18, hood = z > 0.95;
       const yb = archBottom(z, 0.22, wz, R, archR);
       const bumper = Math.abs(z) > v.wheelbase / 2 + archR;
       const yMold = bumper ? (z > 0 ? 0.50 : 0.53) : nearArch(z, wz, archR + 0.08) ? yb + 0.10 : 0.37;
-      let yBelt = 0.93 + (z < 0 ? -z * 0.03 : 0);
+      let yBelt = 0.93 + (z < 0 ? -z * 0.06 : 0); // linha de cintura subindo para trás (vidro traseiro pequeno)
       if (yBelt > top - 0.06) yBelt = top - 0.06;
-      const wt = roof ? hw - 0.21 : hood ? ws - 0.05 : hw - 0.21 + (z - 0.30) / 0.70 * 0.16;
+      const wt = roof ? hw - 0.21 : hood ? ws - 0.05 : hw - 0.21 + (z - 0.18) / 0.77 * 0.16;
       const wg = hood ? ws - 0.03 : hw - 0.10;
       return { yb, ws, yMold, yMid: (yMold + yBelt) / 2 + 0.05, yBelt, wg, yTop: top, wt: Math.min(wt, wg), ch: hood ? 0.03 : 0.06 };
     },
@@ -228,9 +231,9 @@ function kwidSpec(v) {
       if (k === 0) return [K.UNDER, 0];
       if (k <= 2) return [K.TRIM, 0];                                  // molduras grossas pretas, soleira e para-choques
       if (k <= 5) return [K.WHITE, 0];
-      const ws = z > 0.30 && z <= 1.0, cabin = z <= 0.30;
+      const ws = z > 0.18 && z <= 0.95, cabin = z <= 0.18;
       if (k === 6) {
-        if (cabin && z > zR + 0.30 && !(z > -0.38 && z < -0.24) && z < 0.24) return [K.GLASS, 0];
+        if (cabin && z > zC && !(z > -0.38 && z < -0.24) && z < 0.14) return [K.GLASS, 0];
         if (cabin && z > -0.38 && z < -0.24) return [K.BLACK, 0];      // coluna B preta
         return [K.WHITE, 0];
       }

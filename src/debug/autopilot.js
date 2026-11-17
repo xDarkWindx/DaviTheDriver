@@ -345,7 +345,9 @@ export function createAutopilot(ctx) {
       let D = net.lanes[R[this.ri]];
       if (!D || D.isConnector || D.segId !== T.segId || D.dir !== T.dir) return;
       const sib = net.siblingLanes(T), left = T.length - this.s;
-      if (D.kind === 'bus' && !prof.busLane && left > 75) { // a rota passa pela exclusiva: usa a normal ao lado (só entra nela para a conversão à direita)
+      const nextR = this.ri + 1 < R.length ? net.lanes[R[this.ri + 1]] : null;
+      const busTurn = nextR && nextR.isConnector && nextR.turn === 'right' && D.next.indexOf(nextR.id) >= 0;
+      if (D.kind === 'bus' && !prof.busLane && (left > 75 || !busTurn)) { // a rota passa pela exclusiva: usa a normal ao lado (só entra nela para a conversão à direita)
         let best = null; for (const id of sib) { const L = net.lanes[id]; if (L.kind !== 'bus' && (!best || Math.abs(L.index - D.index) < Math.abs(best.index - D.index))) best = L; }
         if (best) D = best;
       }

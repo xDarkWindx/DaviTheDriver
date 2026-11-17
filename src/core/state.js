@@ -86,6 +86,9 @@ export function createState() {
     // jams/jamSpot/stjBus: null = sorteio da viagem; número/bool força (testes). jamList = rótulos sorteados (diagnóstico).
     traffic: { seed: null, tripSeed: 0, active: 0, peds: 0, jams: null, jamSpot: null, stjBus: null, jamList: [] },
 
+    // Ajuste automático de qualidade (espelho de view.autoQuality; main.js atualiza quando o degrau muda; UI mostra em Opções)
+    qualityAuto: { step: 0, label: 'completo', fps: 0 },
+
     time: { sim: 0, real: 0, frame: 0 }, // core/loop
   };
 }

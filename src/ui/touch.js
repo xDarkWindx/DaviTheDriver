@@ -31,7 +31,7 @@ export class TouchControls {
     mk(right, 'pedal brake', 'FREIO', 'down', 't-brake');
     mk(right, 'pedal gas', 'ACELERAR', 'up', 't-gas');
     const acts = el('div', 't-acts', this.root);
-    mk(acts, 'small', 'H', 'horn', 't-horn'); mk(acts, 'small', 'R', 'breathe', 't-breathe'); mk(acts, 'small', 'X', 'curse', 't-curse');
+    mk(acts, 'small', 'H', 'horn', 't-horn'); mk(acts, 'small', 'R', 'breathe', 't-breathe'); mk(acts, 'small', 'X', 'curse', 't-curse'); mk(acts, 'small', 'F', 'flash', 't-flash');
     const p = el('button', 'tbtn small t-pause', this.root, 'II'); p.dataset.testid = 't-pause'; p.setAttribute('aria-label', 'Pausar');
     p.addEventListener('pointerdown', (e) => { e.preventDefault(); onPause(); });
   }

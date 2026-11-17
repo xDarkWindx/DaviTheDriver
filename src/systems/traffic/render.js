@@ -3,6 +3,7 @@
 //   + 1 agente + 1 frutas + 1 pardal. Malhas sem instância visível ficam invisible (0 draw call).
 import * as THREE from 'three';
 import { TRAFFIC_MODELS, buildTrafficModel, buildPersonModel, makeVehicleMaterial, PartBuilder } from '../../player/vehicleModels.js';
+import { LIVE_SHADOW } from '../../render/materials.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 const _c = new THREE.Color(), _up = new THREE.Vector3(0, 1, 0);
@@ -10,7 +11,7 @@ const TAU = Math.PI * 2;
 const lerpAng = (a, b, t) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return a + d * t; };
 
 const C = { brake: new THREE.Color(0xff1a10), blink: new THREE.Color(0xffa010), flash: new THREE.Color(0xfffbe0), honk: new THREE.Color(0xffe23a),
-  hand: new THREE.Color(0xc68e62), note: new THREE.Color(0xf4f4ee), hazardOff: new THREE.Color(0x000000) };
+  hand: new THREE.Color(0xc68e62), hat: new THREE.Color(0x6b4a2a), hatBrim: new THREE.Color(0x553a20), hatBand: new THREE.Color(0x1d1d1d), note: new THREE.Color(0xf4f4ee), hazardOff: new THREE.Color(0x000000) };
 // altura das lanternas por modelo [y, meia-separação a partir da borda]
 const MANGO = [0, 0, 0.34, 0.22, -0.22, 0.3];
 const LAMP_Y = { onibus: 1.0, mudanca: 0.85, moto: 0.82, picape: 0.95, suv: 0.95 };
@@ -90,7 +91,7 @@ export class TrafficRenderer {
     this.bikeMesh = this._prep(new THREE.InstancedMesh(bikeGeometry(), mat, maxPedestrians), 'traffic:bikes');
     // luzes: caixa unitária sem iluminação, cor por instância
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
-    this.lampMesh = this._prep(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), lampMat, maxVehicles * 6 + maxPedestrians + maxAgents), 'traffic:lamps');
+    this.lampMesh = this._prep(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), lampMat, maxVehicles * 9 + maxPedestrians + maxAgents), 'traffic:lamps');
     this.lampMesh.renderOrder = 3;
     // sombras blob
     if (blobMaterial) {
@@ -183,6 +184,14 @@ export class TrafficRenderer {
     // ---------- veículos
     const vs = sim.vehicles;
     this.stjPlate.visible = false;
+    // sombra: com shadow map ligado os carros projetam sombra de verdade (igual ao resto do mundo); no degrau sem
+    // sombra projetada (ajuste automático) voltam as sombras blob
+    const live = LIVE_SHADOW.map;
+    if (live !== this._liveShadow) {
+      this._liveShadow = live;
+      for (const k in this.vmesh) this.vmesh[k].castShadow = live;
+      this.agentMesh.castShadow = live; this.pedMesh[0].castShadow = this.pedMesh[1].castShadow = live;
+    }
     for (let i = 0; i < vs.length; i++) {
       const v = vs[i];
       if (!v.active) continue;
@@ -198,7 +207,7 @@ export class TrafficRenderer {
         this.stjPlate.matrix.compose(_p, _q, _s); this.stjPlate.matrixWorldNeedsUpdate = true; this.stjPlate.visible = true;
       }
       const L = v.length, W = v.width, half = L * 0.5;
-      this._blob(x, y + 0.11, z, h, W * 1.55, L * 1.2);
+      if (!live) this._blob(x, y + 0.11, z, h, W * 1.55, L * 1.2);
       const ly = LAMP_Y[v.kind] || 0.86;
       const moto = v.kind === 'moto';
       if (v.braking) {
@@ -214,6 +223,12 @@ export class TrafficRenderer {
         }
       }
       if (v.flashing) for (let s = -1; s <= 1; s += 2) this._lamp(x, y + 0.72, z, h, moto ? 0 : s * (W * 0.5 - 0.28), half + 0.05, 0.42, 0.22, 0.08, C.flash);
+      if (v.persona === 'tio') { // o chapéu do tio (exagerado o bastante para aparecer de cima, sobre o lado do motorista)
+        const hy = y + (this.models[v.kind].height || 1.45) + 0.04;
+        this._lamp(x, hy, z, h, 0.36, 0.05, 0.78, 0.05, 0.78, C.hatBrim);
+        this._lamp(x, hy + 0.15, z, h, 0.36, 0.05, 0.44, 0.24, 0.44, C.hat);
+        this._lamp(x, hy + 0.08, z, h, 0.36, 0.05, 0.46, 0.06, 0.46, C.hatBand);
+      }
       if (v.honking) { // "!" sobre o veículo
         const hh = (this.models[v.kind].height || 1.5) + 0.9;
         this._lamp(x, y + hh + 0.35, z, h, 0, 0, 0.22, 0.6, 0.22, C.honk);
@@ -241,7 +256,7 @@ export class TrafficRenderer {
         this._setE(mesh, n, x, bob, z, lean, h, moving ? Math.sin(p.phase) * 0.05 : 0);
       }
       mesh.setColorAt(n, this.shirts[p.color % this.shirts.length]);
-      this._blob(x, 0.1, z, h, 0.8, p.kind === 'ciclista' ? 1.6 : 0.8);
+      if (!live) this._blob(x, 0.1, z, h, 0.8, p.kind === 'ciclista' ? 1.6 : 0.8);
       if (p.signaling) { // braço levantado (mão) pedindo passagem
         const sh = Math.sin(h), ch = Math.cos(h);
         this._lamp(x - ch * 0.3, 1.78, z + sh * 0.3, h, 0, 0, 0.1, 0.42, 0.1, C.hand);
@@ -259,7 +274,7 @@ export class TrafficRenderer {
         const sh = Math.sin(a.heading), ch = Math.cos(a.heading);
         this._lamp(x + sh * 0.3, 1.18, z + ch * 0.3, a.heading, 0, 0, 0.2, 0.26, 0.04, C.note);
       } else this._setE(this.agentMesh, na, x, -0.05, z, 0.32, a.heading, 0, 1, 0.78, 1); // agachado, espiando
-      this._blob(x, 0.1, z, a.heading, 0.8, 0.8);
+      if (!live) this._blob(x, 0.1, z, a.heading, 0.8, 0.8);
       na++;
     }
     this._finish(this.agentMesh, nearA ? na : 0);

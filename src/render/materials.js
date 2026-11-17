@@ -20,6 +20,47 @@ export function makeMaterial(quality, params = {}) {
 export const LIVE_SHADOW = { map: false };
 
 /**
+ * RECORTE DE OCLUSÃO (prédios/marcos entre a câmera e o jogador): uniforms compartilhados por todos os materiais que
+ * chamam addOcclusionCut. O núcleo atualiza `uFocus` (jogador) e `uCamDir` (do foco para a câmera) a cada frame; o
+ * shader descarta, em padrão pontilhado ("screen-door", sem ordenar transparência), os fragmentos que estão À FRENTE
+ * do foco (lado da câmera) e a menos de `uRadius` m da linha de visada. Custo: alguns ALUs por fragmento, 0 draw call.
+ */
+export const OCCLUSION = {
+  uFocus: { value: new THREE.Vector3(0, -9999, 0) }, uCamDir: { value: new THREE.Vector3(0, 1, 0) },
+  uRadius: { value: 9 }, uOn: { value: 1 },
+};
+export function addOcclusionCut(mat, key) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.uFocus = OCCLUSION.uFocus; sh.uniforms.uCamDir = OCCLUSION.uCamDir; sh.uniforms.uRadius = OCCLUSION.uRadius; sh.uniforms.uOn = OCCLUSION.uOn;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vOccW;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+  {
+    vec4 ow = vec4( transformed, 1.0 );
+    #ifdef USE_INSTANCING
+      ow = instanceMatrix * ow;
+    #endif
+    vOccW = ( modelMatrix * ow ).xyz;
+  }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vOccW;\nuniform vec3 uFocus; uniform vec3 uCamDir; uniform float uRadius; uniform float uOn;')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+  if ( uOn > 0.5 ) {
+    vec3 od = vOccW - uFocus; float along = dot( od, uCamDir );
+    if ( along > 1.0 ) {
+      float rr = length( od - uCamDir * along );
+      float k = 1.0 - smoothstep( uRadius * 0.55, uRadius, rr );
+      vec2 pp = mod( floor( gl_FragCoord.xy ), 2.0 );
+      if ( k > 0.0 && ( pp.x + pp.y * 2.0 + 0.5 ) / 4.0 < k * 0.85 ) discard;
+    }
+  }`);
+  };
+  const ck = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.customProgramCacheKey = () => ck() + '-occ' + (key || '');
+  return mat;
+}
+
+/**
  * Material com MÁSCARA DE PINTURA para InstancedMesh: a cor da instância só tinge vértices com
  * atributo `paint` = 1 (copas de árvore, lataria); o resto (tronco, vidro, pneu) mantém a cor do vértice.
  * kind: 'lambert' | 'phong'. params: os do material three.
@@ -57,5 +98,5 @@ export function makeFacadeMaterial(texture, tileW = 6.4, tileH = 3) {
 #endif`);
   };
   mat.customProgramCacheKey = () => `facade-${tileW}-${tileH}`;
-  return mat;
+  return addOcclusionCut(mat, 'f');
 }

@@ -47,7 +47,7 @@ export const RULES_BALANCE = {
     perigoPanicCut: 0.5,   // perigo: pontos/s x (1 - pânico médio do dono * 0,5)
   },
   final: {
-    parSpeed: 12.5,        // m/s (45 km/h) — tempo "par" = distância da rota na largada / parSpeed
+    parSpeed: 9.5,         // m/s (34 km/h) — tempo "par" = distância da rota na largada / parSpeed (medido no playtest: sinal, balão e trânsito)
     parMin: 60,
     timeBonusMax: 3000,    // bônus = max * clamp((1,5*par - t)/par, 0, 1,2)
     finePointsMul: 100, fineMoneyMul: 1,  // desconto por multa = pontosCNH*100 + R$

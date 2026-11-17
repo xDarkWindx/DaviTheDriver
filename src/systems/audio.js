@@ -454,9 +454,12 @@ export default {
     }));
     on(EV.BREATHE, guard(() => breathe()));
     on(EV.CURSE, guard(() => speak(ctx.state.mood.driver.who, null, 0.8, true)));
-    const say = guard((p) => speak(ctx.state.mood.passenger.who || 'davi', p && p.text, p && p.intensity, false));
-    on(EV.PASSENGER_SAY, say);
-    if (EV.SAY) on(EV.SAY, say);
+    // voz de quem fala: EV.SAY traz `who` (no perigo o Davi motorista fala com a voz dele, não a do dono);
+    // PASSENGER_SAY é sempre o passageiro. Intensidade: `intensity` ou derivada do tom.
+    const TONE_I = { calm: 0.2, anx: 0.5, stress: 0.8, panic: 0.95 };
+    const sayAs = (who, p) => speak(who || 'davi', p && p.text, p && (p.intensity != null ? p.intensity : TONE_I[p.tone]), false);
+    on(EV.PASSENGER_SAY, guard((p) => sayAs(ctx.state.mood.passenger.who, p)));
+    if (EV.SAY) on(EV.SAY, guard((p) => sayAs(p && p.who ? p.who : ctx.state.mood.passenger.who, p)));
     on(EV.ARRIVED, guard(() => jingleWin()));
     on(EV.TRIP_FINISH, guard((p) => { stopHorn(); if (p && p.reason === 'bateu') jingleSad(); }));
     on(EV.STATE_CHANGE, guard((p) => { if (p.to !== MODE.PLAYING) stopHorn(); applySettings(true); }));

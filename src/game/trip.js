@@ -67,7 +67,7 @@ export class Trip {
   update(dt) {
     const tr = this.state.trip, p = this.state.player;
     tr.elapsed += dt;
-    tr.distToDest = Math.hypot(tr.destX - p.x, tr.destZ - p.z);
+    const ddx = tr.destX - p.x, ddz = tr.destZ - p.z; tr.distToDest = Math.sqrt(ddx * ddx + ddz * ddz);
     this._gpsT -= dt;
     if (this._gpsT <= 0) { this._gpsT = GPS_INTERVAL; this._gps(); }
     if (!tr.arrived && tr.distToDest < tr.destRadius) { tr.arrived = true; return true; }

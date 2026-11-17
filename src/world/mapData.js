@@ -185,7 +185,7 @@ export const MAP = {
     // --- Parque da Cidade: anel interno, sinuoso e lento (Pátio Brasil → arco para sudoeste → Balão da EPIG)
     { id: 'parque', name: 'Parque da Cidade (anel interno)', from: 'J_PB', to: 'rep_e',
       via: [[-520, 222], [-575, 300], [-600, 390], [-660, 455], [-700, 545], [-790, 600], [-880, 655], [-960, 668]], corner: 45,
-      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 60, kind: 'local' },
+      lanesF: 1, lanesB: 1, laneW: 3.6, limitKmh: 50, kind: 'local' },
 
     // --- Eixo Monumental: duas pistas de mão única com canteiro central gigante
     { id: 'eixo_s1_a', name: 'Eixo Monumental (Via S1)', from: 'rw_es', to: 'J_EPIG', lanesF: 3, lanesB: 0, limitKmh: 80, kind: 'eixo', layer: 2 },

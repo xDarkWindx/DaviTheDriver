@@ -105,7 +105,7 @@ export function createView(container, quality) {
  * Mede o tempo entre renders; após `warmupSec`, média de `windowSec` < minFps => desce um degrau.
  * Histerese: só sobe (um degrau) se ficar acima de upFps por upHoldSec e nunca volta a um degrau
  * do qual já caiu duas vezes. Estado público: { step, label, fps, steps, enabled, history }.
- * Quem quiser mostrar: ctx.view.autoQuality (e window.__davi.state.qualityAuto, espelho para a UI).
+ * Quem quiser mostrar: ctx.view.autoQuality (e state.qualityAuto, espelho escrito por main.js via aq.onChange).
  * view.lod.optional: malhas que somem no degrau 3 (registradas pelo mundo); view.lod.blobs: sombras blob.
  */
 function createAutoQuality(view, quality) {
@@ -114,7 +114,7 @@ function createAutoQuality(view, quality) {
   const hasMap = quality.shadows === 'shadowmap';
   view.lod = { optional: [], blobs: [], baseFar: null };
   const aq = {
-    enabled: !!cfg.enabled, step: 0, label: STEPS[0], fps: 0, steps: STEPS, history: [],
+    enabled: !!cfg.enabled, step: 0, label: STEPS[0], fps: 0, steps: STEPS, history: [], onChange: null,
     _last: 0, _since: 0, _acc: 0, _frames: 0, _upT: 0, _drops: [0, 0, 0, 0], _farDirty: false, _prevStep: 0,
     /** Força um degrau (debug/UI). */
     set(step) { applyStep(Math.max(0, Math.min(STEPS.length - 1, step | 0))); },
@@ -156,7 +156,7 @@ function createAutoQuality(view, quality) {
     for (const m of view.lod.optional) m.visible = step < 3;
     if ((step >= 3) !== (aq._prevStep >= 3)) aq._farDirty = true;
     aq._prevStep = step;
-    try { if (typeof window !== 'undefined' && window.__davi) window.__davi.state.qualityAuto = { step, label: aq.label, fps: aq.fps }; } catch (e) { /* sem estado ainda */ }
+    if (aq.onChange) aq.onChange(aq); // main.js espelha em state.qualityAuto (para a UI)
   }
   return aq;
 }

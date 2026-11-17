@@ -14,9 +14,9 @@ const CSS = `
 #fx-layer .fx-flash{background:#fff}
 #fx-layer .fx-retro{inset:0;opacity:1}
 #fx-layer .fx-retro>*{position:absolute;inset:0}
-#fx-layer .fx-scan{background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.17) 2px,rgba(0,0,0,.17) 3px)}
-#fx-layer .fx-rvig{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 58%,rgba(0,0,0,.30) 100%)}
-#fx-layer .fx-grain{inset:-64px;opacity:.07;background-repeat:repeat;image-rendering:pixelated;will-change:transform}
+#fx-layer .fx-scan{background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 3px)}
+#fx-layer .fx-rvig{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 66%,rgba(0,0,0,.2) 100%)}
+#fx-layer .fx-grain{inset:-64px;opacity:.035;background-repeat:repeat;image-rendering:pixelated;will-change:transform}
 #fx-layer.fx-noretro .fx-retro{display:none}
 #fx-layer.fx-menu .fx-core{display:none}
 `;

@@ -39,7 +39,7 @@ export const TUNING = {
   stjBusChance: 0.42, stjBusRing: { 1: 0.85, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.5, 6: 0.8 }, stjBusSwing: 0.2,
   // CONGESTIONAMENTO (0, 1 ou 2 por viagem): fila densa anda-e-para num trecho da rota (ou da alternativa), causa visível
   // no fim (carro quebrado / ônibus parado no acostamento, com pisca-alerta). jamChances = P(0), P(1) (resto = 2).
-  jamChances: [0.35, 0.45], jamLen: 95, jamCapKmh: 15, jamSpacing: 7.4, jamFillDist: 320, jamCost: 75,
+  jamChances: [0.35, 0.45], jamLen: 70, jamCapKmh: 18, jamSpacing: 7.4, jamFillDist: 320, jamCost: 75,
   // candidatos [segId, fração do trecho (no sentido da viagem) onde fica a causa, rótulo]; o sentido sai das rotas da viagem
   // (opts.routeLanes = faixas das 2 rotas, Eixo e Parque); trecho fora das rotas é ignorado.
   jamSpots: {
@@ -48,6 +48,11 @@ export const TUNING = {
     'stj-casa': [['eixo_n1', 0.45, 'Eixo Monumental (Via N1)'], ['s3_scs', 0.8, 'Via S3 (SCS)'],
       ['primeira_av', 0.6, 'saída do Balão da EPIG'], ['jaq_n', 0.7, 'Av. das Jaqueiras'], ['s2_a', 0.75, 'Via S2, saindo do SAFS']],
   },
+  // TRAÇOS de motorista, independentes da persona (pesquisa autodeclarada de motoristas brasileiros): fração da frota.
+  traits: { speeder: 0.59, onPhone: 0.38, noYield: 0.27, noSignal: 0.23 },
+  speederMul: [1.05, 1.25],     // speeder: alvo 5–25% acima do limite (os demais ficam no limite ou abaixo)
+  phoneStart: [1.0, 3.0],       // onPhone: s a mais para sair no verde
+  phoneT: 1.2, phoneSway: 0.22, phoneSpeedWobble: 0.09, // onPhone: reage mais tarde (T x1,2), oscila na faixa (m) e na velocidade
   pullAfter: { tio: 22, autoescola: 12, mudanca: 14, default: 16 }, pullDur: 7, pullCd: 35, pullKmh: 10, pullLat: 0.72,
 };
 
@@ -113,7 +118,8 @@ class Vehicle {
     this.pullT = 0; this.pullCd = 0; this.queueT = 0; // lento que encosta para a fila passar (trecho sem ultrapassagem)
     this.stjBus = false; this.cutDone = false; this.swing = 0; // ônibus do STJ (evento da rotatória)
     this.pWaitT = 0; this.pIgnT = 0;
-    this.stalled = false; this.jam = -1;     // causa visível do congestionamento (parado no acostamento) / índice do congestionamento // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
+    this.stalled = false; this.jam = -1;
+    this.speeder = false; this.onPhone = false; this.noYield = false; this.noSignal = false; // traços (TUNING.traits)     // causa visível do congestionamento (parado no acostamento) / índice do congestionamento // impasse com o jogador parado AO LADO (não à frente): ignora o cone dele por 2 s
   }
 }
 
@@ -519,6 +525,7 @@ export class TrafficSim {
     if (v.stalled) { v.speed = 0; v.braking = false; v.blink = 2; v.laneId = v.w.lane.id; return; }
     const lanes = this.lanes, w = v.w, vel = v.speed, halfL = v.length * 0.5;
     v.v0 = this._v0For(v, w.lane);
+    if (v.onPhone) v.v0 *= 1 - TUNING.phoneSpeedWobble * (0.5 + 0.5 * Math.sin(this.time * 0.37 + v.slot)); // velocidade irregular
     const tail = (v.p.tailgater || v.revengeT > 0);
     let inter = 0, leadKind = LEAD.NONE, leadGap = 999, leadSpeed = 0, leadSlot = -1;
     let base = -w.s, legit = false;
@@ -592,7 +599,7 @@ export class TrafficSim {
         const gapF = base + cw.s - TUNING.cwHalf - 0.8 - halfL;
         if (gapF < -1.2) continue;
         if (gapF > look) break;
-        if (this.cwCross[cid] > 0 || (this.cwWait[cid] > 0 && gapF > vel * vel / 7)) {
+        if (this.cwCross[cid] > 0 || (this.cwWait[cid] > 0 && gapF > vel * vel / 7 && !(v.noYield && this.net.crosswalks[cid].signalId < 0))) {
           const it = this._inter(v, vel, gapF, 0, v.T, 0.5);
           if (it > inter) { inter = it; leadKind = LEAD.CROSSWALK; leadGap = gapF; leadSpeed = 0; leadSlot = -1; }
         }
@@ -637,6 +644,7 @@ export class TrafficSim {
     else if (v.redHold) {
       v.redHold = false;
       v.startDelay = v.p.stallDelay && this.rng() < 0.6 ? rr(this.rng, v.p.stallDelay) : rr(this.rng, v.p.react);
+      if (v.onPhone) { v.startDelay += rr(this.rng, TUNING.phoneStart); v.phoneLate = true; } // distraído no celular: o verde abriu e ele não viu
     }
     if (v.startDelay > 0) { v.startDelay -= dt; if (acc > 0) acc = -1; }
     if (v.dwellT > 0) { v.dwellT -= dt; acc = -4; v.blink = 1; }
@@ -668,7 +676,9 @@ export class TrafficSim {
       v.latOff += d > mx ? mx : d < -mx ? -mx : d;
     }
     const h = w.heading, rx = -Math.cos(h), rz = Math.sin(h);
-    v.x = w.x + rx * v.latOff; v.z = w.z + rz * v.latOff;
+    // celular: oscila levemente dentro da faixa (só visual/posição; fora de troca de faixa, corredor e acostamento)
+    const sway = v.onPhone && v.lcT <= 0 && !v.filtering && v.pullT <= 0 ? TUNING.phoneSway * Math.sin(this.time * 0.9 + v.slot * 1.7) : 0;
+    v.x = w.x + rx * (v.latOff + sway); v.z = w.z + rz * (v.latOff + sway);
     const latVel = (v.latOff - latPrev) / dt;
     v.yawOff += (-Math.atan2(latVel, Math.max(sp, 2)) - v.yawOff) * Math.min(1, dt * 10);
     v.heading = h + v.yawOff;
@@ -683,7 +693,7 @@ export class TrafficSim {
         if (l.turn === 'right') { bl = 1; break; }
         dist += l.length;
       }
-      v.blink = bl;
+      v.blink = v.noSignal ? 0 : bl; // sem seta (noSignal) em curva/rotatória
     }
     if (v.pullT > 0) v.blink = 1;
     if (v.crashT > 0) v.blink = 2;
@@ -1007,7 +1017,7 @@ export class TrafficSim {
     v.latOff = v.lat0; v.latTarget = 0;
     v.lcFrom = oldId; v.lcOffS = oldS - w.s;
     v.lcDur = v.lcT = v.cutIntent ? 1.1 : v.p.cutter || v.revengeT > 0 ? 1.4 : v.persona === 'moto' ? 1.0 : 2.2 + this.rng() * 0.8;
-    v.blink = v.lat0 > 0 ? -1 : 1; // veio da direita => indo para a esquerda
+    v.blink = v.noSignal ? 0 : v.lat0 > 0 ? -1 : 1; // veio da direita => indo para a esquerda (sem seta: noSignal)
     v.goLane = -1;
     this._rebuildPath(v);
   }
@@ -1122,7 +1132,7 @@ export class TrafficSim {
       }
       v.corr = inCorr;
       // ônibus do STJ entrando à frente de quem circula: é a "fechada" do evento (ring: true), 1x
-      if (v.stjBus && !v.cutDone && rel > 0 && rel < 24 && Math.abs(lat) < 3.2 && pAbs > 1.5 && this.pLaneId >= 0 && (this.laneOnRing[this.pLaneId] >= 0 || this.lanes[this.pLaneId].isConnector)) {
+      if (v.stjBus && !v.cutDone && rel > 0 && rel < 26 && Math.abs(lat) < 3.6 && pAbs > 0.5 && this.pLaneId >= 0 && (this.laneOnRing[this.pLaneId] >= 0 || this.lanes[this.pLaneId].isConnector)) {
         v.cutDone = true;
         this._emit(EV.CUT_OFF, { id: v.id, otherId: v.id, kind: v.kind, persona: v.persona, gap: Math.max(0, rel - (Lp + v.length) * 0.5), ring: true, stj: true });
       }
@@ -1542,6 +1552,14 @@ export class TrafficSim {
     v.color = (rng() * (dm.colors ? dm.colors.length : 6)) | 0;
     v.v0mul = p.speedMul ? rr(rng, p.speedMul) : 1; v.v0abs = p.speedKmh ? rr(rng, p.speedKmh) / 3.6 : 0; v.v0min = opts.v0min || 0;
     v.T = rr(rng, p.T); v.s0 = p.s0; v.a = rr(rng, p.a); v.b = p.b;
+    // traços independentes da persona (os lentos por natureza — tio, autoescola, ônibus, caminhão — não correm)
+    const TR = TUNING.traits, slowP = p.speedKmh || p.maxKmh || p.bus;
+    const fastP = p.speedMul && p.speedMul[0] > 1.05; // apressado/motoboy já correm por natureza
+    v.speeder = fastP || (!slowP && rng() < TR.speeder); v.onPhone = rng() < TR.onPhone; v.noYield = rng() < TR.noYield; v.noSignal = rng() < TR.noSignal;
+    if (!slowP && !fastP) v.v0mul = v.speeder ? Math.max(v.v0mul, rr(rng, TUNING.speederMul)) : Math.min(v.v0mul, 1.0);
+    if (v.onPhone) v.T *= TUNING.phoneT;
+    const ts = this.stats.traits || (this.stats.traits = { speeder: 0, onPhone: 0, noYield: 0, noSignal: 0, total: 0 });
+    ts.total++; if (v.speeder) ts.speeder++; if (v.onPhone) ts.onPhone++; if (v.noYield) ts.noYield++; if (v.noSignal) ts.noSignal++;
     v.aggression = Math.min(1, (p.aggr || 0) + rng() * 0.1);
     v.rbT = p.randomBrake ? rr(rng, p.randomBrake) : 0;
     const w = v.w; w.lane = lane; w.s = Math.min(Math.max(0, s), lane.length - 0.1); w.ended = false; w._sample();
@@ -1814,7 +1832,7 @@ export class TrafficSim {
     }
     const v = this.spawn('onibusSTJ', 'onibus', lid, s, { furao: true, exact: true, speed: 7.5 });
     if (!v) return;
-    v.stjBus = true; v.furaoT = 14; v.color = 0; v.blink = -1;
+    v.stjBus = true; v.furaoT = 14; v.color = 0; v.noSignal = this.rng() < 0.2; v.blink = v.noSignal ? 0 : -1; // às vezes sem seta (mas visível antes)
     this._buildBucketsFor(v);
     E.fired = true; E.ring = rbi; E.busId = v.id; E.node = node;
     this.stats.stjBus = (this.stats.stjBus || 0) + 1;

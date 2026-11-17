@@ -20,7 +20,7 @@ export function angleDiff(a, b) {
 
 /** O agente enxerga o ponto (x, z)? (alcance e campo de visão) */
 export function agentSees(B, a, x, z) {
-  const dx = x - a.x, dz = z - a.z, d = Math.hypot(dx, dz);
+  const dx = x - a.x, dz = z - a.z, d = Math.sqrt(dx * dx + dz * dz);
   if (d > (a.range || 60) * B.agent.rangeMul) return false;
   if (typeof a.heading !== 'number' || d < 1) return true;
   return angleDiff(Math.atan2(dx, dz), a.heading) <= B.agent.fovHalf;

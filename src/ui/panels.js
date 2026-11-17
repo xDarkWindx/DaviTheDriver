@@ -40,7 +40,7 @@ export function buildHowTo(layer) {
 }
 
 /** `apply(key, value)` grava em state.settings, persiste e emite. */
-export function buildOptions(layer, settings, apply) {
+export function buildOptions(layer, settings, apply, state = null) {
   const m = new Modal(layer, 'options', 'OPÇÕES');
   const body = el('div', 'opts', m.body);
 
@@ -68,6 +68,11 @@ export function buildOptions(layer, settings, apply) {
   const seg = el('div', 'seg', rowQ);
   const leve = el('button', 'seg-btn', seg, 'LEVE'); leve.dataset.testid = 'opt-q-leve';
   const hd = el('button', 'seg-btn', seg, 'HD · em breve'); hd.disabled = true; hd.dataset.testid = 'opt-q-hd'; hd.title = 'Em breve';
+  // degrau atual do ajuste automático (state.qualityAuto): 0 completo … 3 cenário reduzido
+  const rowA = el('div', 'opt', body);
+  const labA = el('span', 'opt-lab', rowA, 'Ajuste automático');
+  el('small', 'opt-hint', labA, 'o jogo reduz sombra, resolução e cenário sozinho se o FPS cair');
+  const autoTxt = el('span', 'opt-auto', rowA, '—'); autoTxt.dataset.testid = 'opt-auto';
 
   vol.addEventListener('input', () => { apply('volume', vol.value / 100); sync(); });
   mute.onclick = () => { apply('muted', !settings.muted); sync(); };
@@ -81,6 +86,8 @@ export function buildOptions(layer, settings, apply) {
     vol.style.setProperty('--fill', vol.value + '%');
     setSwitch(mute, settings.muted); setSwitch(retro, settings.retro); setSwitch(prof, settings.profanity !== false);
     leve.classList.toggle('sel', settings.quality === 'leve');
+    const qa = state && state.qualityAuto;
+    autoTxt.textContent = qa ? `degrau ${qa.step} de 3 · ${qa.label}${qa.fps ? ` · ${Math.round(qa.fps)} FPS` : ''}` : '—';
   }
   m.sync = sync; sync();
   return m;

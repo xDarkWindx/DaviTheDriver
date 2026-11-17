@@ -25,8 +25,8 @@ export const MODE_UI = {
 };
 
 export const ROUTE_UI = {
-  'casa-stj': { name: 'Casa → STJ', when: 'manhã', sub: 'QRSW 2, Sudoeste → STJ. Sol na cara e reunião às 9h.' },
-  'stj-casa': { name: 'STJ → Casa', when: 'fim de tarde', sub: 'Saindo do trabalho. Rush, pardal e muita pressa de chegar em casa.' },
+  'casa-stj': { name: 'Casa → STJ', when: 'manhã', sub: 'QRSW 2, Sudoeste → STJ, de manhã.' },
+  'stj-casa': { name: 'STJ → Casa', when: 'fim de tarde', sub: 'Saindo do STJ no fim da tarde, de volta ao Sudoeste.' },
 };
 
 export const HOWTO_CONTROLS = [
@@ -36,7 +36,8 @@ export const HOWTO_CONTROLS = [
   ['Espaço', 'Freio de mão'],
   ['H', 'Buzinar'],
   ['R', 'Respirar fundo'],
-  ['X', 'Xingar (sem palavrão pesado)'],
+  ['X', 'Xingar'],
+  ['F', 'Piscar o farol (para o lento da frente)'],
   ['P  /  Esc', 'Pausar'],
 ];
 
@@ -44,7 +45,8 @@ export const HOWTO_RULES = [
   ['Objetivo', 'Chegar ao destino sem bater, sem multa e no menor tempo.'],
   ['Barras de humor', 'Ansiedade e estresse nunca zeram: existe um piso (a parte listrada). Pior: perto do máximo a barra treme e o volante começa a ficar traiçoeiro.'],
   ['Zona de equilíbrio', 'A faixa marcada nas barras do motorista. Ficar dentro dela dá bônus e aumenta o multiplicador de pontos.'],
-  ['Respirar e xingar', 'R e X ajudam a baixar a pressão, mas têm tempo de recarga. Buzinar também desabafa (e irrita os outros).'],
+  ['Respirar, xingar, buzinar, piscar', 'R e X ajudam a baixar a pressão, mas têm tempo de recarga. Buzinar (H) também desabafa (e irrita os outros); piscar o farol (F) pede passagem ao lento da frente — às vezes ele dá, às vezes freia de birra.'],
+  ['Congestionamento', 'Às vezes a rota tem trânsito parado (marcado em vermelho no minimapa). Dá para desviar por outro caminho; a faixa de ônibus vazia do lado é tentadora — e multa se alguém vir.'],
   ['Multas', 'Pardal (excesso de velocidade), sinal vermelho, faixa exclusiva de ônibus, faixa de pedestres... O valor e os pontos na CNH aparecem no aviso.'],
   ['Batida', 'Impacto forte encerra a viagem na hora. Aí vem o boletim de ocorrência.'],
 ];
@@ -143,6 +145,7 @@ export const ACTIONS = [
   { key: 'horn', keycap: 'H', label: 'Buzinar' },
   { key: 'breathe', keycap: 'R', label: 'Respirar' },
   { key: 'curse', keycap: 'X', label: 'Xingar' },
+  { key: 'flash', keycap: 'F', label: 'Farol' },
 ];
 
 export const PAUSE_QUIPS = ['Respira. O trânsito espera.', 'Pausa pra um café.', 'Tá tudo parado mesmo. Igual a Via S3 às 18h.'];

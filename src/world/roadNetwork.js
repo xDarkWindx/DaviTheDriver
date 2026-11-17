@@ -107,8 +107,8 @@ export function samplePts(pts, cum, s, out) {
   const t = (s - cum[lo]) / seg;
   const x0 = pts[lo * 2], z0 = pts[lo * 2 + 1], x1 = pts[hi * 2], z1 = pts[hi * 2 + 1];
   out.x = x0 + (x1 - x0) * t; out.z = z0 + (z1 - z0) * t;
-  const l = Math.hypot(x1 - x0, z1 - z0) || 1;
-  out.tx = (x1 - x0) / l; out.tz = (z1 - z0) / l;
+  const ddx = x1 - x0, ddz = z1 - z0, l = Math.sqrt(ddx * ddx + ddz * ddz) || 1; // sqrt: Math.hypot é lento e aloca no V8 antigo
+  out.tx = ddx / l; out.tz = ddz / l;
   return out;
 }
 function cubicPts(ax, az, bx, bz, cx, cz, dx, dz, n) {
@@ -720,7 +720,7 @@ export class RoadNetwork {
         const p = lane.pts;
         const x0 = p[i * 2], z0 = p[i * 2 + 1], x1 = p[i * 2 + 2], z1 = p[i * 2 + 3];
         if (useH) {
-          const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz) || 1;
+          const dx = x1 - x0, dz = z1 - z0, L = Math.sqrt(dx * dx + dz * dz) || 1;
           if ((dx * hx + dz * hz) / L < cosMax) continue;
         }
         const r = projSeg(x, z, x0, z0, x1, z1);
@@ -729,7 +729,7 @@ export class RoadNetwork {
     }
     if (bl < 0) return null;
     const lane = this.lanes[bl], p = lane.pts;
-    const x0 = p[bi * 2], z0 = p[bi * 2 + 1], dx = p[bi * 2 + 2] - x0, dz = p[bi * 2 + 3] - z0, L = Math.hypot(dx, dz) || 1;
+    const x0 = p[bi * 2], z0 = p[bi * 2 + 1], dx = p[bi * 2 + 2] - x0, dz = p[bi * 2 + 3] - z0, L = Math.sqrt(dx * dx + dz * dz) || 1;
     out.lane = lane; out.laneId = bl;
     out.s = lane.cum[bi] + bt * L;
     out.x = x0 + dx * bt; out.z = z0 + dz * bt;
@@ -764,7 +764,7 @@ export class RoadNetwork {
         const seg = this._segList[si], p = seg.pts;
         const x0 = p[i * 2], z0 = p[i * 2 + 1], x1 = p[i * 2 + 2], z1 = p[i * 2 + 3];
         const r = projSeg(x, z, x0, z0, x1, z1);
-        const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz) || 1;
+        const dx = x1 - x0, dz = z1 - z0, L = Math.sqrt(dx * dx + dz * dz) || 1;
         const lat = (x - r.px) * (-dz / L) + (z - r.pz) * (dx / L);
         const along = Math.abs(((x - x0) * dx + (z - z0) * dz) / L - r.t * L); // >0 se fora do trecho
         const inside = along < 0.5 && lat <= seg.edgeR + 0.3 && lat >= seg.edgeL - 0.3 && !(seg.median > 1 && Math.abs(lat) < seg.median / 2 - 0.3);

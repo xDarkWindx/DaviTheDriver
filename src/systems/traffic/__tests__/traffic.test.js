@@ -302,7 +302,7 @@ test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA n�
     for (const v of sim.vehicles) {
       const dx = v.x - w.x, dz = v.z - w.z, f = dx * fx + dz * fz, l = Math.abs(-dx * fz + dz * fx);
       if (f > 0 && f < 26 && l < 1.0 + v.length * 0.5) target = Math.min(target, Math.max(0, (f - v.length * 0.5 - 5) / 2));
-      if (v.stjBus) { bus = v; minGap = Math.min(minGap, Math.hypot(dx, dz) - v.length * 0.5); }
+      if (v.stjBus) { if (!bus) bus = { persona: v.persona, stjBus: true, id: v.id }; minGap = Math.min(minGap, Math.hypot(dx, dz) - v.length * 0.5); }
     }
     sp += Math.max(-7, Math.min(2.5, (target - sp) * 2)) * DT; if (sp < 0) sp = 0;
     w.advance(sp * DT);
@@ -310,8 +310,8 @@ test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA n�
     sig.update(DT); sim.step(DT);
   }
   assert.equal(sim.stats.stjBus, 1, 'o evento não disparou');
-  assert.ok(bus && bus.stjBus && bus.persona === 'onibusSTJ', 'sem ônibus do STJ');
-  const busCols = cols.filter((c) => c.persona === 'onibusSTJ');
+  assert.ok(bus && bus.stjBus && bus.persona === 'onibusSTJ', 'sem ônibus do STJ: ' + (bus ? bus.persona + '/' + bus.stjBus : 'null'));
+  const busCols = cols.filter((c) => c.persona === 'onibusSTJ' || (bus && c.id === bus.id));
   assert.equal(busCols.length, 0, 'o piloto cuidadoso levou o ônibus: ' + JSON.stringify(busCols[0]));
   // a IA não fica presa no balão depois
   const far = parkingSpot('local'); player.phys.x = far.x; player.phys.z = far.z; player.phys.vx = player.phys.vz = 0;
@@ -321,6 +321,7 @@ test('ônibus do STJ na rotatória: dispara, o piloto cuidadoso escapa e a IA n�
     for (const v of sim.vehicles) { if (!ringIds.has(v.w.lane.id)) continue; const t = v.speed < 0.3 ? (stopT.get(v.id) || 0) + DT : 0; stopT.set(v.id, t); worst = Math.max(worst, t); }
   }
   console.log(`       fechada no balão: ${cuts.filter((c) => c.stj).length}x; menor folga até o ônibus ${minGap.toFixed(1)} m; maior parada no balão depois: ${worst.toFixed(1)} s`);
+  assert.ok(cuts.some((c) => c.stj && c.ring), 'o ônibus não fechou o jogador no balão');
   assert.ok(worst < 20, 'alguém ficou preso no balão: ' + worst.toFixed(1) + ' s');
 });
 

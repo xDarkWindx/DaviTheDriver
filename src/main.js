@@ -33,6 +33,7 @@ function boot() {
   const events = new EventBus();
   const view = createView(container, quality);
   const cameraRig = new CameraRig(window.innerWidth / window.innerHeight, quality);
+  if (view.autoQuality) view.autoQuality.onChange = (aq) => { const q = state.qualityAuto; q.step = aq.step; q.label = aq.label; q.fps = aq.fps; };
   const net = new RoadNetwork(MAP);
   const world = buildWorld({ view, net, quality, events, cameraDir: cameraRig.dir });
   const input = new Input(events);

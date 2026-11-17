@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { makeRng } from '../core/math.js';
 import { StaticColliders, makeOBB } from '../core/collision.js';
 import { ChunkedInstancer, ChunkedMeshBuilder } from '../render/instancer.js';
-import { makeMaterial, makeMaskedMaterial, makeFacadeMaterial, LIVE_SHADOW } from '../render/materials.js';
+import { makeMaterial, makeMaskedMaterial, makeFacadeMaterial, addOcclusionCut, LIVE_SHADOW } from '../render/materials.js';
 import { makeGroundTexture, makeAsphaltTexture, makeSidewalkTexture, makeGrassTexture, makeFacadeTexture, makeSignAtlas, makeBlobTexture,
   drawSpeedSign, drawStopSign, drawYieldSign, drawPedSign } from '../render/textures.js';
 import { propGeometry } from './props.js';
@@ -70,7 +70,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
 
   // ---------- materiais
   const lambertVC = makeMaterial(quality, { vertexColors: true });
-  const instMat = makeMaterial(quality, {});
+  const instMat = addOcclusionCut(makeMaterial(quality, {}), 'inst');
   const blobTex = makeBlobTexture(64);
   const blobMat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobTex, transparent: true, opacity: 0.32, depthWrite: false });
 
@@ -132,7 +132,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   // ---------- cenário
   const sb = new SceneryBuilder({ net, inst, mb: plain, colliders, quality, rng });
   // colisores dos marcos primeiro (cenário evita sobrepor)
-  const landmarkMat = makeMaterial(quality, { vertexColors: true });
+  const landmarkMat = addOcclusionCut(makeMaterial(quality, { vertexColors: true }), 'lm');
   const landmarks = buildLandmarks(scene, colliders, landmarkMat);
   for (const m of landmarks.meshes) { m.castShadow = shadowMap; m.receiveShadow = shadowMap; }
   // semáforos
@@ -154,6 +154,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   // ---------- placas (atlas)
   const atlas = makeSignAtlas(SIGN_ENTRIES, quality.signTextureWidth, quality.anisotropy);
   buildBusStops(net, inst, colliders);
+  buildHideoutCovers(net, inst, sb);
   const signGeo = buildSigns(atlas, cameraDir, inst, colliders, net);
   const signMesh = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.35 }));
   signMesh.name = 'signs'; signMesh.matrixAutoUpdate = false; scene.add(signMesh);
@@ -218,6 +219,24 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
       };
     },
   };
+}
+
+/**
+ * "Cobertura" de cada esconderijo de agente (net.agentHideouts[].cover), entre o agente e a via: árvore (mangueira
+ * grande), placa de sinalização larga, abrigo de ônibus ou pilar de viaduto. Sem colisor (fica fora do asfalto).
+ */
+function buildHideoutCovers(net, inst, sb) {
+  for (const h of net.agentHideouts || []) {
+    const dx = h.roadX - h.x, dz = h.roadZ - h.z, d = Math.sqrt(dx * dx + dz * dz) || 1, ux = dx / d, uz = dz / d;
+    const cx = h.x + ux * 1.6, cz = h.z + uz * 1.6, face = Math.atan2(ux, uz);
+    if (h.cover === 'arvore') { if (sb) sb.tree(cx, cz, 'mangueira', 1.15, 0); }
+    else if (h.cover === 'placa') {
+      for (const s of [-1, 1]) inst.add('box', cx + uz * s * 1.4, 0, cz - ux * s * 1.4, face, 0.14, 3.2, 0.14, 0x8a9096);
+      inst.add('box', cx, 1.4, cz, face, 3.6, 1.8, 0.12, 0x1f6b3a);           // placa verde de direção, larga
+      inst.add('box', cx - ux * 0.07, 2.55, cz - uz * 0.07, face, 3.0, 0.22, 0.13, 0xf4f4ee);
+    } else if (h.cover === 'ponto') inst.add('abrigo', cx, 0, cz, face + Math.PI, 1, 1, 1, 0xffffff);
+    else if (h.cover === 'viaduto') inst.add('box', cx, 0, cz, face, 1.6, 5.5, 1.6, 0xb9b4a8);   // pilar
+  }
 }
 
 /** Abrigos de ponto de ônibus (instâncias + colisor). Posição nos dados: net.busStops. */
