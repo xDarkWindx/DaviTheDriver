@@ -64,14 +64,22 @@ export function buildOptions(layer, settings, apply, state = null) {
   const prof = switchBtn(rowP, 'opt-profanity');
 
   const rowQ = el('div', 'opt', body);
-  el('span', 'opt-lab', rowQ, 'Qualidade gráfica');
+  const labQ = el('span', 'opt-lab', rowQ, 'Qualidade gráfica');
+  const sup = state && state.hdSupport;
+  const hdOk = !sup || sup.ok;
+  const qHint = el('small', 'opt-hint', labQ, hdOk ? 'HD é para placa de vídeo dedicada; a troca recarrega o jogo'
+    : 'HD indisponível aqui: ' + (sup.reason || 'sem WebGL2'));
+  qHint.dataset.testid = 'opt-q-hint';
   const seg = el('div', 'seg', rowQ);
   const leve = el('button', 'seg-btn', seg, 'LEVE'); leve.dataset.testid = 'opt-q-leve';
-  const hd = el('button', 'seg-btn', seg, 'HD · em breve'); hd.disabled = true; hd.dataset.testid = 'opt-q-hd'; hd.title = 'Em breve';
+  const hd = el('button', 'seg-btn', seg, 'HD'); hd.dataset.testid = 'opt-q-hd';
+  hd.title = hdOk ? 'Sombras, reflexos e pós-processamento: para placa de vídeo dedicada' : 'Indisponível: ' + (sup.reason || 'sem WebGL2');
+  hd.disabled = !hdOk;
   // degrau atual do ajuste automático (state.qualityAuto): 0 completo … 3 cenário reduzido
   const rowA = el('div', 'opt', body);
   const labA = el('span', 'opt-lab', rowA, 'Ajuste automático');
-  el('small', 'opt-hint', labA, 'o jogo reduz sombra, resolução e cenário sozinho se o FPS cair');
+  el('small', 'opt-hint', labA, state && state.quality === 'hd' ? 'no HD: tira o pós, reduz sombra e resolução e, no limite, volta para o Leve'
+    : 'o jogo reduz sombra, resolução e cenário sozinho se o FPS cair');
   const autoTxt = el('span', 'opt-auto', rowA, '—'); autoTxt.dataset.testid = 'opt-auto';
 
   vol.addEventListener('input', () => { apply('volume', vol.value / 100); sync(); });
@@ -79,6 +87,7 @@ export function buildOptions(layer, settings, apply, state = null) {
   retro.onclick = () => { apply('retro', !settings.retro); sync(); };
   prof.onclick = () => { apply('profanity', !settings.profanity); sync(); };
   leve.onclick = () => { apply('quality', 'leve'); sync(); };
+  hd.onclick = () => { if (hdOk) { apply('quality', 'hd'); sync(); } };
 
   function sync() {
     vol.value = Math.round(settings.volume * 100);
@@ -86,8 +95,14 @@ export function buildOptions(layer, settings, apply, state = null) {
     vol.style.setProperty('--fill', vol.value + '%');
     setSwitch(mute, settings.muted); setSwitch(retro, settings.retro); setSwitch(prof, settings.profanity !== false);
     leve.classList.toggle('sel', settings.quality === 'leve');
+    hd.classList.toggle('sel', settings.quality === 'hd');
+    if (hdOk && state && state.quality) {
+      qHint.textContent = settings.quality !== state.quality
+        ? (state.mode === 'MENU' ? 'recarregando com o novo perfil…' : `muda para ${settings.quality === 'hd' ? 'HD' : 'Leve'} ao voltar ao menu`)
+        : 'HD é para placa de vídeo dedicada; a troca recarrega o jogo';
+    }
     const qa = state && state.qualityAuto;
-    autoTxt.textContent = qa ? `degrau ${qa.step} de 3 · ${qa.label}${qa.fps ? ` · ${Math.round(qa.fps)} FPS` : ''}` : '—';
+    autoTxt.textContent = qa ? `degrau ${qa.step} de ${qa.max ?? 3} · ${qa.label}${qa.fps ? ` · ${Math.round(qa.fps)} FPS` : ''}` : '—';
   }
   m.sync = sync; sync();
   return m;

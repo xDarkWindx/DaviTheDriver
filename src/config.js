@@ -25,8 +25,7 @@ export const CONFIG = {
 
 // ---------------------------------------------------------------------------
 // PERFIS DE QUALIDADE. Toda decisão de custo gráfico sai daqui (ninguém usa constante solta).
-// 'leve' = padrão (Intel UHD 770). 'hd' = ESQUELETO para GPU dedicada (TODO, ainda não suportado:
-// materialKind 'standard', shadows 'shadowmap' e postprocess ainda não têm implementação).
+// 'leve' = padrão (Intel UHD 770). 'hd' = placa de vídeo dedicada (PBR, pós-processamento, sombra 4096; ver README).
 // Coluna "recria": R = exige recriar o renderer; M = exige reconstruir o mundo (cenário/texturas);
 //                  - = pode mudar em tempo real.
 // ---------------------------------------------------------------------------
@@ -37,7 +36,7 @@ export const QUALITY = {
     // (incluindo a passada de sombra). Sem pós-processamento. Materiais Lambert/Phong.
     pixelRatioMax: 1.5,          // -  teto do devicePixelRatio
     antialias: true,             // R  MSAA do contexto WebGL
-    materialKind: 'lambert',     // M  'lambert' | 'basic' | 'standard'(hd/TODO)
+    materialKind: 'lambert',     // M  'lambert' | 'basic' | 'standard' (HD)
     shadows: 'shadowmap',        // M  'none' | 'blob' | 'shadowmap' (blob = alternativa; o ajuste automático cai p/ blob)
     shadowMapSize: 1024,         // M  lado do shadow map direcional (PCF simples)
     shadowRange: 48,             // -  meia-largura (m) do frustum da sombra, que acompanha a câmera
@@ -62,21 +61,61 @@ export const QUALITY = {
     //   1 sem sombra projetada (volta a sombra blob) → 2 resolução reduzida → 3 cenário reduzido/visão mais curta.
     autoQuality: { enabled: true, minFps: 50, warmupSec: 2.5, windowSec: 3, upFps: 75, upHoldSec: 10 },
   },
+  // HD = placa de vídeo dedicada (WebGL2 + render target HalfFloat). Toda a parte nova fica atrás destas chaves
+  // (render/hd.js, render/hdMaterials.js, world/hdScenery.js); o 'leve' não executa nada disso.
+  // A SIMULAÇÃO é idêntica nos dois perfis: densidades com colisor (árvores, prédios, postes, bancos), pool de trânsito
+  // e de pedestres são os mesmos do leve; o que o HD acrescenta de cenário é só decorativo (sem colisor, sorteio próprio).
   hd: {
-    id: 'hd', label: 'HD (placa dedicada) — TODO', implemented: false,
-    pixelRatioMax: 2, antialias: true, materialKind: 'standard', shadows: 'shadowmap',
-    textureSize: 1024, anisotropy: 8, signTextureWidth: 2048, chunkSize: 600, cameraFar: 1500, viewMul: 1.0,
-    density: { trees: 2.0, scrub: 2.5, lamps: 1.0, buildings: 1.0, guardrails: 1.0 },
-    vehicleLOD: 'high', landmarkLOD: 'high',
-    maxTrafficVehicles: 90, maxPedestrians: 60, maxParticles: 2000, fxSkidMax: 400, fxGrain: true,
-    postprocess: null, // TODO: bloom/vinheta etc. (fx.js registra aqui)
+    id: 'hd', label: 'HD (placa de vídeo dedicada)', implemented: true, requires: 'webgl2',
+    pixelRatioMax: 2,            // -  até o nativo, teto 2 (o ajuste automático pode baixar)
+    antialias: false,            // R  o MSAA fica no render target do pós-processamento (msaaSamples)
+    msaaSamples: 4,              // R  amostras do render target HalfFloat da cena
+    materialKind: 'standard',    // M  PBR: MeshStandard/MeshPhysical (lataria com clearcoat, vidro, metais, emissivos)
+    envMap: true,                // R  environment map PMREM de um céu procedural (por horário; nada baixado)
+    shadows: 'shadowmap',        // M
+    shadowMapSize: 4096,         // R  PCF (disco de Vogel) com raio shadowRadius; o ajuste automático cai para 2048
+    shadowRange: 80,             // -  meia-largura (m) do frustum da sombra (encaixado no texel no espaço da luz)
+    shadowRadius: 2.2,           // -  raio do PCF (texels) = penumbra suave
+    shadowTraffic: true,         // -  carros do trânsito, pedestres e agentes projetam sombra (no leve: sombra blob)
+    contactShadows: true,        // -  blob fraco sob os veículos mesmo com shadow map (oclusão de contato barata)
+    cloudShadows: true,          // -  sombra de nuvens em movimento lento (modula só a luz do sol no shader)
+    textureSize: 1024,           // M  texturas de canvas (asfalto, calçada, grama, fachadas)
+    groundTextureSize: 1024,     // M  chão do cerrado (repete a cada 48 m)
+    surfaceMaps: true,           // M  normal map + roughness map gerados em canvas (asfalto, calçada, chão, fachadas)
+    anisotropy: 16,              // M  limitado ao máximo da placa
+    signTextureWidth: 4096,      // M
+    chunkSize: 200,              // M
+    cameraFar: 1500,             // -
+    viewMul: 1.0,                // -  mesmo enquadramento do leve (a jogabilidade não muda)
+    density: { trees: 1.0, scrub: 1.0, lamps: 1.0, buildings: 1.0, guardrails: 1.0, furniture: 1.0 }, // = leve (têm colisor/sorteio)
+    extraScenery: { tufts: 2.2, flowers: 1.0, mounds: 1.0, petals: true }, // M  decorativo (sem colisor): capim, flores, cupinzeiros, tapete de flor de ipê
+    vehicleLOD: 'ultra',         // M  carrocerias com o dobro de estações, normais suavizadas (vinco 34°), rodas com mais segmentos
+    landmarkLOD: 'ultra',        // M  marcos com o dobro de segmentos nas peças curvas
+    propLOD: 'ultra',            // M  copas de árvore subdivididas, irregulares e com oclusão por vértice
+    maxTrafficVehicles: 88,      // -  = leve (o pool entra na simulação; mudar mudaria o jogo)
+    maxPedestrians: 24,          // -  = leve
+    maxParticles: 1600,          // -  fx.js (poeira, fumaça, faíscas em pool aditivo à parte)
+    fxSkidMax: 640,              // -  marcas de pneu (persistem a viagem toda até o pool encher)
+    fxGrain: true,               // -
+    fxSoft: true,                // -  partículas com borda suave/ruído, faíscas aditivas (bloom)
+    headlightDecals: true,       // -  fim de tarde: cones de farol falsos no asfalto (decal aditivo, 1 draw call)
+    postprocess: {               // R  cena (HalfFloat, MSAA) -> bloom -> tone mapping ACES + exposição + cor + vinheta
+      bloom: { strength: 0.38, radius: 0.5, threshold: 1.15 }, vignette: 0.24, grade: true, haze: true,
+    },
+    // Ajuste automático do HD (degraus próprios): 1 sem pós-processamento → 2 sombra reduzida (2048, sem trânsito)
+    //   → 3 resolução reduzida → 4 modo leve (aviso; a troca para o perfil 'leve' acontece ao voltar ao menu).
+    autoQuality: { enabled: true, minFps: 50, warmupSec: 3, windowSec: 3, upFps: 72, upHoldSec: 12, profile: 'hd' },
   },
 };
 
-/** Perfil efetivo (perfis não implementados caem para 'leve' com aviso). */
-export function resolveQuality(id) {
+/**
+ * Perfil efetivo. `support` = resultado de render/hd.js hdSupport() (só importa para 'hd'): sem WebGL2/extensões, o HD
+ * cai para 'leve' em silêncio (o motivo vai para a UI, não para o console).
+ */
+export function resolveQuality(id, support = null) {
   const q = QUALITY[id] || QUALITY.leve;
-  if (!q.implemented) { console.warn(`[qualidade] perfil '${id}' ainda não implementado; usando 'leve'.`); return QUALITY.leve; }
+  if (!q.implemented) return QUALITY.leve;
+  if (q.requires && support && !support.ok) return QUALITY.leve;
   return q;
 }
 

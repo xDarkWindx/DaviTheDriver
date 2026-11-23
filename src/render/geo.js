@@ -11,7 +11,9 @@ const _c = new THREE.Color();
 const _n3 = new THREE.Matrix3();
 
 export class GeoBuilder {
-  constructor() { this.pos = []; this.nor = []; this.col = []; }
+  constructor() { this.pos = []; this.nor = []; this.col = []; this.segMul = 1; }
+  /** Segmentos de peça curva com o multiplicador de LOD (HD = 2x); peças de 3–5 lados (pirâmide, prisma) ficam iguais. */
+  seg(n) { return n >= 6 && this.segMul !== 1 ? Math.min(64, Math.round(n * this.segMul)) : n; }
 
   /** Adiciona geometria com transformação (x,y,z, rx,ry,rz, sx,sy,sz) e cor (hex|Color). */
   add(geom, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
@@ -40,7 +42,7 @@ export class GeoBuilder {
   }
   /** Cilindro/cone. y = centro. */
   cyl(rTop, rBot, h, seg, color, x, y, z, rx = 0, ry = 0, rz = 0) {
-    const g = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1);
+    const g = new THREE.CylinderGeometry(rTop, rBot, h, this.seg(seg), 1);
     this.add(g, color, x, y, z, rx, ry, rz); g.dispose();
     return this;
   }

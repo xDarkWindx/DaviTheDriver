@@ -12,6 +12,13 @@
 // Convenção: frente para +Z, largura em X, chão em y = 0, dimensões em metros.
 import * as THREE from 'three';
 import { makeMaskedMaterial, LIVE_SHADOW } from '../render/materials.js';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applySurface, hdVehicleMaterial, hdGlassMaterial, HD } from '../render/hdMaterials.js';
+import { makeHeadlightTexture } from '../render/textures.js';
+
+// LOD da carroceria: 1 = 'high' (leve); 2 = 'ultra' (HD: dobro de estações e de segmentos nas rodas, normais suavizadas)
+let LOD = 1;
+const CREASE = 34 * Math.PI / 180;
 
 // ================================================================ builder de triângulos
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion();
@@ -157,6 +164,7 @@ function curve(pts) {
 }
 /** Estações: base uniforme + pontos extras nas caixas de roda (recorte suave) e nas quebras do perfil. */
 function stationsFor(L, wheelZ, archR, n, extra = [], arch = 6) {
+  n *= LOD; arch *= LOD;
   const set = new Set();
   for (let i = 0; i <= n; i++) set.add(+(-L / 2 + (L * i) / n).toFixed(4));
   for (const zw of wheelZ) for (let i = -arch; i <= arch; i++) {
@@ -166,7 +174,7 @@ function stationsFor(L, wheelZ, archR, n, extra = [], arch = 6) {
   for (const z of extra) if (Math.abs(z) < L / 2) set.add(+z.toFixed(4));
   const arr = [...set].sort((a, b) => a - b);
   const out = [arr[0]];
-  const minGap = Math.max(0.035, L / 70);
+  const minGap = Math.max(0.035 / LOD, L / (70 * LOD));
   for (let i = 1; i < arr.length; i++) if (arr[i] - out[out.length - 1] > minGap) out.push(arr[i]); else if (i === arr.length - 1) out[out.length - 1] = arr[i];
   return out;
 }
@@ -390,11 +398,11 @@ function cactusBody(b, v, g) {
 
 // ================================================================ tabela dos carros do jogador
 export const MODELS = {
-  kwid: { body: kwidBody, wheelR: 0.29, wheelW: 0.165,
+  kwid: { body: kwidBody, wheelR: 0.29, wheelW: 0.165, surface: { 0xf3f4f1: 'paint' }, // HD: cores de lataria -> classe PBR
     rim: { size: 0.62, base: 0x2b2e33, lip: 0x3a3e44, spoke: 0x3c4046, spokes: 4, spokeW: 0.07, hub: 0x55595f },
     // luzes de freio/ré: [x (lado +), y, z, w, h] (espelhadas)
     brake: [[0.0, 0.99, -0.01, 0.30, 0.24]], reverse: [[0.0, 0.93, -0.012, 0.16, 0.06]], brakeInset: 0.19 },
-  cactus: { body: cactusBody, wheelR: 0.33, wheelW: 0.2,
+  cactus: { body: cactusBody, wheelR: 0.33, wheelW: 0.2, surface: { 0x868d96: 'metalPaint', 0x737a83: 'metalPaint', 0x141518: 'paint' },
     rim: { size: 0.66, base: 0x1d1e21, lip: 0xd9dce0, spoke: 0xe2e5e9, spokes: 5, twin: true, hub: 0x2a2b2e },
     brake: [[0.0, 0.98, -0.005, 0.48, 0.09]], reverse: [[0.0, 0.27, -0.005, 0.10, 0.03]], brakeInset: 0.30 },
 };
@@ -415,6 +423,8 @@ export function makeGlassMaterial() {
 }
 
 const _o = new THREE.Vector3(), _f = new THREE.Vector3();
+let _hlTex = null;
+function headlightTex() { if (!_hlTex) _hlTex = makeHeadlightTexture(128); return _hlTex; }
 /**
  * Constrói o modelo completo do veículo do jogador.
  * Retorna { root, body, wheels, wheelSlots, brake, reverse, shadow, wheelR, triangles }.
@@ -423,19 +433,27 @@ const _o = new THREE.Vector3(), _f = new THREE.Vector3();
  */
 export function buildVehicleModel(vehicle, quality, blobTexture) {
   const M = MODELS[vehicle.model];
+  const hd = quality.materialKind === 'standard';
+  LOD = quality.vehicleLOD === 'ultra' ? 2 : 1;
   const root = new THREE.Group(); root.name = 'vehicle:' + vehicle.id;
   const body = new THREE.Group(); root.add(body);
   const b = new PartBuilder(), g = new PartBuilder();
   M.body(b, vehicle, g);
   const castShadow = quality.shadows === 'shadowmap';
-  const bodyMesh = new THREE.Mesh(b.build(), makeVehicleMaterial({ shininess: vehicle.model === 'cactus' ? 55 : 30, specular: vehicle.model === 'cactus' ? 0x5a5a5a : 0x2e2e2e }));
-  bodyMesh.name = 'body'; bodyMesh.castShadow = castShadow;
-  const glassMesh = new THREE.Mesh(g.build(), makeGlassMaterial());
-  glassMesh.name = 'glass'; glassMesh.castShadow = castShadow;
+  let bodyGeo = b.build(), glassGeo = g.build();
+  if (LOD > 1) { bodyGeo = toCreasedNormals(bodyGeo, CREASE); glassGeo = toCreasedNormals(glassGeo, CREASE); }
+  if (hd) applySurface(bodyGeo, { body: M.surface, def: 'plastic' });
+  const bodyMesh = new THREE.Mesh(bodyGeo, hd ? hdVehicleMaterial()
+    : makeVehicleMaterial({ shininess: vehicle.model === 'cactus' ? 55 : 30, specular: vehicle.model === 'cactus' ? 0x5a5a5a : 0x2e2e2e }));
+  bodyMesh.name = 'body'; bodyMesh.castShadow = castShadow; bodyMesh.receiveShadow = hd;
+  const glassMesh = new THREE.Mesh(glassGeo, hd ? hdGlassMaterial() : makeGlassMaterial());
+  glassMesh.name = 'glass'; glassMesh.castShadow = castShadow; glassMesh.receiveShadow = hd;
   body.add(bodyMesh, glassMesh);
   // rodas instanciadas (pneu + aro)
-  const wb = new PartBuilder(); wheelGeo(wb, M.wheelR, M.wheelW, M.rim, 18);
-  const wheels = new THREE.InstancedMesh(wb.build(), makeVehicleMaterial({ shininess: 60, specular: 0x555555 }), 4);
+  const wb = new PartBuilder(); wheelGeo(wb, M.wheelR, M.wheelW, M.rim, LOD > 1 ? 32 : 18);
+  const wheelGeoB = wb.build();
+  if (hd) applySurface(wheelGeoB, { def: 'tire' });
+  const wheels = new THREE.InstancedMesh(wheelGeoB, hd ? hdVehicleMaterial() : makeVehicleMaterial({ shininess: 60, specular: 0x555555 }), 4);
   wheels.frustumCulled = false; wheels.castShadow = castShadow; wheels.name = 'wheels';
   root.add(wheels);
   const tx = vehicle.width / 2 - M.wheelW / 2 - 0.05;
@@ -452,6 +470,7 @@ export function buildVehicleModel(vehicle, quality, blobTexture) {
   };
   const brake = lamp(M.brake, 0xff2020); brake.visible = false; brake.name = 'brake';
   const reverse = lamp(M.reverse, 0xffffff); reverse.name = 'reverse';
+  if (hd) { brake.material.color.setScalar(5); reverse.material.color.setScalar(2.5); } // HDR: acendem o bloom
   // ré: detecta movimento para trás no próprio render (sem depender de estado externo)
   reverse.material.transparent = true; reverse.material.opacity = 0;
   let px = NaN, pz = NaN, lit = 0;
@@ -475,6 +494,21 @@ export function buildVehicleModel(vehicle, quality, blobTexture) {
     // com shadow map ativo vira só "oclusão de contato" fraca; se o ajuste automático desligar a sombra, volta a blob
     shadow.onBeforeRender = () => { shadow.material.opacity = LIVE_SHADOW.map ? 0.3 : 0.6; };
     root.add(shadow);
+  }
+  // HD, fim de tarde: cones de farol falsos no asfalto (decal aditivo; sem luz real)
+  if (hd && quality.headlightDecals) {
+    const hg = new THREE.PlaneGeometry(1, 1); hg.rotateX(-Math.PI / 2); hg.translate(0, 0, -0.5); hg.rotateY(Math.PI); // origem no farol, abre para +Z
+    const hm = new THREE.MeshBasicMaterial({ map: headlightTex(), color: 0xffe2b0, transparent: true, opacity: 0.36, blending: THREE.AdditiveBlending,
+      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const hw = new THREE.Group(); hw.name = 'headlights';
+    for (const s of [-1, 1]) {
+      const m = new THREE.Mesh(hg, hm); m.position.set(s * (vehicle.width / 2 - 0.32), 0.12, vehicle.length / 2 - 0.1); m.scale.set(4.2, 1, 11);
+      m.rotation.y = s * -0.06; hw.add(m);
+    }
+    for (const m of hw.children) m.renderOrder = 2;
+    hw.visible = false;
+    bodyMesh.onBeforeRender = () => { hw.visible = HD.headlights; }; // liga/desliga com o horário (1 frame de atraso, irrelevante)
+    root.add(hw);
   }
   const triangles = b.triangles + g.triangles + wb.triangles * 4;
   return { root, body, wheels, wheelSlots, brake, reverse, shadow, wheelR: M.wheelR, triangles };
@@ -558,9 +592,10 @@ function genericCar(b, o) {
 
 /** Roda simples para tráfego (8–10 segmentos). */
 function trafficWheel(b, R, W, color = 0x9aa0a6) {
-  b.add(cylGeo(R, R, W, 8, true), 0x1a1a1b, 0, 0, 0, 0, 0, Math.PI / 2);
-  b.discX(R, 8, 0x202022, W / 2, 0, 0);
-  b.discX(R * 0.6, 6, color, W / 2 + 0.006, 0, 0);
+  const sg = LOD > 1 ? 14 : 8;
+  b.add(cylGeo(R, R, W, sg, true), 0x1a1a1b, 0, 0, 0, 0, 0, Math.PI / 2);
+  b.discX(R, sg, 0x202022, W / 2, 0, 0);
+  b.discX(R * 0.6, LOD > 1 ? 10 : 6, color, W / 2 + 0.006, 0, 0);
 }
 function bakeWheels(b, slots, R, W, rimColor) {
   const wb = new PartBuilder(); trafficWheel(wb, R, W, rimColor);
@@ -717,9 +752,10 @@ TRAFFIC_MODELS.moto = { label: 'Moto (motoboy com baú)', length: 2.05, width: 0
  * Uso: new THREE.InstancedMesh(m.geometry, makeVehicleMaterial(), n) + setColorAt(i, cor) (só a lataria tinge).
  * Modelos olham para +Z (rotation.y = heading). Base em y = 0.
  */
-export function buildTrafficModel(kind) {
+export function buildTrafficModel(kind, lod = 'high') {
   const def = TRAFFIC_MODELS[kind];
   if (!def) throw new Error('modelo de tráfego desconhecido: ' + kind);
+  LOD = lod === 'ultra' ? 2 : 1;
   const bb = new PartBuilder();
   const wz = def.build(bb);
   const bodyGeometry = bb.build();
@@ -734,10 +770,16 @@ export function buildTrafficModel(kind) {
   const full = new PartBuilder();
   full.pos = bb.pos.slice(); full.nor = bb.nor.slice(); full.col = bb.col.slice(); full.paint = bb.paint.slice();
   if (wheelSlots.length) bakeWheels(full, wheelSlots, def.wheelR, def.wheelW);
+  let geometry = full.build();
+  if (LOD > 1) { // HD: normais suavizadas (vinco) + atributo de material PBR
+    geometry = toCreasedNormals(geometry, CREASE);
+    applySurface(geometry, { paintClass: 'paint', def: 'plastic' });
+  }
+  LOD = 1;
   return {
-    kind, label: def.label, geometry: full.build(), bodyGeometry, wheelGeometry, wheelSlots, wheelR: def.wheelR,
+    kind, label: def.label, geometry, bodyGeometry, wheelGeometry, wheelSlots, wheelR: def.wheelR,
     length: def.length, width: def.width, height: def.height, obb: { hx: def.width / 2, hz: def.length / 2 },
-    massKg: def.massKg, colors: def.colors.slice(), triangles: full.triangles,
+    massKg: def.massKg, colors: def.colors.slice(), triangles: geometry.attributes.position.count / 3,
   };
 }
 
@@ -759,13 +801,15 @@ export const PEOPLE_MODELS = {
  * Pedestre: camisa com paint = 1 (cor da instância = cor da camisa). Agente: cores fixas (paint 0).
  * Retorna { kind, geometry, radius, height, triangles }. Olha para +Z, pés em y = 0.
  */
-export function buildPersonModel(kind = 'pedestre', variant = 0) {
+export function buildPersonModel(kind = 'pedestre', variant = 0, lod = 'high') {
   const def = PEOPLE_MODELS[kind];
   if (!def) throw new Error('pessoa desconhecida: ' + kind);
   const v = def.variants[variant % def.variants.length];
   const b = new PartBuilder();
   personGeo(b, { shirt: v.shirt ?? null, ...v });
-  return { kind, geometry: b.build(), radius: def.radius, height: def.height, shirts: def.shirts.slice(), triangles: b.triangles };
+  const geometry = b.build();
+  if (lod === 'ultra') applySurface(geometry, { paintClass: 'rubber', def: 'rubber' });
+  return { kind, geometry, radius: def.radius, height: def.height, shirts: def.shirts.slice(), triangles: b.triangles };
 }
 
 export { PartBuilder };

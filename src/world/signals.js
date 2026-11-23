@@ -10,6 +10,7 @@ export const SIGNAL_TIMING = { green: 15, mainGreen: 22, minorGreen: 10, yellow:
 
 const LAMP_ON = [new THREE.Color(0xff2a1a), new THREE.Color(0xffc21a), new THREE.Color(0x2bff6a)];
 const LAMP_OFF = [new THREE.Color(0x3a1310), new THREE.Color(0x3a2e10), new THREE.Color(0x113a1c)];
+const LAMP_ON_HD = LAMP_ON.map((c) => c.clone().multiplyScalar(4)); // HD: HDR, passa do limiar do bloom
 
 /**
  * Fases por semáforo (groups = 1 ou 2):
@@ -114,7 +115,9 @@ export class SignalController {
         }
       }
     }
-    const geo = new THREE.SphereGeometry(0.17, 8, 6);
+    const hd = !!quality && quality.materialKind === 'standard';
+    this._on = hd ? LAMP_ON_HD : LAMP_ON;
+    const geo = new THREE.SphereGeometry(0.17, hd ? 12 : 8, hd ? 8 : 6);
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const mesh = new THREE.InstancedMesh(geo, mat, lamps.length);
     const m = new THREE.Matrix4();
@@ -124,7 +127,6 @@ export class SignalController {
     scene.add(mesh);
     this.visual = { mesh, lamps };
     this._dirty = true;
-    void quality; // reservado: LOD de semáforos por perfil
   }
 
   /** Atualiza cores das lâmpadas (só quando alguma fase mudou). */
@@ -136,7 +138,7 @@ export class SignalController {
       const l = lamps[i];
       const st = l.sig.groupState[l.group];
       const on = (st === 'red' && l.k === 0) || (st === 'yellow' && l.k === 1) || (st === 'green' && l.k === 2);
-      mesh.setColorAt(i, on ? LAMP_ON[l.k] : LAMP_OFF[l.k]);
+      mesh.setColorAt(i, on ? this._on[l.k] : LAMP_OFF[l.k]);
     }
     mesh.instanceColor.needsUpdate = true;
   }

@@ -273,6 +273,91 @@ export function drawPedSign(g, x, y, w, h) {
   for (let k = 0; k < 4; k++) g.fillRect(x + 20 + k * 14, y + h - 22, 8, 4);
 }
 
+// ---------------------------------------------------------------- mapas de superfície (só perfil HD)
+/** Lê os pixels da imagem (canvas) de uma CanvasTexture. */
+function pixelsOf(tex) {
+  // cópia num canvas de leitura (willReadFrequently) e cache: a textura original não sofre leituras repetidas
+  if (tex.userData.px) return tex.userData.px;
+  const src = tex.image, c = canvas(src.width, src.height), g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(src, 0, 0);
+  tex.userData.px = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data };
+  return tex.userData.px;
+}
+function dataTexture(w, h, px, anisotropy, colorSpace = THREE.NoColorSpace) {
+  const c = canvas(w, h), g = c.getContext('2d'), img = g.createImageData(w, h);
+  img.data.set(px); g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = colorSpace; t.anisotropy = anisotropy;
+  return t;
+}
+/**
+ * Normal map tangente (repetível) a partir da luminância da textura de cor: escuro = fundo (juntas, trincas,
+ * agregado). `strength` ~ inclinação. `invert` troca relevo (claro = fundo).
+ */
+export function makeNormalMapFrom(tex, strength = 2, anisotropy = 4, invert = false) {
+  const { w, h, d } = pixelsOf(tex);
+  const H = new Float32Array(w * h);
+  for (let i = 0, j = 0; i < H.length; i++, j += 4) H[i] = (d[j] * 0.299 + d[j + 1] * 0.587 + d[j + 2] * 0.114) / 255;
+  const out = new Uint8ClampedArray(w * h * 4), k = strength * (invert ? -1 : 1);
+  for (let y = 0; y < h; y++) {
+    const ym = ((y - 1 + h) % h) * w, y0 = y * w, yp = ((y + 1) % h) * w;
+    for (let x = 0; x < w; x++) {
+      const xm = (x - 1 + w) % w, xp = (x + 1) % w;
+      const dx = (H[ym + xp] + 2 * H[y0 + xp] + H[yp + xp]) - (H[ym + xm] + 2 * H[y0 + xm] + H[yp + xm]);
+      const dy = (H[yp + xm] + 2 * H[yp + x] + H[yp + xp]) - (H[ym + xm] + 2 * H[ym + x] + H[ym + xp]);
+      let nx = -dx * k, ny = dy * k, nz = 1;
+      const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+      const o = (y0 + x) * 4;
+      out[o] = (nx * 0.5 + 0.5) * 255; out[o + 1] = (ny * 0.5 + 0.5) * 255; out[o + 2] = (nz * 0.5 + 0.5) * 255; out[o + 3] = 255;
+    }
+  }
+  return dataTexture(w, h, out, anisotropy);
+}
+/** Roughness map (canal G, linear) a partir da cor: fn(r, g, b em 0..255) -> 0..1. */
+export function makeRoughnessMapFrom(tex, fn, anisotropy = 4) {
+  const { w, h, d } = pixelsOf(tex);
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < d.length; i += 4) { const v = Math.max(0, Math.min(1, fn(d[i], d[i + 1], d[i + 2]))) * 255; out[i] = out[i + 1] = out[i + 2] = v; out[i + 3] = 255; }
+  return dataTexture(w, h, out, anisotropy);
+}
+/** Nuvens (sombra no chão): manchas suaves repetíveis, canal R = densidade. */
+export function makeCloudTexture(S = 256) {
+  const c = canvas(S, S), g = c.getContext('2d'), rng = makeRng(77);
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 22; i++) {
+    const x = rng() * S, y = rng() * S, r = S * (0.06 + rng() * 0.12), a = 0.25 + rng() * 0.3;
+    const bub = []; // nuvem = cacho de bolhas (sorteadas UMA vez e desenhadas nas 9 cópias: textura repetível)
+    for (let k = 0; k < 4; k++) bub.push([x + (rng() - 0.5) * r * 1.6, y + (rng() - 0.5) * r, r * (0.5 + rng() * 0.6)]);
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      for (const [bx0, by0, br] of bub) {
+        const bx = bx0 + ox, by = by0 + oy;
+        const gr = g.createRadialGradient(bx, by, 0, bx, by, br);
+        gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; g.fillRect(bx - br, by - br, br * 2, br * 2);
+      }
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+/** Cone de farol no asfalto (decal aditivo): origem embaixo (v = 0), abre para cima. */
+export function makeHeadlightTexture(S = 128) {
+  const c = canvas(S, S), g = c.getContext('2d');
+  const img = g.createImageData(S, S), d = img.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const v = 1 - y / S, u = (x / S - 0.5) * 2;                    // v: 0 = farol, 1 = ponta do cone
+    const spread = 0.18 + v * 0.82, lat = Math.abs(u) / spread;
+    let a = lat < 1 ? (1 - lat * lat) : 0;
+    a *= Math.min(1, v * 6) * Math.pow(1 - v, 1.3);
+    const o = (y * S + x) * 4; d[o] = d[o + 1] = d[o + 2] = 255; d[o + 3] = Math.max(0, Math.min(255, a * 255));
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+
 /** Textura radial suave (sombra "blob"): branco = sombra (usar como alphaMap) */
 export function makeBlobTexture(S = 64) {
   const c = canvas(S, S), g = c.getContext('2d');

@@ -48,7 +48,7 @@ const api = {
     sim.setPlayer(ctx.player);
     api.vehicles = sim.vehicles; api.pedestrians = sim.pedestrians; api.hazards = sim.hazards; api.radars = sim.radars; api.agents = sim.agents;
     api.debug.sim = sim;
-    rnd = new TrafficRenderer(ctx.view.scene, { maxVehicles: sim.maxV, maxPedestrians: sim.maxP,
+    rnd = new TrafficRenderer(ctx.view.scene, { maxVehicles: sim.maxV, maxPedestrians: sim.maxP, quality: q,
       blobMaterial: ctx.world && ctx.world.materials ? ctx.world.materials.blobMat : null,
       maxRadars: Math.max(8, ctx.net.enforcementSpots.length), maxHazards: 72, maxAgents: Math.max(4, ctx.net.agentHideouts.length) });
     // buzina do carro do jogador (tecla H ou a buzina "sozinha" do humor): o da frente reage
@@ -107,7 +107,7 @@ const api = {
     const playing = ctx.state.mode === 'PLAYING';
     // degrau mais baixo do ajuste automático (cenário reduzido) também reduz o pool do trânsito
     const aq = ctx.view && ctx.view.autoQuality;
-    sim.poolCap = aq && aq.step >= 3 ? Math.round(sim.maxV * 0.6) : 0;
+    sim.poolCap = aq && aq.reduceTraffic ? Math.round(sim.maxV * 0.6) : 0; // leve: degrau 3; HD: degrau 4
     const sp = ctx.state.player;
     const t0 = performance.now();
     rnd.sync(sim, playing ? alpha : 1, ctx.state.mode === 'PAUSED' ? 0 : dt, sp.x, sp.z, ctx.net);

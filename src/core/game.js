@@ -184,7 +184,8 @@ export class Game {
     const playing = st.mode === MODE.PLAYING || st.mode === MODE.PAUSED || st.mode === MODE.FINISHED;
     OCCLUSION.uOn.value = playing ? 1 : 0;
     if (playing) { OCCLUSION.uFocus.value.set(r.x, 1.2, r.z); OCCLUSION.uCamDir.value.copy(ctx.cameraRig.dir).normalize(); }
-    ctx.view.renderer.render(ctx.view.scene, ctx.cameraRig.camera);
+    if (ctx.view.render) ctx.view.render(ctx.cameraRig.camera); // HD: pós-processamento (render/hd.js)
+    else ctx.view.renderer.render(ctx.view.scene, ctx.cameraRig.camera);
   }
 
   /** Avança a simulação N segundos de forma síncrona (testes/automação). Não renderiza. */

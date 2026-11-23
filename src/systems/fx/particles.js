@@ -19,8 +19,18 @@ void main(){
   gl_FragColor = vec4(vColor.rgb, a);
 }`;
 
+// HD (opts.soft): borda gaussiana (fumaça/poeira "fofas"); opts.additive: soma de luz (faíscas) com ganho HDR p/ o bloom
+const FRAG_SOFT = `
+precision mediump float; varying vec4 vColor; uniform float uGain;
+void main(){
+  vec2 q = gl_PointCoord - 0.5; float d2 = dot(q, q) * 4.0;
+  float a = exp(-d2 * 3.2) * (1.0 - smoothstep(0.7, 1.0, d2)) * vColor.a;
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(vColor.rgb * uGain, a);
+}`;
+
 export class Particles {
-  constructor(THREE, scene, max) {
+  constructor(THREE, scene, max, opts = {}) {
     this.THREE = THREE; this.max = max; this.head = 0; this.alive = 0;
     const N = max;
     this.pos = new Float32Array(N * 3); this.vel = new Float32Array(N * 3);
@@ -35,7 +45,10 @@ export class Particles {
     geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
     geo.setAttribute('aColor', new THREE.BufferAttribute(this.rgba, 4).setUsage(THREE.DynamicDrawUsage));
     this.geo = geo;
-    this.mat = new THREE.ShaderMaterial({
+    this.mat = opts.soft ? new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: FRAG_SOFT, uniforms: { uPx: { value: 20 }, uGain: { value: opts.additive ? 3.5 : 1 } },
+      transparent: true, depthWrite: false, depthTest: true, blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    }) : new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: { uPx: { value: 20 } },
       transparent: true, depthWrite: false, depthTest: true,
     });
@@ -85,10 +98,18 @@ export class Particles {
 }
 
 export class SkidMarks {
-  constructor(THREE, scene, max) {
+  constructor(THREE, scene, max, opts = {}) {
     this.THREE = THREE; this.max = max; this.head = 0; this.n = 0;
     const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({ color: 0x121212, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    if (opts.soft && typeof document !== 'undefined') { // HD: borda esfumada e borracha irregular ao longo da marca
+      const c = document.createElement('canvas'); c.width = 32; c.height = 64; const g = c.getContext('2d');
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 32; x++) {
+        const u = Math.abs(x / 31 - 0.5) * 2, a = (1 - u * u) * (0.75 + 0.25 * Math.sin(y * 0.9 + x * 0.3) * Math.sin(y * 0.37));
+        g.fillStyle = `rgba(255,255,255,${Math.max(0, a).toFixed(3)})`; g.fillRect(x, y, 1, 1);
+      }
+      mat.alphaMap = new THREE.CanvasTexture(c); mat.alphaMap.wrapT = THREE.RepeatWrapping; mat.opacity = 0.6;
+    }
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false; this.mesh.count = 0; this.mesh.visible = false; this.mesh.renderOrder = 2;

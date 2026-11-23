@@ -28,6 +28,8 @@ export class SceneryBuilder {
     this.dens = quality.density;
     this._tmp = []; this._c = makeContact();
     this.stats = { buildings: 0, trees: 0, tufts: 0, lamps: 0 };
+    // HD (world.js preenche): ipes = [x, z, escala, cor, ...]; tipos instanciados com material próprio (metal, lataria)
+    this.ipes = null; this.metalType = 'box'; this.carType = 'box';
   }
 
   /** true se a área (círculo r) está livre de colisores existentes. */
@@ -100,7 +102,10 @@ export class SceneryBuilder {
     const rng = this.rng, cols = TREE_COLORS[kind];
     const type = kind.startsWith('ipe') ? 'tree_ipe' : 'tree_' + kind;
     const sc = scale * (0.85 + rng() * 0.3);
-    this.inst.add(type, x, 0, z, rng() * 6.283, sc, sc * (0.9 + rng() * 0.2), sc, cols[Math.floor(rng() * cols.length)]);
+    // mesma ordem de sorteio de sempre (rotação, altura, cor): o mundo é idêntico nos dois perfis
+    const rot = rng() * 6.283, sy = sc * (0.9 + rng() * 0.2), col = cols[Math.floor(rng() * cols.length)];
+    this.inst.add(type, x, 0, z, rot, sc, sy, sc, col);
+    if (this.ipes && type === 'tree_ipe') this.ipes.push(x, z, sc, col); // HD: tapete de flores (world/hdScenery.js)
     const cr = kind === 'arbusto' ? 0.8 : kind === 'palmeira' ? 1.6 : kind === 'cerrado' ? 1.6 : kind === 'mangueira' ? 3.2 : 2.4;
     if (this.quality.shadows !== 'none') this.inst.add('blob', x + 0.8 * sc, 0.03, z + 1.4 * sc, 0, cr * 2.2 * sc, 1, cr * 2.2 * sc, 0);
     if (kind !== 'arbusto') {
@@ -202,8 +207,8 @@ export class SceneryBuilder {
 
   /** Um carro parado (2 caixas instanciadas: carroceria + cabine) com colisor 'car'. */
   parkedCar(x, z, h, color) {
-    this.inst.add('box', x, 0.28, z, h, 1.72, 0.72, 4.05, color);
-    this.inst.add('box', x - Math.sin(h) * 0.25, 1.0, z - Math.cos(h) * 0.25, h, 1.5, 0.55, 2.1, 0x2b3640);
+    this.inst.add(this.carType, x, 0.28, z, h, 1.72, 0.72, 4.05, color);
+    this.inst.add(this.carType, x - Math.sin(h) * 0.25, 1.0, z - Math.cos(h) * 0.25, h, 1.5, 0.55, 2.1, 0x2b3640);
     // rodas (mesmo InstancedMesh 'box': nenhuma draw call a mais): pneus escuros que aparecem abaixo e para fora da lataria
     const fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);
     for (const a of [-1.3, 1.3]) for (const l of [-0.79, 0.79]) this.inst.add('box', x + fx * a + rx * l, 0, z + fz * a + rz * l, h, 0.24, 0.58, 0.6, 0x18181a);
@@ -251,8 +256,8 @@ export class SceneryBuilder {
       const mx = (ax + bx) / 2, mz = (az + bz) / 2, len = Math.hypot(bx - ax, bz - az), h = Math.atan2(bx - ax, bz - az);
       // não invade outra via (cruzamentos, passagem por baixo de viaduto, alça que se junta): pontas e meio fora do asfalto
       if (this.net.clearance(mx, mz, 8) < 0.6 || this.net.clearance(ax, az, 8) < 0.6 || this.net.clearance(bx, bz, 8) < 0.6) continue;
-      this.inst.add('box', mx, 0.45, mz, h, 0.12, 0.32, len + 0.1, 0xd7dadd);   // lâmina
-      this.inst.add('box', ax, 0, az, h, 0.14, 0.75, 0.14, 0x6d7075);           // poste
+      this.inst.add(this.metalType, mx, 0.45, mz, h, 0.12, 0.32, len + 0.1, 0xd7dadd);   // lâmina
+      this.inst.add(this.metalType, ax, 0, az, h, 0.14, 0.75, 0.14, 0x6d7075);           // poste
       const col = makeOBB(mx, mz, 0.25, len / 2, h); col.kind = 'guardrail'; this.colliders.add(col);
     }
   }

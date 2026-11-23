@@ -42,9 +42,9 @@ function torreTV(b) {
 function estadio(b) {
   // anel oval de colunas brancas + cobertura + gramado
   const rx = 78, rz = 62, N = 88;
-  b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x5fa046, 0, 0.3, 0, 0, 0, 0, rx - 14, 0.6, rz - 14); // campo
-  b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x9c9a94, 0, 6, 0, 0, 0, 0, rx - 4, 12, rz - 4);      // arquibancada (miolo)
-  b.add(new THREE.CylinderGeometry(1, 1, 1, 40), 0x5fa046, 0, 12.2, 0, 0, 0, 0, rx - 24, 0.4, rz - 24);
+  b.add(new THREE.CylinderGeometry(1, 1, 1, b.seg(40)), 0x5fa046, 0, 0.3, 0, 0, 0, 0, rx - 14, 0.6, rz - 14); // campo
+  b.add(new THREE.CylinderGeometry(1, 1, 1, b.seg(40)), 0x9c9a94, 0, 6, 0, 0, 0, 0, rx - 4, 12, rz - 4);      // arquibancada (miolo)
+  b.add(new THREE.CylinderGeometry(1, 1, 1, b.seg(40)), 0x5fa046, 0, 12.2, 0, 0, 0, 0, rx - 24, 0.4, rz - 24);
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
     b.box(1.6, 24, 1.6, WHITE, Math.cos(a) * rx, 12, Math.sin(a) * rz);
@@ -87,7 +87,7 @@ function catedral(b) {
 }
 
 function museu(b) {
-  const g = new THREE.SphereGeometry(18, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  const g = new THREE.SphereGeometry(18, b.seg(18), b.seg(8), 0, Math.PI * 2, 0, Math.PI / 2);
   b.add(g, WHITE, 0, 0, 0, 0, 0, 0, 1, 0.75, 1); g.dispose();
   b.box(30, 0.6, 3, WHITE, 8, 7, 20, 0.3, 0, -0.25); // rampa
 }
@@ -116,9 +116,9 @@ function congresso(b) {
   }
   b.box(18, 3, 4.5, 0xe8e6de, 20, 50, 0);
   // Senado: cúpula para baixo (côncava para baixo) | Câmara: cuia para cima
-  const dome = new THREE.SphereGeometry(16, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const dome = new THREE.SphereGeometry(16, b.seg(32), b.seg(10), 0, Math.PI * 2, 0, Math.PI / 2);
   b.add(dome, WHITE, -30, 6, -14, 0, 0, 0, 1, 0.55, 1);
-  const bowl = new THREE.SphereGeometry(24, 32, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+  const bowl = new THREE.SphereGeometry(24, b.seg(32), b.seg(10), 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
   b.add(bowl, WHITE, -32, 6 + 13, 18, 0, 0, 0, 1, 0.55, 1);
   b.cyl(24, 24, 0.4, 32, 0xd3d0c6, -32, 19, 18);
   b.cyl(3, 4, 13, 16, WHITE, -32, 12.5, 18);                                   // pé da cuia
@@ -182,7 +182,7 @@ function memorialJK(b) {
   b.box(36, 0.6, 22, 0xd8d3c6, 0, 4.3, 0);
   b.cyl(1.4, 2.2, 22, 6, WHITE, 12, 15, 0, 0, 0, -0.12);
   b.cyl(1.6, 1.6, 4, 6, 0x6f6a5e, 13.3, 27, 0, 0, 0, -0.12);    // estátua (bronze escurecido)
-  const half = new THREE.SphereGeometry(7, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  const half = new THREE.SphereGeometry(7, b.seg(12), b.seg(6) === 6 ? 5 : 10, 0, Math.PI * 2, 0, Math.PI / 2);
   b.add(half, WHITE, -8, 4.5, 0, 0, 0, 0, 1, 0.6, 1); half.dispose();
 }
 
@@ -195,14 +195,18 @@ function catedralMilitar(b) {
 
 /**
  * Constrói marcos. Retorna { list: [{ id, name, x, z }], meshes }.
+ * opts.lod 'ultra' (HD): peças curvas com o dobro de segmentos; opts.surface(geometry): atributo de material PBR.
  */
-export function buildLandmarks(scene, colliders, material) {
+export function buildLandmarks(scene, colliders, material, opts = {}) {
   const list = [], meshes = [];
   const place = (id, name, x, z, rotY, fn, colliderSpecs) => {
     x = sqx(x); // coordenadas de autor -> jogo (Eixo encurtado)
     const b = new GeoBuilder();
+    if (opts.lod === 'ultra') b.segMul = 2;
     fn(b);
-    const mesh = new THREE.Mesh(b.build(), material);
+    const geo = b.build();
+    if (opts.surface) opts.surface(geo);
+    const mesh = new THREE.Mesh(geo, material);
     mesh.position.set(x, 0, z); mesh.rotation.y = rotY;
     mesh.name = 'landmark:' + id;
     mesh.updateMatrix(); mesh.matrixAutoUpdate = false;

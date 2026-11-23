@@ -5,13 +5,46 @@
 import * as THREE from 'three';
 import { PartBuilder } from '../player/vehicleModels.js';
 import { makeRng } from '../core/math.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applySurface } from '../render/hdMaterials.js';
 
 const TRUNK = 0x5a4634, TRUNK_DARK = 0x46372a, TRUNK_GREY = 0x7a7064;
 const ico1 = new THREE.IcosahedronGeometry(1, 1), ico0 = new THREE.IcosahedronGeometry(1, 0);
 const cyl = (rt, rb, h, seg) => new THREE.CylinderGeometry(rt, rb, h, seg, 1);
 
 function blob(b, geo, x, y, z, r, sy = 1, paint = 1, color = 0xffffff, rot = 0) {
+  // HD (propLOD 'ultra'): copa subdividida, irregular e com normais suaves no lugar do icosaedro facetado
+  if (b.ultra && (geo === ico1 || geo === ico0)) geo = lumpy(geo === ico1 && r > 1.35 ? 2 : 1, (x * 7.1 + y * 3.3 + z * 5.7) | 0);
   b.add(geo, color, x, y, z, 0, rot, 0, r, r * sy, r, paint);
+}
+/** Esfera "fofa" (copa): icosaedro subdividido com deslocamento determinístico e normais suaves. Cacheada. */
+const _lumpy = new Map();
+function lumpy(detail, seed) {
+  const key = detail + ':' + (seed & 7);
+  let g = _lumpy.get(key);
+  if (g) return g;
+  const base = new THREE.IcosahedronGeometry(1, detail);
+  base.deleteAttribute('normal'); base.deleteAttribute('uv');
+  g = mergeVertices(base); base.dispose();
+  const P = g.attributes.position, k = (seed & 7) * 1.37;
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+    const n = 1 + 0.09 * Math.sin(x * 4.1 + k) * Math.cos(z * 3.7 - k) + 0.06 * Math.sin(y * 5.3 + x * 2.1 + k * 2) - (y < -0.4 ? 0.08 : 0);
+    P.setXYZ(i, x * n, y * n, z * n);
+  }
+  g.computeVertexNormals();
+  _lumpy.set(key, g);
+  return g;
+}
+/** HD: oclusão por vértice nas copas (paint = 1): por baixo e por dentro mais escuro, topo claro; leve variação de tom. */
+function canopyAO(geo) {
+  const C = geo.attributes.color, N = geo.attributes.normal, P = geo.attributes.paint, X = geo.attributes.position;
+  for (let i = 0; i < C.count; i++) {
+    if (P.getX(i) < 0.5) continue;
+    const up = N.getY(i), ao = 0.5 + 0.5 * Math.max(0, Math.min(1, 0.55 + 0.55 * up));
+    const j = 0.94 + 0.08 * Math.sin(X.getX(i) * 9.1 + X.getZ(i) * 7.3 + X.getY(i) * 5.1);
+    C.setXYZ(i, C.getX(i) * ao * j, C.getY(i) * ao * j, C.getZ(i) * ao * j);
+  }
 }
 
 /** Ipê: tronco fino com galhos abertos e copa em "guarda-chuva" de vários volumes (floração = cor da instância). */
@@ -113,15 +146,22 @@ function abrigo(b) {
 const BUILDERS = { ipe, mangueira, jaqueira, palmeira, cerrado, arbusto, poste: (b) => poste(b, false), poste2: (b) => poste(b, true),
   banco, lixeira, postePlaca, abrigo };
 
-/** Geometria do prop `name` (cacheada). Retorna { geometry, triangles }. */
+/**
+ * Geometria do prop `name` (cacheada). Retorna { geometry, triangles }.
+ * lod 'ultra' (HD): copas subdivididas com oclusão por vértice + atributo `surf` (materiais PBR).
+ */
 const cache = new Map();
-export function propGeometry(name) {
-  let r = cache.get(name);
+export function propGeometry(name, lod = 'high') {
+  const key = name + '|' + lod;
+  let r = cache.get(key);
   if (!r) {
     const b = new PartBuilder();
+    b.ultra = lod === 'ultra';
     BUILDERS[name](b);
-    r = { geometry: b.build(), triangles: b.triangles };
-    cache.set(name, r);
+    const geometry = b.build();
+    if (b.ultra) { canopyAO(geometry); applySurface(geometry, { paintClass: 'foliage', def: 'concrete' }); }
+    r = { geometry, triangles: b.triangles };
+    cache.set(key, r);
   }
   return r;
 }

@@ -1,15 +1,17 @@
 // Fábrica de materiais guiada pelo perfil de qualidade (QUALITY[*].materialKind).
 import * as THREE from 'three';
+import { hdStandard } from './hdMaterials.js';
 
 /**
  * makeMaterial(quality, params) -> Material
  *  params: os mesmos de MeshLambertMaterial (color, map, vertexColors, transparent, ...).
- *  'lambert' (padrão) | 'basic' (sem luz) | 'standard' (hd/TODO: usa MeshStandardMaterial, roughness 0.9).
+ *  'lambert' (padrão) | 'basic' (sem luz) | 'standard' (HD: MeshStandardMaterial roughness 0.9 + sombra de nuvem;
+ *  `hdOpts` = opções de render/hdMaterials.patchHD, ex.: { road: true }).
  */
-export function makeMaterial(quality, params = {}) {
+export function makeMaterial(quality, params = {}, hdOpts = {}) {
   const kind = (quality && quality.materialKind) || 'lambert';
   if (kind === 'basic') return new THREE.MeshBasicMaterial(params);
-  if (kind === 'standard') return new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...params });
+  if (kind === 'standard') return hdStandard(params, hdOpts);
   return new THREE.MeshLambertMaterial(params);
 }
 
@@ -17,7 +19,7 @@ export function makeMaterial(quality, params = {}) {
  * Estado vivo de sombra (lido por quem precisa trocar de sombra projetada para blob em tempo real,
  * ex.: sombra blob do carro do jogador). Mantido por render/renderer.js (ajuste automático).
  */
-export const LIVE_SHADOW = { map: false };
+export const LIVE_SHADOW = { map: false, traffic: false }; // traffic: só HD (carros/pedestres no shadow map)
 
 /**
  * RECORTE DE OCLUSÃO (prédios/marcos entre a câmera e o jogador): uniforms compartilhados por todos os materiais que

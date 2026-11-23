@@ -5,7 +5,8 @@
 //  - Partículas 3D num único THREE.Points (poeira, fumaça de pneu, faíscas, sopro do turbo) e marcas de pneu num
 //    único InstancedMesh (ver ./fx/particles.js).
 //  - Humor: o do Davi (driver se ele dirige; passageiro com peso 0,5 em 'carona'). Ver ./fx/curves.js.
-//  Sem pós-processamento WebGL, sem render targets.
+//  Sem pós-processamento próprio (o bloom/tone mapping do perfil HD ficam em render/hd.js). HD (quality.fxSoft): partículas suaves,
+//  faíscas num pool aditivo (acendem o bloom), emissão ×1,6 e marcas de pneu esfumadas.
 import { EV } from '../core/events.js';
 import { MODE } from '../core/state.js';
 import { clamp, damp } from '../core/math.js';
@@ -21,7 +22,7 @@ const S = {
   tun: 0, red: 0, cold: 0, speed: 0, veins: 0, flash: 0, flashColor: '#fff', flashDecay: 3,
   kick: 0, relax: 0, redKick: 0, phase: 0, beatEnv: 0,
   shakeT: 0, skidAcc: [0, 0], smokeAcc: 0, dustAcc: 0, prevThrottle: 0, prevTurbo: 0, puffCool: 0,
-  retro: null, lastPlace: 0, offs: [],
+  retro: null, lastPlace: 0, offs: [], sparks: null, rate: 1, // HD: sparks = pool aditivo; rate = multiplicador de emissão
 };
 
 function reducedMotion() {
@@ -42,6 +43,7 @@ function resetAll() {
   S.shakeT = 0; S.skidAcc[0] = S.skidAcc[1] = 0; S.smokeAcc = S.dustAcc = 0; S.prevThrottle = S.prevTurbo = 0; S.puffCool = 0;
   if (S.ov) S.ov.clear();
   if (S.parts) S.parts.clear();
+  if (S.sparks) S.sparks.clear();
   if (S.skids) S.skids.clear();
 }
 
@@ -59,10 +61,11 @@ function wheelPos(pm, vehicle, side, out) {
 const _w = { x: 0, z: 0, sh: 0, ch: 0 };
 
 function sparks(x, z, nx, nz, impactKmh) {
-  const n = Math.round(clamp(impactKmh / 1.6, 10, 42));
+  const n = Math.round(clamp(impactKmh / 1.6, 10, 42) * S.rate);
+  const P = S.sparks || S.parts; // HD: pool aditivo à parte (faísca acende o bloom)
   for (let i = 0; i < n; i++) {
     const sp = rnd(2, 6 + impactKmh * 0.06);
-    S.parts.spawn(x, rnd(0.2, 0.8), z, nx * sp + rnd(-2.5, 2.5), rnd(1.5, 4.5), nz * sp + rnd(-2.5, 2.5),
+    P.spawn(x, rnd(0.2, 0.8), z, nx * sp + rnd(-2.5, 2.5), rnd(1.5, 4.5), nz * sp + rnd(-2.5, 2.5),
       rnd(0.3, 0.7), 1.1, 0.35, 1, rnd(0.75, 0.98), rnd(0.25, 0.5), 1, 0.4, 14);
   }
   const m = Math.round(clamp(impactKmh / 5, 3, 10));
@@ -73,6 +76,7 @@ function sparks(x, z, nx, nz, impactKmh) {
 }
 
 function dustBurst(x, z, n) {
+  n = Math.round(n * S.rate);
   for (let i = 0; i < n; i++) S.parts.spawn(x + rnd(-0.5, 0.5), rnd(0.1, 0.4), z + rnd(-0.5, 0.5), rnd(-1.5, 1.5), rnd(0.3, 1.2), rnd(-1.5, 1.5),
     rnd(0.9, 1.6), 1.0, 4.2, 0.72, 0.38, 0.22, 0.8, 2.0, 0);
 }
@@ -87,7 +91,7 @@ function emitDrive(dt) {
   const hardBrake = kmh > 55 && sp.brake > 0.85 && !sp.offroad;
   // marcas + fumaça de pneu
   if (skidding || hardBrake) {
-    const rate = skidding ? 38 : 14;
+    const rate = (skidding ? 38 : 14) * S.rate;
     S.smokeAcc += dt * rate;
     const dir = Math.atan2(sp.vx, sp.vz);
     for (let s = 0; s < 2; s++) {
@@ -107,7 +111,7 @@ function emitDrive(dt) {
   } else { S.skidAcc[0] = S.skidAcc[1] = 0.9; }
   // poeira fora da pista
   if (sp.offroad && kmh > 5) {
-    S.dustAcc += dt * (28 + kmh * 1.5);
+    S.dustAcc += dt * (28 + kmh * 1.5) * S.rate;
     while (S.dustAcc >= 1) {
       S.dustAcc -= 1;
       wheelPos(pm, v, Math.random() < 0.5 ? -1 : 1, _w);
@@ -141,8 +145,11 @@ export default {
     } catch (e) { /* sem matchMedia */ }
     const q = ctx.quality;
     S.ov = new Overlay().mount({ grain: q.fxGrain !== false });
-    S.parts = new Particles(ctx.THREE, ctx.view.scene, q.maxParticles || 300);
-    S.skids = new SkidMarks(ctx.THREE, ctx.view.scene, q.fxSkidMax || 160);
+    const soft = !!q.fxSoft; // HD: partículas suaves, faíscas aditivas, mais emissão, marcas de pneu esfumadas
+    S.rate = soft ? 1.6 : 1;
+    S.parts = new Particles(ctx.THREE, ctx.view.scene, q.maxParticles || 300, { soft });
+    S.sparks = soft ? new Particles(ctx.THREE, ctx.view.scene, Math.round((q.maxParticles || 300) / 4), { soft: true, additive: true }) : null;
+    S.skids = new SkidMarks(ctx.THREE, ctx.view.scene, q.fxSkidMax || 160, { soft });
     S.ov.setMenu(ctx.state.mode === MODE.MENU);
     S.retro = null; // força aplicar
     const ev = ctx.events, on = (n, f) => S.offs.push(ev.on(n, f));
@@ -205,7 +212,7 @@ export default {
     // filtro retrô (ligável em tempo real; vale em qualquer estado)
     const retro = getSettings(state).retro !== false;
     if (retro !== S.retro) { S.retro = retro; ov.setRetro(retro); }
-    if (mode === MODE.MENU) { ov.setMenu(true); S.parts.update(0, 1); return; }
+    if (mode === MODE.MENU) { ov.setMenu(true); S.parts.update(0, 1); if (S.sparks) S.sparks.update(0, 1); return; }
     ov.setMenu(false);
 
     const live = mode === MODE.PLAYING;
@@ -261,6 +268,7 @@ export default {
     if (live) emitDrive(ddt);
     const cam = cameraRig.camera, visH = cam.top - cam.bottom;
     S.parts.update(ddt, view.renderer.domElement.height / Math.max(1, visH));
+    if (S.sparks) S.sparks.update(ddt, view.renderer.domElement.height / Math.max(1, visH));
     if (fin || mode === MODE.PLAYING || paused) { /* marcas continuam visíveis */ }
   },
 };

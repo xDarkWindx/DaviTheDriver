@@ -39,6 +39,7 @@ export const EV = {
   CAMERA_SHAKE: 'fx:shake',          // qualquer um { amount, duration } -> cameraRig escuta
 
   // --- acrescentados pela fase de UI ---
+  QUALITY_FALLBACK: 'render:qualityFallback', // núcleo { from:'hd', to:'leve', fps }  o HD não aguentou: a UI grava 'leve' e avisa (troca no menu)
   SETTINGS_CHANGE: 'ui:settings',    // ui { volume, muted, retro, quality }  (cópia de state.settings; a UI é a ÚNICA que escreve)
   SAY: 'say',                        // mood/traffic/rules { who:'davi'|'dono', role:'driver'|'passenger', text, tone:'anx'|'stress'|'calm'|'panic', ttl (s), gesture?: 'bracoPraFora'|'buzinaImaginaria'|'maosNaCabeca'|'apontando'|'joinha'|'banana'|null }  -> balão de fala (text vazio + gesture = balão só com o ícone)
 

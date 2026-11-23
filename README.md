@@ -43,7 +43,9 @@ H, R, X e F têm tempo de recarga (detalhes em *Regras e humor*). No celular os 
 velocímetro; em retrato o jogo pede para girar o aparelho.
 
 **Requisitos:** qualquer navegador moderno com WebGL. Roda bem em GPU integrada (testado pensando em Intel UHD 770);
-a qualidade gráfica se ajusta sozinha ao desempenho. Para forçar: `index.html?q=leve` (padrão; `?q=hd` ainda cai para `leve`).
+a qualidade gráfica se ajusta sozinha ao desempenho. Em **Opções → Qualidade gráfica** há o perfil **HD** (para placa de vídeo
+dedicada; exige WebGL2 — sem isso o botão fica desabilitado com o motivo). Para forçar: `index.html?q=leve` (padrão) ou `?q=hd`;
+`&aq=0` desliga o ajuste automático (medições), `&aq=N` trava no degrau N.
 
 ### Trocar a foto do menu
 
@@ -59,8 +61,9 @@ npm run build        # src/ -> dist/game.js (IIFE minificado) e DaviTheDriver.ht
 npm run build:single # só o arquivo único DaviTheDriver.html (CSS + JS + foto embutidos; sem rede)
 npm run watch        # rebuild contínuo de dist/game.js (não minificado, sourcemap inline)
 npm test             # malha viária + humor/regras + trânsito, tudo em Node puro
-npm run smoke        # Playwright: abre via file://, joga os 3 modos, mede draw calls, screenshots em .shots/
+npm run smoke        # Playwright: abre via file://, joga os 3 modos, mede draw calls, perfil HD (?q=hd) e troca leve↔hd com memória, screenshots em .shots/
 node tools/smoke.cjs /tmp/minha-pasta   # idem, salvando screenshots em outra pasta (verificações por passos de simulação, não relógio)
+node tools/shots-hd.cjs /tmp/pasta [filtro] # pares LEVE × HD (mesma cena e instante) + lado a lado
 node tools/shots.cjs /tmp/pasta [filtro] # vistas de inspeção (mapa, bairros, marcos, carros, tráfego) + draw calls/triângulos
 node tools/tune-cars.js                 # mede 0-100, retomada, final e frenagem de cada carro
 index.html?bot=normal[&rota=parque]     # piloto-robô dirige sozinho (cuidadoso | normal | apressado), para assistir/depurar
@@ -134,7 +137,7 @@ src/systems/fx.js        STUB  efeitos visuais
 src/systems/audio.js     STUB  áudio
 src/ui/ui.js             UI: menu, HUD, pausa, fim, recordes, toque (módulos auxiliares em src/ui/*; CSS em index.html)
 assets/                  arquivos do usuário (ex.: davi.png, a foto do menu)
-tools/                   smoke.cjs, shots.cjs, test-roads.js, tune-cars.js
+tools/                   smoke.cjs, shots.cjs, shots-hd.cjs, test-roads.js, tune-cars.js
 ```
 
 ### Contrato de módulo
@@ -359,21 +362,34 @@ Posição/rumo do jogador em `state.player`, destino em `state.trip.destX/Z`, ro
 |---|---|---|
 | `pixelRatioMax` | teto do devicePixelRatio | tempo real (`view.applyLiveQuality`) |
 | `antialias` | MSAA do contexto | **recriar renderer** |
-| `postprocess` | gancho de pós-processamento (`null` no leve) | **recriar renderer** |
-| `materialKind` | `lambert`/`basic`/`standard`(TODO) | **reconstruir mundo** |
+| `postprocess` | `null` no leve; objeto no HD (liga o pipeline de `render/hd.js`) | **recriar renderer** |
+| `materialKind` | `lambert`/`basic`/`standard` (HD: PBR) | **reconstruir mundo** |
 | `shadows` | `none`/`blob`/`shadowmap` (leve = `shadowmap`; o ajuste automático pode cair para blob em tempo real) | **reconstruir mundo** |
 | `shadowMapSize`, `shadowRange` | lado do shadow map (1024) / meia-largura do frustum que segue a câmera (m) | **recriar renderer** |
 | `autoQuality` | `{ enabled, minFps, warmupSec, windowSec, upFps, upHoldSec }` — ver "Ajuste automático" | tempo real |
 | `textureSize`, `anisotropy`, `signTextureWidth` | resolução das texturas de canvas | **reconstruir mundo** |
 | `chunkSize` | chunk de culling | **reconstruir mundo** |
 | `density.{trees,scrub,lamps,buildings,guardrails,furniture}` | densidade do cenário | **reconstruir mundo** |
-| `vehicleLOD`, `landmarkLOD` | `high` no leve (informativo; os modelos atuais são os "high") | **reconstruir mundo** |
+| `vehicleLOD`, `landmarkLOD`, `propLOD` | `high` no leve; `ultra` no HD (mais estações/segmentos, normais suavizadas, copas subdivididas) | **reconstruir mundo** |
 | `cameraFar`, `viewMul` | distância de visão / abertura do zoom | recriar `CameraRig` / tempo real |
 | `maxTrafficVehicles`, `maxPedestrians`, `maxParticles` | tetos para traffic/fx | tempo real (respeitados pelos módulos) |
 | `fxSkidMax` | pool de marcas de pneu (fx.js) | ao (re)criar o módulo |
 | `fxGrain` | granulação do filtro retrô (fx.js) | ao (re)criar o módulo |
 
-Hoje a troca de perfil é por `?q=` na URL (recarrega tudo). `hd` está declarado com `implemented: false`.
+**Perfil HD** (`QUALITY.hd`; código em `render/hd.js`, `render/hdMaterials.js`, `world/hdScenery.js`; o leve não executa nada disso).
+Chaves próprias: `msaaSamples` (MSAA do render target HalfFloat da cena), `envMap` (PMREM de céu procedural por horário), `postprocess`
+(`{ bloom, vignette, grade, haze }`: bloom → tone mapping ACES + exposição por horário, saturação/tom, névoa seca no alto da tela, vinheta,
+dither), `shadowRadius` (PCF), `shadowTraffic` (trânsito/pedestres no shadow map), `contactShadows` (blob fraco sob os veículos),
+`cloudShadows`, `groundTextureSize`, `surfaceMaps` (normal/roughness em canvas), `extraScenery` (capim, flores, cupinzeiros, tapete de
+flor de ipê — só decorativo, sem colisor e com sorteio próprio), `propLOD`/`vehicleLOD`/`landmarkLOD: 'ultra'`, `fxSoft`, `headlightDecals`
+(cones de farol falsos no fim de tarde). Luzes/cores por horário em `TIME_OF_DAY_HD`. A simulação é idêntica nos dois perfis
+(densidades com colisor e pools de trânsito/pedestres iguais ao leve).
+
+**Troca de perfil:** a UI grava `state.settings.quality` (persistido); `main.js` vê a mudança e, no menu (ou ao voltar ao menu, se estiver
+em viagem), chama `view.dispose()` (geometrias, materiais, texturas, render targets, PMREM, contexto) e recarrega a página sem `?q`.
+O boot escolhe `?q=` > opção salva > `CONFIG.defaultQuality`. `render/hd.js hdSupport()` testa WebGL2 + `EXT_color_buffer_half_float`
++ texturas de 4096 (sem escrever no console). Evento `EV.QUALITY_FALLBACK`: o HD não aguentou (degrau final do ajuste automático) → a UI
+grava 'leve', avisa e a troca acontece no menu.
 
 ### Orçamento de performance (perfil leve)
 Alvo: Intel UHD 770 a 1080p — até ~350 mil triângulos e ~120 draw calls na câmera de jogo (contando a passada de sombra).
@@ -398,7 +414,9 @@ some atrás de prédio.
 de `minFps` (50) desce um degrau: `0 completo → 1 sem sombra projetada (sombras blob) → 2 resolução reduzida (pixelRatio × 0,75)
 → 3 cenário reduzido (some capim/arbustos/bancos, a visão encurta 30% e o pool do trânsito cai para 60%)`. O degrau atual aparece
 em Opções. Sobe um degrau só após `upHoldSec` acima de `upFps` e
-nunca para um degrau do qual já caiu 2 vezes (histerese). Estado público: `view.autoQuality.{step,label,fps,history}`, espelhado em
+nunca para um degrau do qual já caiu 2 vezes (histerese). **No HD** os degraus são `0 completo → 1 sem pós-processamento (tone mapping
+no material) → 2 sombra reduzida (2048, raio menor, trânsito sem sombra projetada) → 3 resolução reduzida (pixelRatio × 0,75) → 4 modo leve
+(sombra 1024 ±48 m, sem nuvens, cenário reduzido, pool do trânsito 60 %, aviso e troca para o perfil leve no menu)`; do 4 não sobe. Estado público: `view.autoQuality.{step,label,fps,history}`, espelhado em
 `state.qualityAuto = { step, label, fps }` quando muda (para a UI). `view.autoQuality.set(n)` força um degrau.
 
 ## Regras e humor (`src/systems/rules.js`, `src/systems/mood.js`)

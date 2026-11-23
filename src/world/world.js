@@ -14,6 +14,9 @@ import { buildLandmarks } from './landmarks.js';
 import { sqx } from './mapData.js';
 import { SignalController } from './signals.js';
 import { VEHICLES } from '../config.js';
+import { hdMaskedMaterial, hdFacadeMaterial, hdStandard, patchHD, applySurface, hdVehicleMaterial } from '../render/hdMaterials.js';
+import { makeNormalMapFrom, makeRoughnessMapFrom } from '../render/textures.js';
+import { buildHdScenery, moundGeometry, makePetalTexture } from './hdScenery.js';
 import { buildVehicleModel, buildTrafficModel, buildPersonModel, makeVehicleMaterial, TRAFFIC_MODELS } from '../player/vehicleModels.js';
 
 // Placas verdes de via (texto pt-BR) e letreiros. Atlas único => 1 draw call.
@@ -74,7 +77,9 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const plain = new ChunkedMeshBuilder(chunk);    // gramados, canteiros, ilhas (textura de grama)
   const walk = new ChunkedMeshBuilder(chunk);     // calçadas, meio-fio, sarjeta (textura de placas de concreto)
 
-  // ---------- materiais
+  // ---------- materiais (HD: PBR + mapas de superfície; ver render/hdMaterials.js)
+  const hd = quality.materialKind === 'standard';
+  const AN = hd ? Math.min(quality.anisotropy, view.renderer.capabilities.getMaxAnisotropy()) : quality.anisotropy;
   const lambertVC = makeMaterial(quality, { vertexColors: true });
   const instMat = addOcclusionCut(makeMaterial(quality, {}), 'inst');
   const blobTex = makeBlobTexture(64);
@@ -90,25 +95,44 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   inst.registerType('box', box, instMat, cast);
   // prédios com fachada texturizada (repetida em metros pelo shader)
   const S = quality.textureSize;
-  inst.registerType('bres', box, makeFacadeMaterial(makeFacadeTexture('res', S, quality.anisotropy), 6.4, 3.0), cast);
-  inst.registerType('boff', box, makeFacadeMaterial(makeFacadeTexture('office', S, quality.anisotropy), 6.0, 3.4), cast);
-  inst.registerType('boff2', box, makeFacadeMaterial(makeFacadeTexture('office2', S, quality.anisotropy), 6.0, 3.4), cast);
+  const facade = (kind, tw, th) => {
+    const t = makeFacadeTexture(kind, S, AN);
+    if (!hd) return makeFacadeMaterial(t, tw, th);
+    // HD: vidro liso (reflete o céu do environment map), parede fosca; relevo das janelas no normal map
+    const rough = makeRoughnessMapFrom(t, (r, g, b) => (Math.max(r, g, b) < 150 && (b - r > 15 || g - r > 25) ? 0.08 : 0.82), AN);
+    return hdFacadeMaterial(t, rough, quality.surfaceMaps ? makeNormalMapFrom(t, 1.4, AN) : null, tw, th);
+  };
+  inst.registerType('bres', box, facade('res', 6.4, 3.0), cast);
+  inst.registerType('boff', box, facade('office', 6.0, 3.4), cast);
+  inst.registerType('boff2', box, facade('office2', 6.0, 3.4), cast);
   // vegetação por espécie e mobiliário (geometria mesclada; a cor da instância tinge só a copa/“tinta”)
-  const masked = makeMaskedMaterial('lambert');
+  const masked = hd ? hdMaskedMaterial() : makeMaskedMaterial('lambert');
+  const plod = hd ? (quality.propLOD || 'high') : 'high';
   for (const [type, prop, opt] of [['tree_ipe', 'ipe'], ['tree_mangueira', 'mangueira'], ['tree_jaqueira', 'jaqueira'], ['tree_palmeira', 'palmeira'],
     ['tree_cerrado', 'cerrado'], ['tree_arbusto', 'arbusto', true], ['poste', 'poste'], ['poste2', 'poste2'], ['banco', 'banco', true],
     ['lixeira', 'lixeira', true], ['postePlaca', 'postePlaca'], ['abrigo', 'abrigo']]) {
-    inst.registerType(type, propGeometry(prop).geometry, masked, { ...cast, castShadow: shadowMap && !opt, group: opt ? view.lod.optional : null });
+    inst.registerType(type, propGeometry(prop, plod).geometry, masked, { ...cast, castShadow: shadowMap && (!opt || hd), group: opt ? view.lod.optional : null });
   }
-  inst.registerType('tuft', tuft, instMat, { group: view.lod.optional });
+  if (hd) {
+    // metais (guard-rails), lataria dos carros parados, cupinzeiros e tapete de flor de ipê (só HD)
+    inst.registerType('metal', box, addOcclusionCut(hdStandard({ roughness: 0.3, metalness: 0.9 }), 'metal'), cast);
+    inst.registerType('carbox', box, addOcclusionCut(patchHD(new THREE.MeshPhysicalMaterial({ roughness: 0.4, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.08 }), { key: 'car' }), 'car'), cast);
+    inst.registerType('mound', moundGeometry(), hdStandard({ roughness: 0.95 }), { ...cast, group: view.lod.optional });
+    const pg = new THREE.PlaneGeometry(1, 1); pg.rotateX(-Math.PI / 2);
+    inst.registerType('petal', pg, hdStandard({ alphaMap: makePetalTexture(256), transparent: true, opacity: 0.7, depthWrite: false, roughness: 0.85,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), { receiveShadow: shadowMap, renderOrder: 1, group: view.lod.optional });
+  }
+  inst.registerType('tuft', tuft, instMat, { group: view.lod.optional, receiveShadow: hd && shadowMap });
   inst.registerType('blob', blob, blobMat, { renderOrder: 1, group: view.lod.blobs, visible: !LIVE_SHADOW.map });
 
   // ---------- chão (cerrado)
   const B = net.bounds;
-  const gTex = makeGroundTexture(quality.textureSize, quality.anisotropy);
+  const gTex = makeGroundTexture(hd ? quality.groundTextureSize || quality.textureSize : quality.textureSize, AN);
   const gw = B.maxX - B.minX + 1600, gh = B.maxZ - B.minZ + 1600;
   gTex.repeat.set(gw / 48, gh / 48);
-  const groundMat = makeMaterial(quality, { map: gTex, color: 0xffffff });
+  const gExtra = {};
+  if (hd && quality.surfaceMaps) { gExtra.normalMap = makeNormalMapFrom(gTex, 1.6, AN); gExtra.normalMap.repeat.copy(gTex.repeat); gExtra.normalScale = new THREE.Vector2(0.35, 0.35); }
+  const groundMat = makeMaterial(quality, { map: gTex, color: 0xffffff, ...gExtra });
   view.tintables.push(groundMat);
   // plano subdividido com variação de cor em grande escala (capim mais verde/seco, terra) — sem cortes retos
   const groundGeo = new THREE.PlaneGeometry(gw, gh, 96, 64); groundGeo.rotateX(-Math.PI / 2);
@@ -131,15 +155,23 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   scene.add(ground);
 
   // ---------- vias (asfalto com textura de detalhe em UV de mundo)
-  const aTex = makeAsphaltTexture(quality.textureSize, quality.anisotropy);
-  const roadMat = makeMaterial(quality, { vertexColors: true, map: aTex });
+  const aTex = makeAsphaltTexture(quality.textureSize, AN);
+  const aExtra = {};
+  if (hd && quality.surfaceMaps) { // asfalto: rugosidade variada (óleo/trilha de pneu mais lisos) + agregado em relevo
+    aExtra.roughnessMap = makeRoughnessMapFrom(aTex, (r, g, b) => 0.58 + 0.38 * ((r + g + b) / 765), AN);
+    aExtra.normalMap = makeNormalMapFrom(aTex, 2.2, AN); aExtra.normalScale = new THREE.Vector2(0.55, 0.55); aExtra.roughness = 1; aExtra.envMapIntensity = 0.45; // menos céu azul refletido no asfalto
+  }
+  const roadMat = makeMaterial(quality, { vertexColors: true, map: aTex, ...aExtra }, { road: true });
   buildRoadMeshes(net, mb, inst, plain, walk);
 
   // ---------- cenário
   const sb = new SceneryBuilder({ net, inst, mb: plain, colliders, quality, rng });
+  if (hd) { sb.ipes = []; sb.metalType = 'metal'; sb.carType = 'carbox'; }
   // colisores dos marcos primeiro (cenário evita sobrepor)
-  const landmarkMat = addOcclusionCut(makeMaterial(quality, { vertexColors: true }), 'lm');
-  const landmarks = buildLandmarks(scene, colliders, landmarkMat);
+  const landmarkMat = addOcclusionCut(hd ? patchHD(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), { surf: true })
+    : makeMaterial(quality, { vertexColors: true }), 'lm');
+  const landmarks = buildLandmarks(scene, colliders, landmarkMat,
+    hd ? { lod: quality.landmarkLOD, surface: (g) => applySurface(g, { def: 'concrete' }) } : {});
   for (const m of landmarks.meshes) { m.castShadow = shadowMap; m.receiveShadow = shadowMap; }
   // semáforos
   const signals = new SignalController(net, events);
@@ -148,6 +180,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
     const c = makeOBB(ap.poleX, ap.poleZ, 0.2, 0.2, 0); c.kind = 'pole'; colliders.add(c);
   }
   buildScenery(sb);
+  const hdStats = hd && quality.extraScenery ? buildHdScenery(sb, quality.extraScenery, sb.ipes) : null;
 
   // limites do mapa (muros invisíveis)
   const W = 20;
@@ -158,22 +191,26 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   }
 
   // ---------- placas (atlas)
-  const atlas = makeSignAtlas(SIGN_ENTRIES, quality.signTextureWidth, quality.anisotropy);
+  const atlas = makeSignAtlas(SIGN_ENTRIES, quality.signTextureWidth, AN);
   buildBusStops(net, inst, colliders);
   buildHideoutCovers(net, inst, sb);
   const signGeo = buildSigns(atlas, cameraDir, inst, colliders, net);
   const signMesh = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.35 }));
   signMesh.name = 'signs'; signMesh.matrixAutoUpdate = false; scene.add(signMesh);
 
-  const grassMat = makeMaterial(quality, { vertexColors: true, map: makeGrassTexture(S, quality.anisotropy) });
-  const walkMat = makeMaterial(quality, { vertexColors: true, map: makeSidewalkTexture(S, quality.anisotropy) });
+  const grassTex = makeGrassTexture(S, AN), walkTex = makeSidewalkTexture(S, AN);
+  const surfMaps = (t, nk, rf) => (hd && quality.surfaceMaps ? { normalMap: makeNormalMapFrom(t, nk, AN), normalScale: new THREE.Vector2(0.6, 0.6),
+    roughnessMap: rf ? makeRoughnessMapFrom(t, rf, AN) : null, roughness: rf ? 1 : 0.92 } : {});
+  const grassMat = makeMaterial(quality, { vertexColors: true, map: grassTex, ...surfMaps(grassTex, 1.3, null) });
+  const walkMat = makeMaterial(quality, { vertexColors: true, map: walkTex, ...surfMaps(walkTex, 2.2, (r, g, b) => 0.6 + 0.3 * ((r + g + b) / 765)) });
   const groundMeshes = [...mb.build(scene, roadMat, 'roads', 12, shadowMap), ...plain.build(scene, grassMat, 'lawns', 9, shadowMap),
     ...walk.build(scene, walkMat, 'walks', 4, shadowMap)];
   const instMeshes = inst.build();
 
   return {
     net, colliders, signals, landmarks: landmarks.list,
-    stats: { ...sb.stats, instances: inst.count(), instancedMeshes: instMeshes.length, groundMeshes: groundMeshes.length, colliders: colliders.all.length },
+    stats: { ...sb.stats, instances: inst.count(), instancedMeshes: instMeshes.length, groundMeshes: groundMeshes.length, colliders: colliders.all.length,
+      hdExtra: hdStats },
     materials: { lambertVC, instMat, roadMat, groundMat, blobMat, masked },
     blobTexture: blobTex,
     chunkSize: chunk,
@@ -188,10 +225,10 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
         m.wheels.instanceMatrix.needsUpdate = true;
         g.add(m.root);
       });
-      const mat = makeVehicleMaterial();
+      const mat = hd ? hdVehicleMaterial() : makeVehicleMaterial();
       let ox = 0;
       for (const kind of Object.keys(TRAFFIC_MODELS)) {
-        const t = buildTrafficModel(kind);
+        const t = buildTrafficModel(kind, hd ? quality.vehicleLOD : 'high');
         const im = new THREE.InstancedMesh(t.geometry, mat, 2);
         for (let k = 0; k < 2; k++) {
           _p.set(x + ox, 0, z + 8 + k * (t.length + 1.5)); _e.set(0, 0.6, 0, 'YXZ'); _q.setFromEuler(_e); _m.compose(_p, _q, _s);
@@ -200,7 +237,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
         g.add(im); ox += t.width + 1.6;
       }
       ['pedestre', 'pedestre', 'agente'].forEach((kind, i) => {
-        const pm = buildPersonModel(kind, i);
+        const pm = buildPersonModel(kind, i, hd ? 'ultra' : 'high');
         const im = new THREE.InstancedMesh(pm.geometry, mat, 1);
         _p.set(x - 4 + i * 1.2, 0, z - 1); _e.set(0, 0.6, 0, 'YXZ'); _q.setFromEuler(_e); _m.compose(_p, _q, _s);
         im.setMatrixAt(0, _m); im.setColorAt(0, new THREE.Color(pm.shirts[i % pm.shirts.length])); g.add(im);

@@ -24,8 +24,13 @@ export function loadSettings(settings) {
   if (typeof s.muted === 'boolean') settings.muted = s.muted;
   if (typeof s.retro === 'boolean') settings.retro = s.retro;
   if (typeof s.profanity === 'boolean') settings.profanity = s.profanity;
-  if (s.quality === 'leve') settings.quality = 'leve'; // 'hd' ainda não existe
+  if (s.quality === 'leve' || s.quality === 'hd') settings.quality = s.quality;
   return settings;
+}
+/** Perfil gráfico salvo nas opções ('leve' | 'hd' | null) — lido pelo boot (main.js) antes de criar o renderer. */
+export function loadSavedQuality() {
+  const s = readJSON('settings', {});
+  return s.quality === 'leve' || s.quality === 'hd' ? s.quality : null;
 }
 export function saveSettings(settings) {
   write('settings', JSON.stringify({ volume: settings.volume, muted: settings.muted, retro: settings.retro, profanity: settings.profanity, quality: settings.quality }));

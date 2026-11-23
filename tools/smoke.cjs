@@ -195,8 +195,75 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
   await page.evaluate(() => { window.__davi.cameraRig.zoomMul = 1; window.__davi.game.toMenu(); });
   await page.waitForTimeout(400);
 
+  // 6) PERFIL HD (contexto isolado: localStorage próprio). Viagem em ?q=hd com o ajuste automático travado no degrau 0
+  //    (?aq=0): console limpo, draw calls / triângulos / render targets do HD.
+  const isIgnorable = (e) => /GPU stall|WebGL-|swiftshader|Automatic fallback/i.test(e);
+  await page.close(); // libera a CPU do headless (o laço do leve continuaria rodando no menu)
+  {
+    const hctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    const hp = await hctx.newPage();
+    const herr = [];
+    hp.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') herr.push(`[hd ${m.type()}] ${m.text()}`); });
+    hp.on('pageerror', (e) => herr.push('[hd pageerror] ' + e.message));
+    await hp.goto(URL + '?q=hd&aq=0', { timeout: 120000 });
+    await hp.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
+    const hd = await hp.evaluate(() => {
+      const c = window.__davi, out = { quality: c.state.quality, support: c.state.hdSupport };
+      c.loop.stop();
+      c.state.traffic.seed = 4242;
+      c.game.startTrip('casa-stj', 'davi');
+      c.input.setVirtual('up', true); c.game.advance(3); c.input.setVirtual('up', false);
+      const scene = (x, z, h) => {
+        if (x != null) { const p = c.player.phys; p.x = x; p.z = z; p.heading = h; p.vx = 0; p.vz = 0; c.game.advance(2); }
+        c.cameraRig.snap(c.state.player.x, c.state.player.z);
+        for (let i = 0; i < 2; i++) c.game.frame(0.016, 1);
+        const r = c.view.renderer.info;
+        return { calls: r.render.calls, tris: r.render.triangles, geos: r.memory.geometries, tex: r.memory.textures, ...c.view.hd.stats() };
+      };
+      out.largada = scene(null);
+      out.eixo = scene(-300, 40, Math.PI / 2);
+      c.cameraRig.zoomMul = 44 / 23; out.eixoZoom = scene(null); c.cameraRig.zoomMul = 1;
+      c.game.startTrip('stj-casa', 'carona'); out.scsTarde = scene(-300, 216, -1.45);
+      out.moved = c.state.player.speedKmh >= 0;
+      out.stepLocked = c.view.autoQuality.step;
+      return out;
+    });
+    await hp.screenshot({ path: path.join(OUT, '08-hd-scs-tarde.png') });
+    console.log('HD:', JSON.stringify(hd));
+    const hdOk = hd.quality === 'hd' && hd.eixo.renderTargets > 0 && hd.eixo.shadowMapSize === 4096 && hd.stepLocked === 0;
+    results.push({ mode: 'hd-viagem', ok: hdOk });
+    const hrel = herr.filter((e) => !isIgnorable(e));
+    if (hrel.length) errors.push(...hrel);
+    results.push({ mode: 'hd-console-limpo', ok: hrel.length === 0 });
+
+    // 7) troca leve → hd → leve → hd → leve pela UI (Opções), com recarregamento; antes de cada recarga confere que
+    //    view.dispose() zerou geometrias/texturas, e que a memória de cada perfil volta ao mesmo valor.
+    const mem = () => hp.evaluate(() => { const m = window.__davi.view.renderer.info.memory; return { q: window.__davi.state.quality, geos: m.geometries, tex: m.textures }; });
+    await hp.goto(URL, { timeout: 120000 }); // sem ?q: vale a opção salva (contexto novo = 'leve')
+    await hp.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
+    await hp.waitForTimeout(800);
+    const seq = [await mem()], after = [];
+    for (const target of ['hd', 'leve', 'hd', 'leve']) {
+      await hp.evaluate(() => { window.__davi.noReload = true; });
+      await hp.click('[data-testid="btn-options"]');
+      await hp.click(`[data-testid="opt-q-${target}"]`, { timeout: 60000 });
+      after.push(await hp.evaluate(() => { const m = window.__davi.view.renderer.info.memory; return { switching: !!window.__davi.switching, geos: m.geometries, tex: m.textures }; }));
+      await hp.goto(URL, { timeout: 120000 });
+      await hp.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
+      await hp.waitForTimeout(800);
+      seq.push(await mem());
+    }
+    console.log('troca de perfil (memória no menu):', JSON.stringify(seq), ' depois do dispose:', JSON.stringify(after));
+    const same = (a, b) => a.q === b.q && a.geos === b.geos && a.tex === b.tex;
+    results.push({ mode: 'troca-perfil-memoria', ok: seq.map((s) => s.q).join() === 'leve,hd,leve,hd,leve' && same(seq[0], seq[2]) && same(seq[2], seq[4])
+      && same(seq[1], seq[3]) && after.every((a) => a.switching && a.geos === 0 && a.tex === 0) });
+    const trel = herr.filter((e) => !isIgnorable(e)).slice(hrel.length);
+    if (trel.length) errors.push(...trel);
+    await hctx.close();
+  }
+
   console.log('\nresultados:', results.map((r) => `${r.mode}:${r.ok ? 'OK' : 'FALHOU'}`).join('  '));
-  const relevant = errors.filter((e) => !/GPU stall|WebGL-|swiftshader|Automatic fallback/i.test(e));
+  const relevant = errors.filter((e) => !isIgnorable(e));
   console.log(relevant.length ? 'ERROS/AVISOS NO CONSOLE:\n' + relevant.join('\n') : 'console limpo (sem erros/avisos)');
   if (errors.length !== relevant.length) console.log(`(${errors.length - relevant.length} avisos do driver WebGL por software ignorados)`);
   console.log('screenshots em', OUT);

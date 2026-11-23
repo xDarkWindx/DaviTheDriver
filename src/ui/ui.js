@@ -28,15 +28,22 @@ export default {
 
     // ---- opções (carrega do storage, aplica em state.settings e avisa os outros módulos)
     loadSettings(st.settings);
-    st.settings.quality = 'leve';
+    const hdOk = !st.hdSupport || st.hdSupport.ok;
+    if (st.settings.quality === 'hd' && !hdOk) st.settings.quality = 'leve'; // sem WebGL2/extensões: HD indisponível
     this.applySetting = (key, val) => {
       if (key === 'volume') val = clamp(+val || 0, 0, 1);
-      if (key === 'quality' && val !== 'leve') return; // 'hd' ainda não existe
+      if (key === 'quality' && !(val === 'leve' || (val === 'hd' && hdOk))) return;
       st.settings[key] = val;
       saveSettings(st.settings);
       ev.emit(EV.SETTINGS_CHANGE, { ...st.settings });
     };
     ev.emit(EV.SETTINGS_CHANGE, { ...st.settings });
+    // HD pesado demais (degrau final do ajuste automático): grava 'leve' (a troca acontece no menu) e avisa
+    ev.on(EV.QUALITY_FALLBACK, () => {
+      try { window.sessionStorage.setItem('davi:hdFallback', '1'); } catch (e) { /* sem storage */ }
+      this.applySetting('quality', 'leve');
+      if (this.hud && st.mode !== 'MENU') this.hud.toast('warn', 'Gráficos HD pesados aqui', 'volto para o modo Leve no menu', 5, 'hdfallback');
+    });
 
     // ---- telas
     this.sel = loadSelection({ mode: 'davi', route: 'casa-stj' });
@@ -104,6 +111,16 @@ export default {
     if (EV.FLASH) ev.on(EV.FLASH, () => this.hud.flash('flash'));
 
     this.show();
+    // aviso depois de voltar do HD para o Leve sozinho (degrau final do ajuste automático)
+    let fell = false;
+    try { fell = window.sessionStorage.getItem('davi:hdFallback') === '1'; if (fell) window.sessionStorage.removeItem('davi:hdFallback'); } catch (e) { /* sem storage */ }
+    if (fell && st.quality === 'leve') {
+      const n = el('div', 'q-notice', layer, 'O modo HD ficou pesado nesta máquina: voltamos para o Leve. Dá para tentar de novo em Opções.');
+      n.dataset.testid = 'q-notice';
+      n.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:50;max-width:min(92vw,560px);padding:10px 14px;'
+        + 'background:rgba(20,22,28,.92);color:#ffe08a;border:2px solid #ffb020;border-radius:8px;font:600 14px/1.35 system-ui,sans-serif;text-align:center;pointer-events:none';
+      setTimeout(() => n.remove(), 8000);
+    }
   },
 
   _buildPause(layer) {

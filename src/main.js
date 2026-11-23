@@ -8,6 +8,8 @@ import { Game } from './core/game.js';
 import { startLoop } from './core/loop.js';
 import * as collision from './core/collision.js';
 import { createView } from './render/renderer.js';
+import { hdSupport } from './render/hd.js';
+import { loadSavedQuality } from './ui/storage.js';
 import { CameraRig } from './render/cameraRig.js';
 import { MAP } from './world/mapData.js';
 import { RoadNetwork } from './world/roadNetwork.js';
@@ -26,14 +28,22 @@ function boot() {
   const container = document.getElementById('game');
   const params = new URLSearchParams(location.search);
   const state = createState();
-  state.quality = params.get('q') || CONFIG.defaultQuality;
-  const quality = resolveQuality(state.quality);
+  // perfil: ?q=leve|hd (testes) > opção salva > padrão. HD sem WebGL2/extensões cai para o leve (motivo em state.hdSupport).
+  const forced = params.get('q');
+  const want = forced === 'leve' || forced === 'hd' ? forced : (loadSavedQuality() || CONFIG.defaultQuality);
+  state.hdSupport = hdSupport();
+  const quality = resolveQuality(want, state.hdSupport);
   state.quality = quality.id;
+  state.qualityWanted = want;
 
   const events = new EventBus();
   const view = createView(container, quality);
   const cameraRig = new CameraRig(window.innerWidth / window.innerHeight, quality);
-  if (view.autoQuality) view.autoQuality.onChange = (aq) => { const q = state.qualityAuto; q.step = aq.step; q.label = aq.label; q.fps = aq.fps; };
+  if (view.autoQuality) view.autoQuality.onChange = (aq) => { const q = state.qualityAuto; q.step = aq.step; q.label = aq.label; q.fps = aq.fps; q.max = aq.steps.length - 1; };
+  state.qualityAuto.max = view.autoQuality ? view.autoQuality.steps.length - 1 : 3;
+  // ?aq=0 desliga o ajuste automático; ?aq=N trava no degrau N (medições/testes no headless)
+  const aqp = params.get('aq');
+  if (aqp !== null && view.autoQuality) { view.autoQuality.enabled = false; if (+aqp > 0) view.autoQuality.set(+aqp); }
   const net = new RoadNetwork(MAP);
   const world = buildWorld({ view, net, quality, events, cameraDir: cameraRig.dir });
   const input = new Input(events);
@@ -62,6 +72,31 @@ function boot() {
   ctx.autopilot = createAutopilot(ctx);
   const botProfile = params.get('bot');
   if (botProfile) events.on(EV.TRIP_START, () => ctx.autopilot.start({ profile: botProfile, corridor: params.get('rota') || 'eixo' }));
+  // ---- troca de perfil gráfico (leve <-> hd): o renderer e o mundo são recriados recarregando a página com as opções salvas
+  //      (state.settings é persistido pela UI). Na viagem, a troca fica pendente até voltar ao menu. Antes de recarregar,
+  //      view.dispose() libera geometrias, texturas, render targets e o contexto WebGL do perfil anterior.
+  let lastQ = state.settings.quality, pending = false; // a UI já carregou as opções salvas no init
+  const switchProfile = () => {
+    ctx.switching = true;
+    if (ctx.loop && ctx.loop.stop) ctx.loop.stop();
+    try { view.dispose(); } catch (e) { /* segue para o recarregamento */ }
+    const u = new URL(location.href); u.searchParams.delete('q'); u.searchParams.delete('aq');
+    if (!ctx.noReload) location.replace(u.toString());
+  };
+  const maybeSwitch = () => { if (pending && state.mode === 'MENU') switchProfile(); };
+  events.on(EV.SETTINGS_CHANGE, (p) => {
+    const q = p && p.quality;
+    if (q && q !== lastQ && q !== state.quality) { pending = true; maybeSwitch(); }
+    else if (q === state.quality) pending = false;
+    lastQ = q;
+  });
+  events.on(EV.STATE_CHANGE, (p) => { if (p.to === 'MENU') maybeSwitch(); });
+  if (view.hd) view.hd.onFallback = () => { // degrau final do ajuste automático do HD: volta para o leve (aviso pela UI)
+    pending = true;
+    events.emit(EV.QUALITY_FALLBACK, { from: 'hd', to: 'leve', fps: view.autoQuality ? view.autoQuality.fps : 0 });
+    maybeSwitch();
+  };
+  ctx.switchProfile = switchProfile;
   // gancho de depuração/testes (tools/smoke.cjs) e para inspeção no console
   window.__davi = ctx;
   return ctx;
