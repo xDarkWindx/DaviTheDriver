@@ -62,7 +62,12 @@
     .title { width: 19em; height: auto; display: block; filter: drop-shadow(.22em .22em 0 rgba(0,0,0,.5)); }
     .head-right { text-align: right; max-width: 30em; }
     .slogan { margin: 0 0 .7em; font-size: 1.05em; color: var(--paper); line-height: 1.35; }
-    .head-btns { display: flex; gap: .7em; justify-content: flex-end; }
+    .head-btns { display: flex; gap: .7em; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+    .gfx { display: flex; align-items: center; gap: .45em; padding: .2em .25em .2em .55em; border: .14em solid var(--ipe); background: var(--ink); }
+    .gfx-lab { font: 800 .72em ui-monospace, monospace; letter-spacing: .16em; color: var(--ipe); }
+    .gfx .seg-btn { padding: .35em .8em; font-size: .85em; }
+    .gfx .seg-btn.pending { animation: blink .6s steps(2) infinite; }
+    .gfx-why { display: block; margin-top: .3em; font-size: .72em; color: #ffb4a0; }
     .menu-main { display: grid; grid-template-columns: 16em 1fr; gap: 1.3em; align-items: start; }
     .menu h3, .pick > h3 { font-size: .78em; letter-spacing: .2em; color: var(--ipe); margin: 0 0 .5em; }
     .pick > h3:not(:first-child) { margin-top: .9em; }
@@ -351,6 +356,7 @@
       #ui-layer { font-size: max(9px, min(1.25vw, 2.45vh)); }
       .card-desc, .photo figcaption { display: none; }
       .slogan { margin-bottom: .3em; }
+      .head-btns { gap: .45em; } .gfx-lab { display: none; }
       /* balões abaixo da faixa dos avisos (no celular o balão só de gesto caía em cima do toast) */
       .bubbles { top: 7.2em; height: 10em; }
     }

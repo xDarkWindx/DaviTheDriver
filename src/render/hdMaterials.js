@@ -9,7 +9,11 @@ import { addOcclusionCut } from './materials.js';
 /** Uniforms compartilhados por TODOS os materiais HD (atualizados por render/hd.js a cada frame/horário). */
 export const HD = {
   uCloudTex: { value: null }, uCloudOff: { value: new THREE.Vector2() }, uCloudScale: { value: 1 / 300 }, uCloudAmt: { value: 0 },
-  uLamp: { value: 0.3 },   // multiplicador dos emissivos dos modelos (faróis/lanternas/luminárias): sobe no fim de tarde
+  uLamp: { value: 0.3 },
+  // reflexo do céu por material (envMapIntensity do material, que o three ignora com scene.environment): 1 = usa o fator do
+  // material (manhã: asfalto/chão quase sem céu, lataria/vidro com bastante), 0 = só o do cenário (fim de tarde, como estava)
+  uEnvTune: { value: 1 },
+  uTime: { value: 0 }, uWind: { value: 1 },  // balanço das folhas (HD.uWind = 0 desliga)   // multiplicador dos emissivos dos modelos (faróis/lanternas/luminárias): sobe no fim de tarde
   headlights: false,       // fim de tarde: cones de farol no asfalto (trânsito e jogador)
 };
 
@@ -75,16 +79,32 @@ export function applySurface(geometry, opts = {}) {
  */
 export function patchHD(mat, opts = {}) {
   const cloud = opts.cloud !== false;
+  const envK = mat.envMapIntensity ?? 1;
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
     sh.uniforms.uCloudTex = HD.uCloudTex; sh.uniforms.uCloudOff = HD.uCloudOff; sh.uniforms.uCloudScale = HD.uCloudScale;
-    sh.uniforms.uCloudAmt = HD.uCloudAmt; sh.uniforms.uLamp = HD.uLamp;
+    sh.uniforms.uCloudAmt = HD.uCloudAmt; sh.uniforms.uLamp = HD.uLamp; sh.uniforms.uEnvTune = HD.uEnvTune;
+    if (opts.wind) { sh.uniforms.uTime = HD.uTime; sh.uniforms.uWind = HD.uWind; }
     let vs = sh.vertexShader, fs = sh.fragmentShader;
     vs = vs.replace('#include <common>', `#include <common>
 varying vec3 vHdW;
 ${opts.masked ? 'attribute float paint;' : ''}
-${opts.surf ? 'attribute vec4 surf; varying vec4 vSurf;' : ''}`);
+${opts.surf ? 'attribute vec4 surf; varying vec4 vSurf;' : ''}
+${opts.wind ? 'attribute float wind; uniform float uTime; uniform float uWind;' : ''}`);
+    if (opts.wind) { // balanço das folhas: fase pela posição da instância (cada árvore balança diferente)
+      vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>
+  {
+    vec2 wph = vec2( 0.0 );
+    #ifdef USE_INSTANCING
+      wph = instanceMatrix[ 3 ].xz;
+    #endif
+    float wt = uTime * 1.5 + dot( wph, vec2( 0.13, 0.17 ) ) + position.y * 0.35;
+    float wa = wind * uWind;
+    transformed.x += wa * ( sin( wt ) * 0.05 + sin( wt * 2.7 + position.z * 3.0 ) * 0.02 );
+    transformed.z += wa * ( cos( wt * 0.8 ) * 0.04 + sin( wt * 3.1 + position.x * 3.0 ) * 0.02 );
+  }`);
+    }
     if (opts.masked) {
       vs = vs.replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.rgb *= instanceColor.rgb;', 'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, paint );'));
     }
@@ -119,8 +139,15 @@ ${opts.surf ? 'attribute vec4 surf; varying vec4 vSurf;' : ''}`);
     }
     fs = fs.replace('#include <common>', `#include <common>
 varying vec3 vHdW;
-uniform sampler2D uCloudTex; uniform vec2 uCloudOff; uniform float uCloudScale; uniform float uCloudAmt; uniform float uLamp;
+uniform sampler2D uCloudTex; uniform vec2 uCloudOff; uniform float uCloudScale; uniform float uCloudAmt; uniform float uLamp; uniform float uEnvTune;
 ${opts.surf ? 'varying vec4 vSurf;' : ''}`);
+    if (opts.foliage) { // cartões dupla-face com normal "esferizada": o verso não inverte a normal (sombreamento macio)
+      fs = fs.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+    }
+    if (envK !== 1 && fs.includes('#include <envmap_physical_pars_fragment>')) {
+      fs = fs.replace('#include <envmap_physical_pars_fragment>', THREE.ShaderChunk.envmap_physical_pars_fragment
+        .replaceAll('* envMapIntensity', `* ( envMapIntensity * mix( 1.0, ${envK.toFixed(3)}, uEnvTune ) )`));
+    }
     if (opts.surf) {
       fs = fs.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = vSurf.x;')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = vSurf.y;')
@@ -147,7 +174,7 @@ ${lfb}`);
     sh.vertexShader = vs; sh.fragmentShader = fs;
   };
   const ck = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
-  const key = `hd${opts.masked ? 'm' : ''}${opts.surf ? 's' : ''}${cloud ? 'c' : ''}${opts.road ? 'r' : ''}${opts.facade ? 'f' + opts.facade.tileW + 'x' + opts.facade.tileH : ''}${opts.key || ''}`;
+  const key = `hd${opts.masked ? 'm' : ''}${opts.surf ? 's' : ''}${cloud ? 'c' : ''}${opts.road ? 'r' : ''}${opts.wind ? 'w' : ''}${opts.foliage ? 'l' : ''}${opts.depthOnly ? 'd' : ''}${envK !== 1 ? 'e' + envK : ''}${opts.facade ? 'f' + opts.facade.tileW + 'x' + opts.facade.tileH : ''}${opts.key || ''}`;
   mat.customProgramCacheKey = () => ck() + '-' + key;
   return mat;
 }
@@ -165,13 +192,13 @@ export function hdMaskedMaterial(params = {}) {
 /** Lataria/vidros/pneus (jogador e trânsito): Physical com clearcoat (mascarado por surf.z). */
 export function hdVehicleMaterial(params = {}) {
   return patchHD(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.5, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06,
-    envMapIntensity: 1.0, ...params }), { masked: true, surf: true, key: 'veh' });
+    envMapIntensity: 1.7, ...params }), { masked: true, surf: true, key: 'veh' });
 }
 
 /** Vidro do carro do jogador: escuro e espelhado (reflexo do céu). */
 export function hdGlassMaterial() {
   return patchHD(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.04, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.02,
-    envMapIntensity: 1.3 }), { key: 'glass' });
+    envMapIntensity: 2.2 }), { key: 'glass' });
 }
 
 /** Fachada HD: textura repetida em metros + roughness/normal map (vidro liso e espelhado, parede fosca). */

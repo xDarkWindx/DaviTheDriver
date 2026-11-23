@@ -52,6 +52,7 @@ export class ChunkedInstancer {
         if (t.opts.renderOrder) mesh.renderOrder = t.opts.renderOrder;
         if (t.opts.castShadow) mesh.castShadow = true;
         if (t.opts.receiveShadow) mesh.receiveShadow = true;
+        if (t.opts.customDepthMaterial) mesh.customDepthMaterial = t.opts.customDepthMaterial; // sombra recortada (folhas HD)
         if (t.opts.visible === false) mesh.visible = false;
         if (t.opts.group) t.opts.group.push(mesh);
         this.scene.add(mesh);

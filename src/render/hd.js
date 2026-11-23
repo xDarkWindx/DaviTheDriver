@@ -13,20 +13,21 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { HD } from './hdMaterials.js';
 import { makeCloudTexture } from './textures.js';
 import { LIVE_SHADOW } from './materials.js';
+import { setLeafFraction } from '../world/hdTrees.js';
 
 /** Paleta HD por período (luzes, céu do environment map, exposição, cor e emissivos). */
 export const TIME_OF_DAY_HD = {
   manha: { // manhã clara e fria (ida)
-    hemiSky: 0xd6e8ff, hemiGround: 0xa07a52, hemiIntensity: 0.5,
-    sun: 0xfff3e2, sunIntensity: 2.7, sunDir: [0.55, 1.0, 0.45],
-    envTop: 0x3f86d8, envHorizon: 0xd2e6f6, envGround: 0x7a5a40, envSun: 0xfff0d8, envIntensity: 0.55,
-    exposure: 0.74, saturation: 1.2, tint: [0.99, 1.0, 1.02], haze: 0xdfe9f2, hazeAmt: 0.08,
+    hemiSky: 0xf1f0ea, hemiGround: 0xb08a5e, hemiIntensity: 0.62,
+    sun: 0xfff1dc, sunIntensity: 2.8, sunDir: [0.55, 1.0, 0.45],
+    envTop: 0x3f86d8, envHorizon: 0xd2e6f6, envGround: 0x7a5a40, envSun: 0xfff0d8, envIntensity: 0.5, envTune: 1,
+    exposure: 0.88, saturation: 1.2, tint: [1.02, 1.0, 0.97], haze: 0xe8ecec, hazeAmt: 0.07,
     clouds: 0.38, lamps: 0.1, fogSky: 0x9cc8ec,
   },
   tarde: { // fim de tarde dourado, sol baixo e sombras longas (volta)
     hemiSky: 0xffd7b0, hemiGround: 0x8a5a44, hemiIntensity: 0.62,
     sun: 0xffa95c, sunIntensity: 3.0, sunDir: [-0.9, 0.42, 0.3],
-    envTop: 0x5b78b8, envHorizon: 0xffc58a, envGround: 0x6e4430, envSun: 0xffa050, envIntensity: 0.62,
+    envTop: 0x5b78b8, envHorizon: 0xffc58a, envGround: 0x6e4430, envSun: 0xffa050, envIntensity: 0.62, envTune: 0,
     exposure: 0.98, saturation: 1.16, tint: [1.06, 0.99, 0.9], haze: 0xf2bf8c, hazeAmt: 0.08,
     clouds: 0.3, lamps: 2.4, fogSky: 0xf2a066,
   },
@@ -146,6 +147,9 @@ export function setupHD(view, quality) {
     tod: TIME_OF_DAY_HD.manha,
     render(cam) {
       renderer.info.reset();
+      const now = performance.now() / 1000;
+      HD.uTime.value = now;                                                       // vento nas folhas
+      HD.uCloudOff.value.set(now * 2.2 * HD.uCloudScale.value, now * 0.9 * HD.uCloudScale.value); // nuvens a ~2,4 m/s
       if (hd.post) { renderPass.camera = cam; composer.render(); }
       else renderer.render(scene, cam);
     },
@@ -164,7 +168,7 @@ export function setupHD(view, quality) {
       const hz = new THREE.Color(p.haze); final.uniforms.uHaze.value.set(hz.r, hz.g, hz.b); final.uniforms.uHazeAmt.value = pp.haze === false ? 0 : p.hazeAmt;
       renderer.toneMappingExposure = p.exposure * 1.0;
       HD.uCloudAmt.value = hd.cloudsOn ? p.clouds : 0;
-      HD.uLamp.value = p.lamps;
+      HD.uLamp.value = p.lamps; HD.uEnvTune.value = p.envTune ?? 0;
       HD.headlights = name === 'tarde' && !!quality.headlightDecals;
     },
     /** Degraus do ajuste automático do HD. 0 completo · 1 sem pós · 2 sombra reduzida · 3 resolução reduzida · 4 modo leve. */
@@ -179,6 +183,7 @@ export function setupHD(view, quality) {
       sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r; sc.updateProjectionMatrix();
       hd.texel = (r * 2) / sz;
       LIVE_SHADOW.traffic = !!quality.shadowTraffic && step < 2;
+      setLeafFraction(step >= 2 ? 0.55 : 1);
       hd.cloudsOn = !!cloudTex && step < 4;
       HD.uCloudAmt.value = hd.cloudsOn ? hd.tod.clouds : 0;
       const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;

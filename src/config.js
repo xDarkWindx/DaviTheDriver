@@ -91,7 +91,10 @@ export const QUALITY = {
     extraScenery: { tufts: 2.2, flowers: 1.0, mounds: 1.0, petals: true }, // M  decorativo (sem colisor): capim, flores, cupinzeiros, tapete de flor de ipê
     vehicleLOD: 'ultra',         // M  carrocerias com o dobro de estações, normais suavizadas (vinco 34°), rodas com mais segmentos
     landmarkLOD: 'ultra',        // M  marcos com o dobro de segmentos nas peças curvas
-    propLOD: 'ultra',            // M  copas de árvore subdivididas, irregulares e com oclusão por vértice
+    propLOD: 'ultra',            // M  copas de árvore subdivididas, irregulares e com oclusão por vértice (sem cartões)
+    treeLeafCards: 1.0,          // M  árvores estilizadas: multiplicador de cartões de folha por árvore (1 = ipê 340, mangueira 480,
+                                 //    jaqueira 400, cerrado 200, arbusto 100; palmeira = frondes); 0 = volta às copas 'ultra'.
+                                 //    O degrau "sombra reduzida" do ajuste automático desenha só 55% dos cartões.
     maxTrafficVehicles: 88,      // -  = leve (o pool entra na simulação; mudar mudaria o jogo)
     maxPedestrians: 24,          // -  = leve
     maxParticles: 1600,          // -  fx.js (poeira, fumaça, faíscas em pool aditivo à parte)

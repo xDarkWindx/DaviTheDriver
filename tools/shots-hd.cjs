@@ -15,6 +15,8 @@ const BASE = 'file://' + path.resolve(__dirname, '..', 'index.html');
 const SCENES = [
   ['01-largada-qrsw2-manha', 'casa-stj', 'davi', null, null, null, 0.5, null],
   ['02-av-jaqueiras', 'casa-stj', 'davi', 'seg:jaq_m', 0, 0, 4, null],
+  ['02b-parque-da-cidade', 'casa-stj', 'davi', 'seg:parque', 0, 0, 4, null],
+  ['02c-sudoeste', 'casa-stj', 'davi', 'seg:rua_q34', 0, 0, 4, null],
   ['03-eixo-transito', 'casa-stj', 'davi', -600, 43, Math.PI / 2, 8, null],
   ['04-scs-manha', 'casa-stj', 'davi', -150, 238, 1.65, 6, null],
   ['05-rotatoria-stj-manha', 'casa-stj', 'davi', 'R_STJ1', 0, 0, 6, null],
@@ -34,7 +36,7 @@ async function shoot(browser, q) {
   await page.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
   await page.waitForTimeout(1500);
   const out = {};
-  if (!FILTER || 'menu'.includes(FILTER)) out['00-menu'] = await page.screenshot({ type: 'png' });
+  if (!FILTER || 'menu'.includes(FILTER)) out['00-menu'] = await page.screenshot({ type: 'png', timeout: 180000 });
   await page.evaluate(() => { const c = window.__davi; c.loop.stop(); });
   for (const [name, route, mode, x, z, h, secs, view] of SCENES) {
     if (FILTER && !name.includes(FILTER)) continue;
@@ -65,6 +67,16 @@ async function shoot(browser, q) {
     out[name] = Buffer.from(shot.url.split(',')[1], 'base64');
     console.log(q.padEnd(5), name.padEnd(26), JSON.stringify({ calls: shot.calls, tris: shot.tris }));
   }
+  if (q === 'hd' && (!FILTER || 'arvores'.includes(FILTER))) { // close de cada espécie (HD), câmera de jogo (isométrica)
+    const trees = await page.evaluate(() => {
+      const c = window.__davi; c.game.startTrip('casa-stj', 'davi');
+      const list = c.world.debugTrees(-700, -200, 14), out = [];
+      for (const t of list) { c.cameraRig.lookAt(t.x, t.z + 1, 16); for (let i = 0; i < 2; i++) c.game.frame(0.016, 1); out.push([t.type, c.view.renderer.domElement.toDataURL('image/png')]); }
+      c.cameraRig.lookAt(-700 + 3.5 * 14, -200, 60); for (let i = 0; i < 2; i++) c.game.frame(0.016, 1); out.push(['todas', c.view.renderer.domElement.toDataURL('image/png')]);
+      return out;
+    });
+    trees.forEach(([n, u], i) => fs.writeFileSync(path.join(OUT, `arvore-${i}-${n}.png`), Buffer.from(u.split(',')[1], 'base64')));
+  }
   const relevant = errors.filter((e) => !/GPU stall|WebGL-|swiftshader|Automatic fallback/i.test(e));
   if (relevant.length) console.log(`[${q}] console:\n` + relevant.join('\n'));
   await page.close();
@@ -73,8 +85,13 @@ async function shoot(browser, q) {
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const leve = await shoot(browser, 'leve');
-  const hd = await shoot(browser, 'hd');
+  const only = process.env.PROFILES ? process.env.PROFILES.split(',') : ['leve', 'hd'];
+  const leve = only.includes('leve') ? await shoot(browser, 'leve') : {};
+  const hd = only.includes('hd') ? await shoot(browser, 'hd') : {};
+  if (!only.includes('leve') || !only.includes('hd')) { // só um perfil: grava sem compor pares
+    for (const [q, set] of [['leve', leve], ['hd', hd]]) for (const n of Object.keys(set)) fs.writeFileSync(path.join(OUT, `${n}-${q}.png`), set[n]);
+    await browser.close(); return;
+  }
   // lado a lado (compõe no próprio Chromium)
   const page = await browser.newPage();
   for (const name of Object.keys(hd)) {

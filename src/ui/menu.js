@@ -24,6 +24,19 @@ export class Menu {
     const hb = el('div', 'head-btns', hr);
     const b1 = el('button', 'btn', hb, 'COMO JOGAR'); b1.dataset.testid = 'btn-howto'; b1.onclick = () => h.howto();
     const b2 = el('button', 'btn', hb, 'OPÇÕES'); b2.dataset.testid = 'btn-options'; b2.onclick = () => h.options();
+    // seletor de gráficos (LOW = perfil 'leve'; HD = placa dedicada). A troca recarrega o jogo preservando as escolhas.
+    const st = ctx.state, sup = st.hdSupport, hdOk = !sup || sup.ok;
+    const gfx = el('div', 'gfx', hb); gfx.setAttribute('role', 'group'); gfx.setAttribute('aria-label', 'Gráficos');
+    el('span', 'gfx-lab', gfx, 'GRÁFICOS');
+    const seg = el('div', 'seg', gfx);
+    this.gfxLow = el('button', 'seg-btn', seg, 'LOW'); this.gfxLow.dataset.testid = 'gfx-low'; this.gfxLow.type = 'button';
+    this.gfxLow.title = 'LOW: leve, para gráficos integrados';
+    this.gfxHd = el('button', 'seg-btn', seg, 'HD'); this.gfxHd.dataset.testid = 'gfx-hd'; this.gfxHd.type = 'button';
+    this.gfxHd.title = hdOk ? 'HD: sombras, reflexos e pós-processamento — para placa de vídeo dedicada' : 'HD indisponível: ' + (sup.reason || 'sem WebGL2');
+    this.gfxHd.disabled = !hdOk;
+    if (!hdOk) { const w = el('small', 'gfx-why', hr, 'HD indisponível: ' + (sup.reason || 'sem WebGL2')); w.dataset.testid = 'gfx-why'; }
+    this.gfxLow.onclick = () => h.quality && h.quality('leve');
+    this.gfxHd.onclick = () => { if (hdOk && h.quality) h.quality('hd'); };
 
     const main = el('div', 'menu-main', cab);
 
@@ -91,6 +104,13 @@ export class Menu {
   select(patch) { Object.assign(this.sel, patch); saveSelection(this.sel); this.refresh(); }
 
   refresh() {
+    if (this.gfxLow) {
+      const q = this.ctx.state.settings.quality, run = this.ctx.state.quality;
+      for (const [b, id] of [[this.gfxLow, 'leve'], [this.gfxHd, 'hd']]) {
+        b.classList.toggle('sel', run === id); b.setAttribute('aria-pressed', run === id); // perfil em uso
+        b.classList.toggle('pending', q === id && run !== id); // escolhido, aplica ao recarregar (pisca)
+      }
+    }
     for (const k in this.modeBtns) { const on = k === this.sel.mode; this.modeBtns[k].classList.toggle('sel', on); this.modeBtns[k].setAttribute('aria-pressed', on); }
     for (const k in this.routeBtns) { const on = k === this.sel.route; this.routeBtns[k].classList.toggle('sel', on); this.routeBtns[k].setAttribute('aria-pressed', on); }
     const r = getRecord(this.sel.mode, this.sel.route);

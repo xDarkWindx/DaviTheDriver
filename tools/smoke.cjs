@@ -243,20 +243,23 @@ const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
     await hp.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
     await hp.waitForTimeout(800);
     const seq = [await mem()], after = [];
+    const gfxSel = async () => hp.evaluate(() => ['low', 'hd'].filter((k) => document.querySelector(`[data-testid="gfx-${k}"]`).classList.contains('sel')).join());
+    let k = 0;
     for (const target of ['hd', 'leve', 'hd', 'leve']) {
       await hp.evaluate(() => { window.__davi.noReload = true; });
-      await hp.click('[data-testid="btn-options"]');
-      await hp.click(`[data-testid="opt-q-${target}"]`, { timeout: 60000 });
+      if (k++ % 2 === 0) await hp.click(`[data-testid="gfx-${target === 'leve' ? 'low' : 'hd'}"]`, { timeout: 60000 }); // seletor do menu
+      else { await hp.click('[data-testid="btn-options"]'); await hp.click(`[data-testid="opt-q-${target}"]`, { timeout: 60000 }); } // Opções
       after.push(await hp.evaluate(() => { const m = window.__davi.view.renderer.info.memory; return { switching: !!window.__davi.switching, geos: m.geometries, tex: m.textures }; }));
       await hp.goto(URL, { timeout: 120000 });
       await hp.waitForFunction(() => window.__davi && window.__davi.state.mode === 'MENU', null, { timeout: 120000 });
       await hp.waitForTimeout(800);
-      seq.push(await mem());
+      seq.push({ ...(await mem()), gfx: await gfxSel() });
     }
     console.log('troca de perfil (memória no menu):', JSON.stringify(seq), ' depois do dispose:', JSON.stringify(after));
     const same = (a, b) => a.q === b.q && a.geos === b.geos && a.tex === b.tex;
     results.push({ mode: 'troca-perfil-memoria', ok: seq.map((s) => s.q).join() === 'leve,hd,leve,hd,leve' && same(seq[0], seq[2]) && same(seq[2], seq[4])
-      && same(seq[1], seq[3]) && after.every((a) => a.switching && a.geos === 0 && a.tex === 0) });
+      && same(seq[1], seq[3]) && after.every((a) => a.switching && a.geos === 0 && a.tex === 0)
+      && seq.slice(1).every((x) => x.gfx === (x.q === 'hd' ? 'hd' : 'low')) });
     const trel = herr.filter((e) => !isIgnorable(e)).slice(hrel.length);
     if (trel.length) errors.push(...trel);
     await hctx.close();

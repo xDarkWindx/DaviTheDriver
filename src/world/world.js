@@ -17,6 +17,7 @@ import { VEHICLES } from '../config.js';
 import { hdMaskedMaterial, hdFacadeMaterial, hdStandard, patchHD, applySurface, hdVehicleMaterial } from '../render/hdMaterials.js';
 import { makeNormalMapFrom, makeRoughnessMapFrom } from '../render/textures.js';
 import { buildHdScenery, moundGeometry, makePetalTexture } from './hdScenery.js';
+import { makeLeafAtlas, hdTreeGeometry, hdTreeMaterials, TREE_LOD } from './hdTrees.js';
 import { buildVehicleModel, buildTrafficModel, buildPersonModel, makeVehicleMaterial, TRAFFIC_MODELS } from '../player/vehicleModels.js';
 
 // Placas verdes de via (texto pt-BR) e letreiros. Atlas único => 1 draw call.
@@ -108,10 +109,19 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   // vegetação por espécie e mobiliário (geometria mesclada; a cor da instância tinge só a copa/“tinta”)
   const masked = hd ? hdMaskedMaterial() : makeMaskedMaterial('lambert');
   const plod = hd ? (quality.propLOD || 'high') : 'high';
+  // HD (treeLeafCards > 0): árvores estilizadas de cartões de folha (world/hdTrees.js); mesmas instâncias/posições/colisores
+  const leafy = hd && quality.treeLeafCards > 0;
+  const treeMats = leafy ? hdTreeMaterials(makeLeafAtlas(512, AN)) : null;
+  if (leafy) TREE_LOD.list.length = 0;
   for (const [type, prop, opt] of [['tree_ipe', 'ipe'], ['tree_mangueira', 'mangueira'], ['tree_jaqueira', 'jaqueira'], ['tree_palmeira', 'palmeira'],
     ['tree_cerrado', 'cerrado'], ['tree_arbusto', 'arbusto', true], ['poste', 'poste'], ['poste2', 'poste2'], ['banco', 'banco', true],
     ['lixeira', 'lixeira', true], ['postePlaca', 'postePlaca'], ['abrigo', 'abrigo']]) {
-    inst.registerType(type, propGeometry(prop, plod).geometry, masked, { ...cast, castShadow: shadowMap && (!opt || hd), group: opt ? view.lod.optional : null });
+    const o = { ...cast, castShadow: shadowMap && (!opt || hd), group: opt ? view.lod.optional : null };
+    if (leafy && type.startsWith('tree_')) {
+      const t = hdTreeGeometry(prop, quality.treeLeafCards);
+      TREE_LOD.list.push(t);
+      inst.registerType(type, t.geometry, treeMats.mat, { ...o, customDepthMaterial: treeMats.depth });
+    } else inst.registerType(type, propGeometry(prop, plod).geometry, masked, o);
   }
   if (hd) {
     // metais (guard-rails), lataria dos carros parados, cupinzeiros e tapete de flor de ipê (só HD)
@@ -131,7 +141,8 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const gw = B.maxX - B.minX + 1600, gh = B.maxZ - B.minZ + 1600;
   gTex.repeat.set(gw / 48, gh / 48);
   const gExtra = {};
-  if (hd && quality.surfaceMaps) { gExtra.normalMap = makeNormalMapFrom(gTex, 1.6, AN); gExtra.normalMap.repeat.copy(gTex.repeat); gExtra.normalScale = new THREE.Vector2(0.35, 0.35); }
+  // chão do cerrado: sem normal map (o relevo realçava os riscos de capim da textura em estrias)
+  if (hd) gExtra.envMapIntensity = 0.55;
   const groundMat = makeMaterial(quality, { map: gTex, color: 0xffffff, ...gExtra });
   view.tintables.push(groundMat);
   // plano subdividido com variação de cor em grande escala (capim mais verde/seco, terra) — sem cortes retos
@@ -159,7 +170,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
   const aExtra = {};
   if (hd && quality.surfaceMaps) { // asfalto: rugosidade variada (óleo/trilha de pneu mais lisos) + agregado em relevo
     aExtra.roughnessMap = makeRoughnessMapFrom(aTex, (r, g, b) => 0.58 + 0.38 * ((r + g + b) / 765), AN);
-    aExtra.normalMap = makeNormalMapFrom(aTex, 2.2, AN); aExtra.normalScale = new THREE.Vector2(0.55, 0.55); aExtra.roughness = 1; aExtra.envMapIntensity = 0.45; // menos céu azul refletido no asfalto
+    aExtra.normalMap = makeNormalMapFrom(aTex, 2.2, AN); aExtra.normalScale = new THREE.Vector2(0.55, 0.55); aExtra.roughness = 1; aExtra.envMapIntensity = 0.3; // menos céu azul refletido no asfalto
   }
   const roadMat = makeMaterial(quality, { vertexColors: true, map: aTex, ...aExtra }, { road: true });
   buildRoadMeshes(net, mb, inst, plain, walk);
@@ -200,7 +211,7 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
 
   const grassTex = makeGrassTexture(S, AN), walkTex = makeSidewalkTexture(S, AN);
   const surfMaps = (t, nk, rf) => (hd && quality.surfaceMaps ? { normalMap: makeNormalMapFrom(t, nk, AN), normalScale: new THREE.Vector2(0.6, 0.6),
-    roughnessMap: rf ? makeRoughnessMapFrom(t, rf, AN) : null, roughness: rf ? 1 : 0.92 } : {});
+    roughnessMap: rf ? makeRoughnessMapFrom(t, rf, AN) : null, roughness: rf ? 1 : 0.92, envMapIntensity: 0.55 } : {});
   const grassMat = makeMaterial(quality, { vertexColors: true, map: grassTex, ...surfMaps(grassTex, 1.3, null) });
   const walkMat = makeMaterial(quality, { vertexColors: true, map: walkTex, ...surfMaps(walkTex, 2.2, (r, g, b) => 0.6 + 0.3 * ((r + g + b) / 765)) });
   const groundMeshes = [...mb.build(scene, roadMat, 'roads', 12, shadowMap), ...plain.build(scene, grassMat, 'lawns', 9, shadowMap),
@@ -214,6 +225,21 @@ export function buildWorld({ view, net, quality, events, cameraDir }) {
     materials: { lambertVC, instMat, roadMat, groundMat, blobMat, masked },
     blobTexture: blobTex,
     chunkSize: chunk,
+    /** Vitrine de árvores (tools/shots-hd.cjs): uma de cada espécie em linha a partir de (x, z), a cada `gap` m. */
+    debugTrees(x, z, gap = 12) {
+      const g = new THREE.Group(); g.name = 'tree-showcase';
+      const list = [['tree_ipe', 0xf5c518], ['tree_ipe', 0xec78ae], ['tree_ipe', 0xf6f2ec], ['tree_mangueira', 0x4a7c34], ['tree_jaqueira', 0x33632e],
+        ['tree_cerrado', 0x7c8a40], ['tree_palmeira', 0x6c9a3e], ['tree_arbusto', 0x6f9440]];
+      const _m = new THREE.Matrix4();
+      list.forEach(([type, col], i) => {
+        const t = inst.types.get(type), im = new THREE.InstancedMesh(t.geometry, t.material, 1);
+        _m.makeRotationY(i * 0.7).setPosition(x + i * gap, 0, z); im.setMatrixAt(0, _m); im.setColorAt(0, new THREE.Color(col));
+        im.castShadow = im.receiveShadow = shadowMap; if (t.opts.customDepthMaterial) im.customDepthMaterial = t.opts.customDepthMaterial;
+        g.add(im);
+      });
+      scene.add(g);
+      return list.map(([type], i) => ({ type, x: x + i * gap, z }));
+    },
     /** Vitrine de depuração (tools/shots.cjs): carros do jogador, modelos de tráfego e pessoas lado a lado em (x, z). */
     debugShowcase(x, z) {
       const g = new THREE.Group(); g.name = 'showcase';

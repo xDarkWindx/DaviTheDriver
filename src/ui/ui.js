@@ -54,7 +54,8 @@ export default {
     this.options = buildOptions(layer, st.settings, this.applySetting, st);
     this.modals = [this.howto, this.options];
     const start = (routeId, mode) => ev.emit(EV.REQ_START, { routeId, mode });
-    this.menu = new Menu(layer, ctx, this.sel, { start, howto: () => this.howto.open(), options: () => { this.options.sync(); this.options.open(); } });
+    this.menu = new Menu(layer, ctx, this.sel, { start, howto: () => this.howto.open(), options: () => { this.options.sync(); this.options.open(); },
+      quality: (q) => { this.applySetting('quality', q); this.menu.refresh(); this.options.sync(); } });
     this.hud = new Hud(layer, ctx);
     this._buildPause(layer);
     this.end = el('div', 'screen end', layer); this.end.dataset.testid = 'end';

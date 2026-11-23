@@ -67,11 +67,11 @@ export function buildOptions(layer, settings, apply, state = null) {
   const labQ = el('span', 'opt-lab', rowQ, 'Qualidade gráfica');
   const sup = state && state.hdSupport;
   const hdOk = !sup || sup.ok;
-  const qHint = el('small', 'opt-hint', labQ, hdOk ? 'HD é para placa de vídeo dedicada; a troca recarrega o jogo'
+  const qHint = el('small', 'opt-hint', labQ, hdOk ? 'LOW = leve (gráficos integrados); HD = placa de vídeo dedicada. A troca recarrega o jogo'
     : 'HD indisponível aqui: ' + (sup.reason || 'sem WebGL2'));
   qHint.dataset.testid = 'opt-q-hint';
   const seg = el('div', 'seg', rowQ);
-  const leve = el('button', 'seg-btn', seg, 'LEVE'); leve.dataset.testid = 'opt-q-leve';
+  const leve = el('button', 'seg-btn', seg, 'LOW'); leve.title = 'LOW: leve, para gráficos integrados'; leve.dataset.testid = 'opt-q-leve';
   const hd = el('button', 'seg-btn', seg, 'HD'); hd.dataset.testid = 'opt-q-hd';
   hd.title = hdOk ? 'Sombras, reflexos e pós-processamento: para placa de vídeo dedicada' : 'Indisponível: ' + (sup.reason || 'sem WebGL2');
   hd.disabled = !hdOk;
@@ -98,8 +98,8 @@ export function buildOptions(layer, settings, apply, state = null) {
     hd.classList.toggle('sel', settings.quality === 'hd');
     if (hdOk && state && state.quality) {
       qHint.textContent = settings.quality !== state.quality
-        ? (state.mode === 'MENU' ? 'recarregando com o novo perfil…' : `muda para ${settings.quality === 'hd' ? 'HD' : 'Leve'} ao voltar ao menu`)
-        : 'HD é para placa de vídeo dedicada; a troca recarrega o jogo';
+        ? (state.mode === 'MENU' ? 'recarregando com o novo perfil…' : `muda para ${settings.quality === 'hd' ? 'HD' : 'LOW'} ao voltar ao menu`)
+        : 'LOW = leve (gráficos integrados); HD = placa de vídeo dedicada. A troca recarrega o jogo';
     }
     const qa = state && state.qualityAuto;
     autoTxt.textContent = qa ? `degrau ${qa.step} de ${qa.max ?? 3} · ${qa.label}${qa.fps ? ` · ${Math.round(qa.fps)} FPS` : ''}` : '—';
